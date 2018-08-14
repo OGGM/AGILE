@@ -46,7 +46,7 @@ arderin.name = 'Slieve'
 arderin.extent = np.array([[-7.78, 52.99],[-7.40, 53.16]])
 arderin.ela_h = 400
 arderin.mb_grad = 3.
-arderin.dx = 300
+arderin.dx = 400  # TODO: change back to 300 after testing
 arderin.smooth_border_px = 2
 
 # Khangai, Mognolia, p. 977 in Quaternary glaciation,
