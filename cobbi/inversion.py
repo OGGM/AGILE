@@ -19,9 +19,13 @@ from cobbi.utils.synthetic_ice_caps \
     import define_nonrgi_glacier_region, smooth_dem_borders
 from cobbi.utils.massbalance_pytorch \
     import LinearMassBalance
-from cobbi.inversion import first_guess
+#from cobbi.inversion import first_guess
 
-
+extended_logging_in_cost_function = True
+costs = []
+grads = []
+beds = []
+surfs = []
 
 def first_thickness_guess(obs_surf, ice_mask, map_dx, smoothing=None):
     # TODO: multiple first guess possibilites imaginable, make them available?
@@ -68,6 +72,7 @@ def moving_average(arr, n):
     ret[n:] = ret[n:] - ret[:-n]
     return ret[::-1] / n
 
+
 def RMSE(arr1, arr2):
     return np.sqrt(np.mean((arr1 - arr2)**2))
 
@@ -111,7 +116,7 @@ def spin_up(case, y_spinup_end, y_end):
 
 
 def create_cost_function(spinup_surface, surface_to_match, dx, mb,
-                         y_spinup_end, y_end):
+                         y_spinup_end, y_end, lamb1=0., lamb2=0.):
     # define cost_function
     def cost_function(b):
         bed = torch.tensor(b.reshape(spinup_surface.shape), dtype=torch.float,
@@ -123,6 +128,17 @@ def create_cost_function(spinup_surface, surface_to_match, dx, mb,
         model.run_until(y_end)
         s = model.surface_h
         cost = (surface_to_match - s).pow(2).sum()
+        if lamb1 != 0:
+            it = s - bed
+            dit_dx = (it[:, :-1] - it[:, 1:]) / dx
+            dit_dy = (it[:-1, :] - it[1:, :]) / dx
+            cost = cost + lamb1 * ((dit_dx).pow(2).sum() + dit_dy.pow(2).sum())
+
+        if lamb2 != 0:
+            db_dx = (bed[:, :-1] - bed[:, 1:]) / dx
+            db_dy = (bed[:-1, :] - bed[1:, :]) / dx
+            cost = cost + lamb2 * ((db_dx).pow(2).sum() + db_dy.pow(2).sum())
+
         cost.backward()
         with torch.no_grad():
             grad = bed.grad
@@ -138,3 +154,65 @@ def get_first_guess(reference_surf, ice_mask, dx):
                         ice_mask.clone().detach().numpy(),
                         dx)
     return torch.tensor(bed_0, dtype=torch.float, requires_grad=True)
+
+
+def create_cost_function_true_surf(spinup_surface, surface_to_match, ice_mask,
+                                   dx, mb, y_spinup_end, y_end, lamb1=0.,
+                                   lamb2=0., lamb3=0., lamb4=0.,
+                                   return_calculated_surface=False):
+    ice_mask = torch.tensor(ice_mask, dtype=torch.float)
+
+    # define cost_function
+    def cost_function(b):
+        bed = torch.tensor(b.reshape(spinup_surface.shape), dtype=torch.float,
+                           requires_grad=True)
+        init_ice_thick = spinup_surface - bed
+        model = Upstream2D(bed, dx=dx, mb_model=mb, y0=y_spinup_end,
+                           glen_a=cfg.A, ice_thick_filter=None,
+                           init_ice_thick=init_ice_thick)
+        model.run_until(y_end)
+        s = model.surface_h
+        cost = ((surface_to_match - s) * ice_mask).pow(2).sum()
+        if lamb1 != 0:
+            it = (s - bed) * ice_mask
+            dit_dx = (it[:, :-1] - it[:, 1:]) / dx
+            dit_dy = (it[:-1, :] - it[1:, :]) / dx
+            cost = cost + lamb1 * (dit_dx.pow(2).sum() + dit_dy.pow(2).sum())
+
+        if lamb2 != 0:
+            bed_restr = bed * ice_mask
+            db_dx = (bed_restr[:, :-1] - bed_restr[:, 1:]) / dx
+            db_dy = (bed_restr[:-1, :] - bed_restr[1:, :]) / dx
+            cost = cost + lamb2 * (db_dx.pow(2).sum() + db_dy.pow(2).sum())
+
+        if lamb3 != 0:
+            # penalizes ice thickness != 0, where ice thickness should be 0
+            cost = cost + \
+                   lamb3 * ((s - bed) * (1. - ice_mask)).pow(2).sum()
+
+        if lamb4 != 0:
+            # penalizes bed != reference surf where we know about the bed
+            # height because of ice thickness == 0
+            cost = cost + \
+                   lamb4 * \
+                   ((surface_to_match - bed) * (1. - ice_mask)).pow(2).sum()
+
+        cost.backward()
+        with torch.no_grad():
+            grad = bed.grad
+            grad = grad.detach().numpy().flatten().astype(np.float64)
+            bed.grad.zero_()
+            cost = cost.detach().numpy().astype(np.float64)
+
+        if extended_logging_in_cost_function:
+            costs.append(cost)
+            grads.append(grad)
+            beds.append(bed.detach().numpy())
+            surfs.append(s.detach().numpy())
+
+        if return_calculated_surface:
+            return cost, grad, s.detach().numpy()
+        else:
+            return cost, grad
+
+    return cost_function
