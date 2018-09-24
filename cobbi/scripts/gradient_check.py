@@ -17,6 +17,8 @@ from cobbi.utils.massbalance_pytorch \
     import LinearMassBalance
 from cobbi.inversion import first_guess
 
+import numpy as np
+
 # Initialize OGGM and set up the default run parameters
 cfg.initialize()
 
@@ -80,7 +82,6 @@ b_0 = torch.tensor(bed_0, dtype=torch.float, requires_grad=False)
 
 # #################################################
 # finite difference gradient
-import numpy as np
 dbs = [1e1, 1e0, 1e-1, 1e-2, 1e-3, 1e-4]
 rel_diff1 = []
 rel_diff2 = []

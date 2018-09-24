@@ -60,7 +60,7 @@ class NonRGIGlacierDirectory(GlacierDirectory):
         # TODO
         self.rgi_id = 'RGI00-00.00000'
         self.glims_id = '00'
-        self.rgi_area_km2 = 0.
+        #self.rgi_area_km2 = 0.rgi_area_km2
         self.cenlon = (entity['max_x'] + entity['min_x']) / 2.
         self.cenlat = (entity['max_y'] + entity['min_y']) / 2.
         self.rgi_region = '00'

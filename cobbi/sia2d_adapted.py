@@ -292,30 +292,12 @@ class Upstream2D(Model2D):
         self.Ly = 0.5 * (self.ny - 1) * self.dy
 
         # Some indices
-        self.k = np.arange(0, self.ny)
-        self.kp = np.hstack([np.arange(1, self.ny), self.ny - 1])
-        self.km = np.hstack([0, np.arange(0, self.ny - 1)])
-        self.l = np.arange(0, self.nx)
-        self.lp = np.hstack([np.arange(1, self.nx), self.nx - 1])
-        self.lm = np.hstack([0, np.arange(0, self.nx - 1)])
-        # TODO
-        #self.H_upstream_up = torch.empty((self.ny, self.nx),
-        #                                 dtype=torch.float,
-        #                                 requires_grad=False)
-        #self.H_upstream_dn = torch.empty((self.ny, self.nx),
-        #                                 dtype=torch.float,
-        #                                 requires_grad=False)
-
-        # Easy optimisation
-        self._ixklp = ix_(self.k, self.lp)
-        self._ixkl = ix_(self.k, self.l)
-        self._ixklm = ix_(self.k, self.lm)
-        self._ixkpl = ix_(self.kp, self.l)
-        self._ixkml = ix_(self.km, self.l)
-        self._ixkplp = ix_(self.kp, self.lp)
-        self._ixkplm = ix_(self.kp, self.lm)
-        self._ixkmlm = ix_(self.km, self.lm)
-        self._ixkmlp = ix_(self.km, self.lp)
+        #self.k = np.arange(0, self.ny)
+        #self.kp = np.hstack([np.arange(1, self.ny), self.ny - 1])
+        #self.km = np.hstack([0, np.arange(0, self.ny - 1)])
+        #self.l = np.arange(0, self.nx)
+        #self.lp = np.hstack([np.arange(1, self.nx), self.nx - 1])
+        #self.lm = np.hstack([0, np.arange(0, self.nx - 1)])
 
     def diffusion_upstream_2d(self):
         # Builded upon the Eq. (62) with the term in y in the diffusivity.
@@ -326,22 +308,22 @@ class Upstream2D(Model2D):
         S = self.surface_h
 
         # Optim
-        S_ixklp = S[self._ixklp]
-        S_ixkl = S[self._ixkl]
-        S_ixklm = S[self._ixklm]
-        S_ixkml = S[self._ixkml]
-        S_ixkpl = S[self._ixkpl]
-        S_ixkplp = S[self._ixkplp]
-        S_ixkplm = S[self._ixkplm]
-        S_ixkmlm = S[self._ixkmlm]
-        S_ixkmlp = S[self._ixkmlp]
+        S_ixklp = S[1:self.ny-1, 2:self.nx]
+        S_ixkl = S[1:self.ny-1, 1:self.nx-1]
+        S_ixklm = S[1:self.ny-1, 0:self.nx-2]
+        S_ixkml = S[0:self.ny-2, 1:self.nx-1]
+        S_ixkpl = S[2:self.ny, 1:self.nx-1]
+        S_ixkplp = S[2:self.ny, 2:self.nx]
+        S_ixkplm = S[2:self.ny, 0:self.nx-2]
+        S_ixkmlm = S[0:self.ny-2, 0:self.nx-2]
+        S_ixkmlp = S[0:self.ny-2, 2:self.nx]
 
-        Hl = H[self._ixkl]
-        Hlp = H[self._ixklp]
-        Hlm = H[self._ixklm]
+        Hl = H[1:self.ny-1, 1:self.nx-1]
+        Hlp = H[1:self.ny-1, 2:self.nx]
+        Hlm = H[1:self.ny-1, 0:self.nx-2]
         Hk = Hl
-        Hkp = H[self._ixkpl]
-        Hkm = H[self._ixkml]
+        Hkp = H[2:self.ny, 1:self.nx-1]
+        Hkm = H[0:self.ny-2, 1:self.nx-1]
 
         # --- all the l components
 
@@ -349,18 +331,13 @@ class Upstream2D(Model2D):
         H_l_up = 0.5 * (Hlp + Hl)
         H_l_dn = 0.5 * (Hl + Hlm)
 
-        H_l_upstream_up = torch.where(S_ixklp > S_ixkl, Hlp, Hl)
-        #H_l_upstream_up[gt] = Hlp[gt]
-        #H_l_upstream_up[~gt] = Hl[~gt]
-
-        H_l_upstream_dn = torch.where(S_ixkl > S_ixklm, Hl, Hlm)
-        #H_l_upstream_dn[gt] = Hl[gt]
-        #H_l_upstream_dn[~gt] = Hlm[~gt]
-
         # applying Eq. (62) to the scheme
         S_diff = S_ixkpl - S_ixkml
         S_lpdiff = S_ixklp - S_ixkl
         S_lmdiff = S_ixkl - S_ixklm
+        H_l_upstream_up = torch.where(S_lpdiff > 0, Hlp, Hl)
+        H_l_upstream_dn = torch.where(S_lmdiff > 0, Hl, Hlm)
+
         s_l_grad_up = (((S_diff + S_ixkplp - S_ixkmlp)
                         ** 2. / (4 * self.dx) ** 2.) +
                        (S_lpdiff ** 2. / self.dy ** 2.)) ** ((self.N - 1.) / 2.)
@@ -377,18 +354,14 @@ class Upstream2D(Model2D):
         H_k_up = 0.5 * (Hkp + Hl)
         H_k_dn = 0.5 * (Hl + Hkm)
 
-        H_k_upstream_up = torch.where(S_ixkpl > S_ixkl, Hkp, Hk)
-        #H_k_upstream_up[gt] = Hkp[gt]
-        #H_k_upstream_up[~gt] = Hk[~gt]
-
-        H_k_upstream_dn = torch.where(S_ixkl > S_ixkml, Hk, Hkm)
-        #H_k_upstream_dn[gt] = Hk[gt]
-        #H_k_upstream_dn[~gt] = Hkm[~gt]
-
         # applying Eq. (62) to the scheme
         S_diff = S_ixklp - S_ixklm
         S_kpdiff = S_ixkpl - S_ixkl
         S_kmdiff = S_ixkl - S_ixkml
+
+        H_k_upstream_up = torch.where(S_kpdiff > 0, Hkp, Hk)
+        H_k_upstream_dn = torch.where(S_kmdiff > 0, Hk, Hkm)
+
         s_k_grad_up = (((S_diff + S_ixkplp - S_ixkplm)
                         ** 2. / (4 * self.dy) ** 2.) +
                        (S_kpdiff ** 2. / self.dx ** 2.)) ** ((self.N - 1.) / 2.)
@@ -428,9 +401,12 @@ class Upstream2D(Model2D):
                                                     requires_grad=False)),
                              0., self.max_dt.item())
 
-        self.ice_thick = torch.clamp(self.surface_h +
-                                     (self.get_mb() + div_q) * dt_use -
-                                     self.bed_topo, min=0)
+        self.ice_thick[1:-1, 1:-1] = torch.clamp(
+            self.surface_h[1:-1, 1:-1] +
+            (self.get_mb()[1:-1, 1:-1] +
+             div_q) * dt_use -
+            self.bed_topo[1:-1, 1:-1],
+            min=0)
 
         # Next step
         self.t = self.t + dt_use
@@ -458,12 +434,4 @@ def floatyear_to_date(yr):
         out_y += 1
         sec = torch.tensor(0.)
     out_m = (sec / SEC_IN_MONTH).type(torch.IntTensor) + 1
-    #except TypeError:
-    #    # TODO: inefficient but no time right now
-    #    out_y = np.zeros(len(yr), np.int64)
-    #    out_m = np.zeros(len(yr), np.int64)
-    #    for i, y in enumerate(yr):
-    #        y, m = floatyear_to_date(y)
-    #        out_y[i] = y
-    #        out_m[i] = m
     return out_y, out_m

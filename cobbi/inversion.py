@@ -1,11 +1,10 @@
 import numpy as np
-from oggm.cfg import RHO, G
 
 import torch
 torch.utils.backcompat.broadcast_warning.enabled = True
 # import matplotlib.pyplot as plt
 
-from cobbi.sia2d_pytorch_full import Upstream2D
+from cobbi.sia2d_adapted import Upstream2D
 # from cobbi.sia2d_pytorch_full import Upstream2D as Up2D
 # from cobbi.utils import test_cases
 from oggm import cfg
@@ -54,7 +53,7 @@ def first_guess(surf, ice_mask, map_dx, slope_cutoff_angle=5.0):
 
     sin_angle[sin_angle < min_sin_angle] = min_sin_angle
 
-    thick = tau / (RHO * G * f * sin_angle)
+    thick = tau / (cfg.PARAMS['ice_density'] * cfg.G * f * sin_angle)
     bed_h = surf - thick * ice_mask
     return bed_h
 
@@ -98,13 +97,13 @@ def spin_up(case, y_spinup_end, y_end):
     define_nonrgi_glacier_region(gdir, dx=case.dx)
     smooth_dem_borders(gdir, px_count=case.smooth_border_px)
     ds = salem.GeoTiff(gdir.get_filepath('dem', filesuffix='_smooth_border'))
-    bed_2d = torch.tensor(ds.get_vardata(), dtype=torch.float)
+    bed_2d = torch.tensor(ds.get_vardata(), dtype=torch.float, requires_grad=False)
 
     mb = LinearMassBalance(case.ela_h, grad=case.mb_grad)
     # Create glacier
     with torch.no_grad():
         reference_model = Upstream2D(bed_2d, dx=case.dx, mb_model=mb, y0=0,
-                                     glen_a=cfg.A, ice_thick_filter=None)
+                                     glen_a=cfg.PARAMS['glen_a'], ice_thick_filter=None)
         reference_model.run_until(y_spinup_end)
         start_surf = torch.tensor(reference_model.surface_h,
                                       dtype=torch.float, requires_grad=False)
@@ -115,52 +114,23 @@ def spin_up(case, y_spinup_end, y_end):
     return [start_surf, reference_surf, ice_mask, mb, bed_2d]
 
 
-def create_cost_function(spinup_surface, surface_to_match, dx, mb,
-                         y_spinup_end, y_end, lamb1=0., lamb2=0.):
-    # define cost_function
-    def cost_function(b):
-        bed = torch.tensor(b.reshape(spinup_surface.shape), dtype=torch.float,
-                           requires_grad=True)
-        init_ice_thick = spinup_surface - bed
-        model = Upstream2D(bed, dx=dx, mb_model=mb, y0=y_spinup_end,
-                           glen_a=cfg.A, ice_thick_filter=None,
-                           init_ice_thick=init_ice_thick)
-        model.run_until(y_end)
-        s = model.surface_h
-        cost = (surface_to_match - s).pow(2).sum()
-        if lamb1 != 0:
-            it = s - bed
-            dit_dx = (it[:, :-1] - it[:, 1:]) / dx
-            dit_dy = (it[:-1, :] - it[1:, :]) / dx
-            cost = cost + lamb1 * ((dit_dx).pow(2).sum() + dit_dy.pow(2).sum())
-
-        if lamb2 != 0:
-            db_dx = (bed[:, :-1] - bed[:, 1:]) / dx
-            db_dy = (bed[:-1, :] - bed[1:, :]) / dx
-            cost = cost + lamb2 * ((db_dx).pow(2).sum() + db_dy.pow(2).sum())
-
-        cost.backward()
-        with torch.no_grad():
-            grad = bed.grad
-            grad = grad.detach().numpy().flatten()
-            bed.grad.zero_()
-            cost = cost.detach().numpy()
-        return cost, grad
-
-    return cost_function
-
 def get_first_guess(reference_surf, ice_mask, dx):
     bed_0 = first_guess(reference_surf.clone().detach().numpy(),
                         ice_mask.clone().detach().numpy(),
                         dx)
-    return torch.tensor(bed_0, dtype=torch.float, requires_grad=True)
+    return torch.tensor(bed_0, dtype=torch.float, requires_grad=False)
 
 
-def create_cost_function_true_surf(spinup_surface, surface_to_match, ice_mask,
-                                   dx, mb, y_spinup_end, y_end, lamb1=0.,
-                                   lamb2=0., lamb3=0., lamb4=0.,
-                                   return_calculated_surface=False):
+def create_cost_function(spinup_surface, surface_to_match, ice_mask,
+                         dx, mb, y_spinup_end, y_end, lamb1=0.,
+                         lamb2=0., lamb3=0., lamb4=0., lamb5=0., lamb6=0.,
+                         lamb7=0., lamb8=0):
+
     ice_mask = torch.tensor(ice_mask, dtype=torch.float)
+    n_ice_mask = float(ice_mask.sum())
+    n_grid = float(ice_mask.numel())
+    conv_filter = torch.ones((1, 1, 3, 3))
+
 
     # define cost_function
     def cost_function(b):
@@ -168,34 +138,92 @@ def create_cost_function_true_surf(spinup_surface, surface_to_match, ice_mask,
                            requires_grad=True)
         init_ice_thick = spinup_surface - bed
         model = Upstream2D(bed, dx=dx, mb_model=mb, y0=y_spinup_end,
-                           glen_a=cfg.A, ice_thick_filter=None,
+                           glen_a=cfg.PARAMS['glen_a'], ice_thick_filter=None,
                            init_ice_thick=init_ice_thick)
         model.run_until(y_end)
         s = model.surface_h
-        cost = ((surface_to_match - s) * ice_mask).pow(2).sum()
+        #cost = ((surface_to_match - s) * ice_mask).pow(2).sum()
+
+        ice_region = (s - bed) > 0
+
+        inner_mask = torch.zeros(spinup_surface.shape)
+        inner_mask[1:-1, 1:-1] = torch.conv2d(
+            torch.tensor(ice_region.unsqueeze(0).unsqueeze(0),
+                         dtype=torch.float),
+            conv_filter) == 9
+        n_inner_mask = inner_mask.sum()
+
+        cost = (surface_to_match - s).pow(2).sum() \
+               / ice_region.sum().type(dtype=torch.float)
         if lamb1 != 0:
-            it = (s - bed) * ice_mask
-            dit_dx = (it[:, :-1] - it[:, 1:]) / dx
-            dit_dy = (it[:-1, :] - it[1:, :]) / dx
-            cost = cost + lamb1 * (dit_dx.pow(2).sum() + dit_dy.pow(2).sum())
+            it = s - bed
+            dit_dx = (it[:, :-2] - it[:, 2:]) / (2. * dx)
+            dit_dy = (it[:-2, :] - it[2:, :]) / (2. * dx)
+            dit_dx = dit_dx * inner_mask[:, 1:-1]
+            dit_dy = dit_dy * inner_mask[:, 1:-1]
+            cost = cost + lamb1 * (
+                    (dit_dx.pow(2).sum() + dit_dy.pow(2).sum()) / n_inner_mask)
 
         if lamb2 != 0:
-            bed_restr = bed * ice_mask
-            db_dx = (bed_restr[:, :-1] - bed_restr[:, 1:]) / dx
-            db_dy = (bed_restr[:-1, :] - bed_restr[1:, :]) / dx
-            cost = cost + lamb2 * (db_dx.pow(2).sum() + db_dy.pow(2).sum())
+            db_dx = (bed[:, :-2] - bed[:, 2:]) / dx
+            db_dy = (bed[:-2, :] - bed[2:, :]) / dx
+            db_dx = db_dx * inner_mask[:, 1:-1]
+            db_dy = db_dy * inner_mask[:, 1:-1]
+            cost = cost + lamb2 * (
+                    (db_dx.pow(2).sum() + db_dy.pow(2).sum())/ n_inner_mask )
 
         if lamb3 != 0:
-            # penalizes ice thickness != 0, where ice thickness should be 0
+            # penalizes ice thickness, where ice thickness should be 0
             cost = cost + \
-                   lamb3 * ((s - bed) * (1. - ice_mask)).pow(2).sum()
+                   lamb3 * (((s - bed) * (1. - ice_mask)).pow(2).sum()
+                            / (n_grid - n_ice_mask))
 
         if lamb4 != 0:
             # penalizes bed != reference surf where we know about the bed
             # height because of ice thickness == 0
             cost = cost + \
                    lamb4 * \
-                   ((surface_to_match - bed) * (1. - ice_mask)).pow(2).sum()
+                   (((surface_to_match - bed) * (1. - ice_mask)).pow(2).sum()
+                    / (n_grid - n_ice_mask))
+
+        if lamb5 != 0:
+            # penalize high curvature of ice thickness (in glacier bounds)
+            it = s - bed
+            ddit_dx = (it[:, :-2] + it[:, 2:] - 2*it[:, 1:-1]) / dx**2
+            ddit_dy = (it[:-2, :] + it[2:, :] - 2*it[1:-1, :]) / dx**2
+            ddit_dx = ddit_dx * inner_mask[:, 1:-1]
+            ddit_dy = ddit_dy * inner_mask[:, 1:-1]
+            cost = cost + lamb5 * (
+                    (ddit_dx.pow(2).sum() + ddit_dy.pow(2).sum())
+                    / n_inner_mask)
+        
+        if lamb6 != 0:
+            # penalize high curvature of bed (in glacier bounds)
+            ddb_dx = (bed[:, :-2] + bed[:, 2:] - 2*bed[:, 1:-1]) / dx**2
+            ddb_dy = (bed[:-2, :] + bed[2:, :] - 2*bed[1:-1, :]) / dx**2
+            ddb_dx = ddb_dx * inner_mask[:, 1:-1]
+            ddb_dy = ddb_dy * inner_mask[:, 1:-1]
+            cost = cost + lamb6 * (
+                    (ddb_dx.pow(2).sum() + ddb_dy.pow(2).sum()) / n_inner_mask)
+
+        if lamb7 != 0:
+            # penalize high curvature of bed exactly at boundary pixels of
+            # glacier for a smooth transition from glacier free to glacier
+            ddb_dx = (bed[:, :-2] + bed[:, 2:] - 2 * bed[:, 1:-1]) / dx ** 2
+            ddb_dy = (bed[:-2, :] + bed[2:, :] - 2 * bed[1:-1, :]) / dx ** 2
+            ddb_dx = ddb_dx * (ice_region - inner_mask)[:, 1:-1]
+            ddb_dy = ddb_dy * (ice_region - inner_mask)[:, 1:-1]
+            cost = cost + lamb7 * (
+                    (ddb_dx.pow(2).sum() + ddb_dy.pow(2).sum())
+                    / (ice_region - inner_mask)[:, 1:-1].sum())
+
+        if lamb8 != 0:
+            # penalizes not matching ice masks between reference and modelled
+            # in comparison to lamb3 independent of icethickness at not matching
+            # grid cells
+            cost = cost + \
+                lamb8 * (inner_mask - ice_mask).pow(2).sum() / n_grid
+
 
         cost.backward()
         with torch.no_grad():
@@ -210,9 +238,6 @@ def create_cost_function_true_surf(spinup_surface, surface_to_match, ice_mask,
             beds.append(bed.detach().numpy())
             surfs.append(s.detach().numpy())
 
-        if return_calculated_surface:
-            return cost, grad, s.detach().numpy()
-        else:
-            return cost, grad
+        return cost, grad
 
     return cost_function

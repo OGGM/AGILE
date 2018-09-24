@@ -1,7 +1,7 @@
 import torch
 from oggm.core.massbalance import MassBalanceModel
-
-from oggm.cfg import SEC_IN_YEAR, SEC_IN_MONTH, RHO
+from oggm import cfg
+from oggm.cfg import SEC_IN_YEAR, SEC_IN_MONTH
 
 # @torch.no_grad()
 class LinearMassBalance(MassBalanceModel):
@@ -34,6 +34,7 @@ class LinearMassBalance(MassBalanceModel):
         self.grad = grad
         self.max_mb = max_mb
         self._temp_bias = 0
+        self.rho = cfg.PARAMS['ice_density']
 
     @property
     def temp_bias(self):
@@ -50,7 +51,7 @@ class LinearMassBalance(MassBalanceModel):
         mb = (heights - self.ela_h) * self.grad
         if self.max_mb is not None:
             mb = mb.clip(None, self.max_mb)
-        return mb / SEC_IN_YEAR / RHO
+        return mb / SEC_IN_YEAR / self.rho
 
     def get_annual_mb(self, heights, year=None):
         return self.get_monthly_mb(heights, year=year)

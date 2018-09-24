@@ -33,17 +33,17 @@ potrerillos.smooth_border_px = 5
 
 # Bláfell, Iceland
 blafell = TestCase()
-blafell.extent = np.array([[-20.04, 64.41], [-19.65, 64.58]])
+blafell.extent = np.array([[-20.04, 64.42], [-19.66, 64.57]])
 blafell.ela_h = 780
 blafell.name = 'Blafell'
 blafell.dx = 300
 blafell.mb_grad = 2.
-blafell.smooth_border_px = 10
+blafell.smooth_border_px = 6
 
 # Arderin / Slieve, Ireland
 arderin = TestCase()
 arderin.name = 'Slieve'
-arderin.extent = np.array([[-7.78, 52.99],[-7.40, 53.16]])
+arderin.extent = np.array([[-7.78, 52.96],[-7.40, 53.18]])
 arderin.ela_h = 400
 arderin.mb_grad = 3.
 arderin.dx = 400  # TODO: change back to 300 after testing
@@ -57,8 +57,8 @@ khangai.name = 'Khangai'
 khangai.extent = np.array([[96.75, 48.20], [100.70, 46.30]])
 khangai.ela_h = 2800
 khangai.mb_grad = 2.
-khangai.dx = 1000
-khangai.smooth_border_px = 10
+khangai.dx = 2000
+khangai.smooth_border_px = 5
 
 
 # Changbai, China/North-korea, p. 994
@@ -93,7 +93,7 @@ trikora.mb_grad = 4.
 trikora.dx = 400
 trikora.smooth_border_px = 3
 
-# Mount Giluew, Papua New Guinea, p.1033
+# Mount Giluwe, Papua New Guinea, p.1033
 giluwe = TestCase()
 giluwe.name = 'Giluwe'
 giluwe.extent = np.array([[143.77, -6.16], [144.02, -5.92]])
