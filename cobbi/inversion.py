@@ -160,7 +160,7 @@ def create_cost_function(spinup_surface, surface_to_match, ice_mask,
             dit_dx = (it[:, :-2] - it[:, 2:]) / (2. * dx)
             dit_dy = (it[:-2, :] - it[2:, :]) / (2. * dx)
             dit_dx = dit_dx * inner_mask[:, 1:-1]
-            dit_dy = dit_dy * inner_mask[:, 1:-1]
+            dit_dy = dit_dy * inner_mask[1:-1, :]
             cost = cost + lamb1 * (
                     (dit_dx.pow(2).sum() + dit_dy.pow(2).sum()) / n_inner_mask)
 
@@ -168,7 +168,7 @@ def create_cost_function(spinup_surface, surface_to_match, ice_mask,
             db_dx = (bed[:, :-2] - bed[:, 2:]) / dx
             db_dy = (bed[:-2, :] - bed[2:, :]) / dx
             db_dx = db_dx * inner_mask[:, 1:-1]
-            db_dy = db_dy * inner_mask[:, 1:-1]
+            db_dy = db_dy * inner_mask[1:-1, :]
             cost = cost + lamb2 * (
                     (db_dx.pow(2).sum() + db_dy.pow(2).sum())/ n_inner_mask )
 
@@ -192,7 +192,7 @@ def create_cost_function(spinup_surface, surface_to_match, ice_mask,
             ddit_dx = (it[:, :-2] + it[:, 2:] - 2*it[:, 1:-1]) / dx**2
             ddit_dy = (it[:-2, :] + it[2:, :] - 2*it[1:-1, :]) / dx**2
             ddit_dx = ddit_dx * inner_mask[:, 1:-1]
-            ddit_dy = ddit_dy * inner_mask[:, 1:-1]
+            ddit_dy = ddit_dy * inner_mask[1:-1, :]
             cost = cost + lamb5 * (
                     (ddit_dx.pow(2).sum() + ddit_dy.pow(2).sum())
                     / n_inner_mask)
@@ -202,7 +202,7 @@ def create_cost_function(spinup_surface, surface_to_match, ice_mask,
             ddb_dx = (bed[:, :-2] + bed[:, 2:] - 2*bed[:, 1:-1]) / dx**2
             ddb_dy = (bed[:-2, :] + bed[2:, :] - 2*bed[1:-1, :]) / dx**2
             ddb_dx = ddb_dx * inner_mask[:, 1:-1]
-            ddb_dy = ddb_dy * inner_mask[:, 1:-1]
+            ddb_dy = ddb_dy * inner_mask[1:-1, :]
             cost = cost + lamb6 * (
                     (ddb_dx.pow(2).sum() + ddb_dy.pow(2).sum()) / n_inner_mask)
 
@@ -212,10 +212,10 @@ def create_cost_function(spinup_surface, surface_to_match, ice_mask,
             ddb_dx = (bed[:, :-2] + bed[:, 2:] - 2 * bed[:, 1:-1]) / dx ** 2
             ddb_dy = (bed[:-2, :] + bed[2:, :] - 2 * bed[1:-1, :]) / dx ** 2
             ddb_dx = ddb_dx * (ice_region - inner_mask)[:, 1:-1]
-            ddb_dy = ddb_dy * (ice_region - inner_mask)[:, 1:-1]
+            ddb_dy = ddb_dy * (ice_region - inner_mask)[1:-1, :]
             cost = cost + lamb7 * (
                     (ddb_dx.pow(2).sum() + ddb_dy.pow(2).sum())
-                    / (ice_region - inner_mask)[:, 1:-1].sum())
+                    / (ice_region - inner_mask)[1:-1, 1:-1].sum())
 
         if lamb8 != 0:
             # penalizes not matching ice masks between reference and modelled
