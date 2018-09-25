@@ -11,6 +11,7 @@ class TestCase(object):
         self.dx = 500
         self.mb_grad = 3.0
         self.smooth_border_px = 0
+        self.smooth_border_h = 0.
 
 map_dx = 500
 
@@ -34,11 +35,12 @@ potrerillos.smooth_border_px = 5
 # Bláfell, Iceland
 blafell = TestCase()
 blafell.extent = np.array([[-20.04, 64.42], [-19.66, 64.57]])
-blafell.ela_h = 780
+blafell.ela_h = 800
 blafell.name = 'Blafell'
 blafell.dx = 300
-blafell.mb_grad = 2.
+blafell.mb_grad = 2.5
 blafell.smooth_border_px = 6
+blafell.smooth_border_h = 700
 
 # Arderin / Slieve, Ireland
 arderin = TestCase()
