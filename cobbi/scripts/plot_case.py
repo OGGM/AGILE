@@ -5,11 +5,14 @@ from cobbi.utils import test_cases
 from cobbi.inversion import *
 import matplotlib.colors as colors
 
-case = test_cases.blafell
+case = test_cases.kinabalu
+case.dx = 600
+case.smooth_border_px = 2
 
 y0 = 0
 y_spinup_end = 2000
-y_end = 2800
+y_end = 2500
+
 start_surf, reference_surf, ice_mask, mb, bed_2d = spin_up(case, y_spinup_end,
                                                            y_end)
 
@@ -56,7 +59,7 @@ f = plt.figure()
 im_b = plt.imshow(bed_2d, cmap=new_cmap)
 cbar = plt.colorbar(im_b)
 cbar.set_label('Bed  height A.S.L (m)')
-plt.title('Surface of case {:s}, dx={:d}m, y={:d}'.format(case.name, case.dx,
+plt.title('Surface of case {:s}, dx={:d}m, t={:d}a'.format(case.name, case.dx,
                                                           y_end))
 plt.imshow(ice_mask_for_plot, 'binary', alpha=0.5)
 
@@ -68,7 +71,7 @@ cut_gray_cmap = truncate_colormap(cmap, 0.5, 0.95)
 
 f = plt.figure()
 im_b = plt.imshow(bed_2d, cmap=new_cmap)
-plt.title('Height of ice surface, {:s}, dx={:d}m, y={:d}'.format(
+plt.title('Ice surface height, {:s}, dx={:d}m, t={:d}a'.format(
     case.name, case.dx, y_end))
 im_i = plt.imshow(masked_reference_surf, cut_gray_cmap)
 cbar = plt.colorbar(im_i)
@@ -79,8 +82,8 @@ plt.clf()
 
 plt.ion()
 
-inner_mask = torch.zeros(ice_mask.shape)
-inner_mask[1:-1, 1:-1] = torch.conv2d(torch.tensor([[ice_mask]], dtype=torch.float), torch.ones((1, 1, 3,3))) == 9
-plt.figure()
-plt.imshow(ice_mask - inner_mask)
-plt.show()
+#inner_mask = torch.zeros(ice_mask.shape)
+#inner_mask[1:-1, 1:-1] = torch.conv2d(torch.tensor([[ice_mask]], dtype=torch.float), torch.ones((1, 1, 3,3))) == 9
+#plt.figure()
+#plt.imshow(ice_mask - inner_mask)
+#plt.show()
