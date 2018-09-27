@@ -121,27 +121,59 @@ class DataLogger(object):
     def plot_bed_differences(self, basedir, cbar_range=50):
         bed_differences = self.get_bed_differences()
         for i in range(bed_differences.shape[0]):
-            self.plot_image(bed_differences[i, :, :], cbar_range,
-                            'Bed difference #{:d}, |max_diff|={:g}'.format(
-                                i, np.max(np.abs(bed_differences[i]))),
-                                basedir + 'bed_diff{:d}.png'.format(i))
+            plt.figure()
+            im = plt.imshow(bed_differences[i, :, :],
+                            norm=MidpointNormalize(midpoint=0.,
+                                                   vmin=-cbar_range,
+                                                   vmax=cbar_range),
+                            cmap='RdBu')
+            plt.title('Bed difference #{:d}, max|Δb|={:g} m'.format(
+                                i, np.max(np.abs(bed_differences[i]))))
+            cbar = plt.colorbar(im)
+            cbar.set_label('Δb (m)')
+            plt.savefig(basedir + 'bed_diff{:d}.png'.format(i))
+            plt.clf()
 
     def plot_surf_differences(self, basedir, cbar_range=50):
         surf_differences = self.get_surf_differences()
         for i in range(surf_differences.shape[0]):
-            self.plot_image(surf_differences[i, :, :], cbar_range,
-                            'Surface difference #{:d}, |max_diff|={:g}'.format(
-                                i, np.max(np.abs(surf_differences[i]))),
-                                basedir + 'surf_diff{:d}.png'.format(i))
+            #self.plot_image(surf_differences[i, :, :], cbar_range,
+            #                'Surface difference #{:d}, |max_diff|={:g}'.format(
+            #                    i, np.max(np.abs(surf_differences[i]))),
+            #                    basedir + 'surf_diff{:d}.png'.format(i))
+            plt.figure()
+            im = plt.imshow(surf_differences[i, :, :],
+                            norm=MidpointNormalize(midpoint=0.,
+                                                   vmin=-cbar_range,
+                                                   vmax=cbar_range),
+                            cmap='RdBu')
+            plt.title('Surface difference #{:d}, max|Δs|={:g} m'.format(
+                                i, np.max(np.abs(surf_differences[i]))))
+            cbar = plt.colorbar(im)
+            cbar.set_label('Δs (m)')
+            plt.savefig(basedir + 'surf_diff{:d}.png'.format(i))
+            plt.clf()
 
     def plot_grads(self, basedir, ref_shape, cbar_range=None):
         cbar_min_max = cbar_range
         for i in range(len(self.grads)):
             if cbar_range is None:
                 cbar_min_max = np.max(np.abs(self.grads[i]))
-            self.plot_image(self.grads[i].reshape(ref_shape), cbar_min_max,
-                            'Gradient #{:d}'.format(i),
-                            basedir + 'grad{:d}.png'.format(i))
+            #self.plot_image(self.grads[i].reshape(ref_shape), cbar_min_max,
+            #                'Gradient #{:d}'.format(i),
+            #                basedir + 'grad{:d}.png'.format(i))
+
+            plt.figure()
+            im = plt.imshow(self.grads[i].reshape(ref_shape),
+                            norm=MidpointNormalize(midpoint=0.,
+                                                   vmin=-cbar_min_max,
+                                                   vmax=cbar_min_max),
+                            cmap='RdBu')
+            plt.title('Gradient #{:d}'.format(i))
+            cbar = plt.colorbar(im)
+            cbar.set_label('Gradient of cost-function (m$^{-1}$)')
+            plt.savefig(basedir + 'grad{:d}.png'.format(i))
+            plt.clf()
 
 
 def load_pickle(filepath, use_compression=None):
