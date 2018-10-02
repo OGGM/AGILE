@@ -7,11 +7,12 @@ from scipy.optimize import minimize
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
+from scipy.ndimage import interpolation
 
 class LCurveTest(object):
 
-    def __init__(self, case, y0, y_spinup_end, y_end):
-
+    def __init__(self, case, y0, y_spinup_end, y_end, minimize_options=None,
+                 solver='L-BFGS-B'):
         self.basedir = '/data/philipp/tests/lcurve/'
 
         self.case = case
@@ -20,11 +21,13 @@ class LCurveTest(object):
         self.y_end = y_end
 
         su = spin_up(self.case, self.y_spinup_end, self.y_end)
-        self.start_surf = su[0]
-        self.reference_surf = su[1]
-        self.ice_mask = su[2]
+        self.start_surf = su[0].detach().numpy()
+        self.exact_surf = su[1].detach().numpy()
+        self.reference_surf = self.exact_surf
+        self.surface_noise = None
+        self.ice_mask = su[2].detach().numpy()
         self.mb = su[3]
-        self.bed_2d = su[4]
+        self.bed_2d = su[4].detach().numpy()
 
         self.lambdas = torch.zeros(9, dtype=torch.float)
         self.first_guess = get_first_guess(self.reference_surf, self.ice_mask,
@@ -33,17 +36,25 @@ class LCurveTest(object):
         self.cost_func = None
         self.optim_log = ''
         self.optimization_counter = 0
-        self.data_logger = DataLogger(self.bed_2d.detach().numpy(),
-                                      self.reference_surf.detach().numpy(),
-                                      self.first_guess.detach().numpy())
+
+        self.solver = solver
         self.maxiter = 100
+        self.minimize_options = minimize_options
+        if minimize_options is None:
+            self.minimize_options = {'maxiter': self.maxiter,
+                                     # 'ftol': 1e-4,
+                                     #  'xtol': 1e-8,
+                                     'maxcor': 20,
+                                     'disp': True}
+
+        self.data_logger = DataLogger(self)
 
     def iteration_info_callback(self, x0):
         i = len(self.data_logger.costs) - 1
         if i >= 0:
             dl = self.data_logger
             dl.step_indices.append(i)
-            b = self.bed_2d.detach().numpy()
+            b = self.bed_2d
             log_entry = ''
             log_entry += '----------------------------------------------\n'
             log_entry += 'Function Call: {:d}\n'.format(i)
@@ -54,10 +65,13 @@ class LCurveTest(object):
             log_entry += 'Bed Max_diff: {:g}\n'.format(
                 np.max(np.abs(dl.beds[i] - b)))
             log_entry += 'Surface RMSE: {:g}\n'.format(
-                  RMSE(dl.surfs[i], self.reference_surf.detach().numpy()))
+                  RMSE(dl.surfs[i], self.reference_surf))
+            if self.surface_noise is not None:
+                log_entry += 'Surface RMSE (from exact): {:g}\n'.format(
+                    RMSE(dl.surfs[i], self.exact_surf))
             log_entry += 'Surface Max_diff: {:g}\n'.format(
                   np.max(np.abs(dl.surfs[i]
-                                - self.reference_surf.detach().numpy())))
+                                - self.reference_surf)))
             print(log_entry)
             self.optim_log += log_entry
 
@@ -67,10 +81,8 @@ class LCurveTest(object):
             self.clear_dir(self.get_current_basedir())
             self.write_string_to_file('settings.txt',
                                       self.get_setting_as_string())
-        dl = DataLogger(self.bed_2d.detach().numpy(),
-                        self.reference_surf.detach().numpy(),
-                        self.first_guess.detach().numpy())
-        self.data_logger  = dl
+        dl = DataLogger(self)
+        self.data_logger = dl
         
         self.cost_func = create_cost_function(self.start_surf,
                                               self.reference_surf,
@@ -81,13 +93,9 @@ class LCurveTest(object):
                                               dl)
 
         res = minimize(fun=self.cost_func,
-                       x0=self.first_guess.detach().numpy().astype(np.float64).flatten(),
-                       method='L-BFGS-B', jac=True,
-                       options={'maxiter': self.maxiter,
-                                # 'ftol': 1e-4,
-                                # 'xtol': 1e-8,
-                                'maxcor': 20,
-                                'disp': True},
+                       x0=self.first_guess.astype(np.float64).flatten(),
+                       method=self.solver, jac=True,
+                       options=self.minimize_options,
                        callback=self.iteration_info_callback)
 
         if write_specs:
@@ -111,11 +119,14 @@ class LCurveTest(object):
         s += 'basedir = \'{:s}\''.format(self.basedir)
         s += '\ncase = ' + self.case.name
         s += '\ncase.dx = {:d}'.format(self.case.dx)
+        s += '\ncase.smooth_border_px = {:d}'.format(self.case.smooth_border_px)
         s += '\ny0 = {:d}'.format(self.y0)
         s += '\ny_spinup_end = {:d}'.format(self.y_spinup_end)
         s += '\nself.y_end = {:d}'.format(self.y_end)
         s += '\nlambdas = ' + str(self.lambdas)
         s += '\noptimization_counter = {:d}'.format(self.optimization_counter)
+        s += '\nsolver = ' + self.solver
+        s += '\nminimize_options = ' + str(self.minimize_options)
         return s
 
     def get_current_basedir(self):
@@ -128,3 +139,18 @@ class LCurveTest(object):
         else:
             if not os.path.exists(dir):
                 os.makedirs(dir, exist_ok=True)
+
+    def remove_surface_noise(self):
+        self.reference_surf = self.exact_surf
+        self.surface_noise = None
+
+    def add_surface_noise(self, std=3, zoom=-1, glacier_only=True):
+        noise = std * np.random.standard_normal(self.exact_surf.shape)
+        if zoom > 0:
+            noise = interpolation.zoom(noise, zoom)[0:self.exact_surf.shape[0],
+                                                    0:self.exact_surf.shape[1]]
+        if glacier_only:
+            noise = noise * self.ice_mask
+        self.surface_noise = noise
+        self.reference_surf = self.exact_surf + noise
+

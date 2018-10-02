@@ -118,16 +118,15 @@ def spin_up(case, y_spinup_end, y_end):
 
 
 def get_first_guess(reference_surf, ice_mask, dx):
-    bed_0 = first_guess(reference_surf.clone().detach().numpy(),
-                        ice_mask.clone().detach().numpy(),
-                        dx)
-    return torch.tensor(bed_0, dtype=torch.float, requires_grad=False)
+    return first_guess(reference_surf, ice_mask,dx)
 
 
 def create_cost_function(spinup_surface, surface_to_match, ice_mask,
                          dx, mb, y_spinup_end, y_end, lambs, data_logger=None):
 
     ice_mask = torch.tensor(ice_mask, dtype=torch.float)
+    spinup_surface = torch.tensor(spinup_surface, dtype=torch.float)
+    surface_to_match = torch.tensor(surface_to_match, dtype=torch.float)
     n_ice_mask = float(ice_mask.sum())
     n_grid = float(ice_mask.numel())
     conv_filter = torch.ones((1, 1, 3, 3))
@@ -253,6 +252,6 @@ def get_costs(lambs, surface_to_match, s, bed, n_grid, ice_region, inner_mask,
         # penalizes differences in surface height with power of 4 to put
         # more emphasize on larger deviations
         cost[8] = lambs[8] * ((surface_to_match - s).pow(2).sum()
-                                / ice_region.sum().type(dtype=torch.float))
+                              / ice_region.sum().type(dtype=torch.float))
 
     return cost

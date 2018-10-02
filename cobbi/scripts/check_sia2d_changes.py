@@ -19,7 +19,7 @@ from cobbi.utils.massbalance_pytorch \
 
 cfg.initialize()
 
-case = test_cases.arderin
+case = test_cases.Arderin
 y0 = 0
 y_spinup_end = 2000
 y_end = 2800

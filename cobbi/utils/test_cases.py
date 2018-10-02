@@ -13,93 +13,187 @@ class TestCase(object):
         self.smooth_border_px = 0
         self.smooth_border_h = 0.
 
-map_dx = 500
-
 
 # Mayan Ice Cap, Sierra los Cuchumantes, Guatemala, Qtny Glaciation p. 846
-mayan_ice_cap = TestCase()
-mayan_ice_cap.extent = np.array([[-91.70, 15.43], [-91.41, 15.62]])
-mayan_ice_cap.ela_h = 3600
-mayan_ice_cap.name = 'Mayan Ice Cap'
-mayan_ice_cap.dx = map_dx
-mayan_ice_cap.mb_grad = 4.0
+Mayan_ice_cap = TestCase()
+Mayan_ice_cap.extent = np.array([[-91.70, 15.43], [-91.41, 15.62]])
+Mayan_ice_cap.ela_h = 3600
+Mayan_ice_cap.name = 'Mayan Ice Cap'
+Mayan_ice_cap.dx = 500
+Mayan_ice_cap.mb_grad = 4.0
 
 # Potrerillos Plateau, Ecuador, mark2014, works with grad=3.
-potrerillos = TestCase()
-potrerillos.extent = np.array([[-78.35,-0.40], [-78.04,-0.11]])
-potrerillos.ela_h = 4100
-potrerillos.name = 'Potrerillos Plateau'
-potrerillos.dx = map_dx
-potrerillos.smooth_border_px = 5
+Potrerillos = TestCase()
+Potrerillos.extent = np.array([[-78.35, -0.40], [-78.04, -0.11]])
+Potrerillos.ela_h = 4100
+Potrerillos.name = 'Potrerillos Plateau'
+Potrerillos.dx = 500
+Potrerillos.smooth_border_px = 5
 
 # Bláfell, Iceland
-blafell = TestCase()
-blafell.extent = np.array([[-20.04, 64.42], [-19.66, 64.57]])
-blafell.ela_h = 800
-blafell.name = 'Blafell'
-blafell.dx = 300
-blafell.mb_grad = 2.5
-blafell.smooth_border_px = 6
-blafell.smooth_border_h = 700
+Blafell = TestCase()
+Blafell.extent = np.array([[-20.04, 64.42], [-19.66, 64.57]])
+Blafell.ela_h = 800
+Blafell.name = 'Blafell'
+Blafell.dx = 300
+Blafell.mb_grad = 2.5
+Blafell.smooth_border_px = 6
+Blafell.smooth_border_h = 700
 
 # Arderin / Slieve, Ireland
-arderin = TestCase()
-arderin.name = 'Slieve'
-arderin.extent = np.array([[-7.78, 52.96],[-7.40, 53.18]])
-arderin.ela_h = 400
-arderin.mb_grad = 3.
-arderin.dx = 400  # TODO: change back to 300 after testing
-arderin.smooth_border_px = 2
+Arderin = TestCase()
+Arderin.name = 'Slieve'
+Arderin.extent = np.array([[-7.78, 52.96], [-7.40, 53.18]])
+Arderin.ela_h = 400
+Arderin.mb_grad = 3.
+Arderin.dx = 400
+Arderin.smooth_border_px = 2
 
-# Khangai, Mognolia, p. 977 in Quaternary glaciation,
+# Khangai, Mongolia, p. 977 in Quaternary glaciation,
 # Florensov and Korzhnev (1982) and Lehmkuhl (1998) &
 # Richter (1961) and Klinge (2001)
-khangai = TestCase()
-khangai.name = 'Khangai'
-khangai.extent = np.array([[96.75, 48.20], [100.70, 46.30]])
-khangai.ela_h = 2800
-khangai.mb_grad = 2.
-khangai.dx = 2000
-khangai.smooth_border_px = 5
-
+Khangai = TestCase()
+Khangai.name = 'Khangai'
+Khangai.extent = np.array([[96.75, 48.20], [100.70, 46.30]])
+Khangai.ela_h = 2800
+Khangai.mb_grad = 2.
+Khangai.dx = 2000
+Khangai.smooth_border_px = 5
 
 # Changbai, China/North-korea, p. 994
 # This ignores the lake, but maybe this is valid as it just resembles
 # stagnant ice?
-changbai = TestCase()
-changbai.name = 'Changbai'
-changbai.extent = np.array([[127.85, 41.85], [128.30, 42.14]])
-changbai.ela_h = 2050
-changbai.mb_grad = 2.
-changbai.dx = 200
-changbai.smooth_border_px = 3
+Changbai = TestCase()
+Changbai.name = 'Changbai'
+Changbai.extent = np.array([[127.85, 41.85], [128.30, 42.14]])
+Changbai.ela_h = 2050
+Changbai.mb_grad = 2.
+Changbai.dx = 200
+Changbai.smooth_border_px = 3
 
-# Taiwan, centered around Nanhuta Shan
-# e.g. 121.30,24.28 : 121.59,24.42
+# Taiwan, centered around Nanhuta Shan, p.1006
+Nanhuta = TestCase()
+Nanhuta.name = 'Nanhuta Shan'
+Nanhuta.extent = np.array([[121.32, 24.26], [121.57, 24.42]])
+Nanhuta.ela_h = 2950
+Nanhuta.dx = 600
+Nanhuta.mb_grad = 3
+Nanhuta.smooth_border_px = 2
+Nanhuta.smooth_border_h = 2000
 
 # Mount Kinabalu, Malaysia? p. 1024
-kinabalu = TestCase()
-kinabalu.name = 'Kinabalu'
-kinabalu.extent = np.array([[116.46, 6.00], [116.69, 6.16]])
-kinabalu.ela_h = 3000
-kinabalu.mb_grad = 3.5
-kinabalu.dx = 200
-kinabalu.smooth_border_px = 3
+Kinabalu = TestCase()
+Kinabalu.name = 'Kinabalu'
+Kinabalu.extent = np.array([[116.46, 6.00], [116.69, 6.16]])
+Kinabalu.ela_h = 3000
+Kinabalu.mb_grad = 3.5
+Kinabalu.dx = 200
+Kinabalu.smooth_border_px = 3
 
 # Osura Trikora, Indonesien, p. 1034
-trikora = TestCase()
-trikora.name = 'Trikora'
-trikora.extent = np.array([[138.28, -4.35], [138.78, -4.08]])
-trikora.ela_h = 3800
-trikora.mb_grad = 4.
-trikora.dx = 400
-trikora.smooth_border_px = 3
+Trikora = TestCase()
+Trikora.name = 'Trikora'
+Trikora.extent = np.array([[138.28, -4.35], [138.78, -4.08]])
+Trikora.ela_h = 3800
+Trikora.mb_grad = 4.
+Trikora.dx = 400
+Trikora.smooth_border_px = 3
 
 # Mount Giluwe, Papua New Guinea, p.1033
-giluwe = TestCase()
-giluwe.name = 'Giluwe'
-giluwe.extent = np.array([[143.77, -6.16], [144.02, -5.92]])
-giluwe.ela_h = 3700
-giluwe.mb_grad = 4.
-giluwe.dx = 300
-giluwe.smooth_border_px = 2
+Giluwe = TestCase()
+Giluwe.name = 'Giluwe'
+Giluwe.extent = np.array([[143.80, -6.12], [144.00, -5.95]])
+Giluwe.ela_h = 3700
+Giluwe.mb_grad = 4.
+Giluwe.dx = 400
+Giluwe.smooth_border_px = 2
+
+#Gowanbridge, NZ
+Gowanbridge = TestCase()
+Gowanbridge.name = 'Gowanbridge'
+Gowanbridge.extent = np.array([[172.52, -41.70], [172.62, -41.625]])
+Gowanbridge.ela_h = 1120
+Gowanbridge.dx = 300
+Gowanbridge.mb_grad = 3
+Gowanbridge.smooth_border_px = 2
+Gowanbridge.smooth_border_h = 300
+
+#Siberia I, taken from book (search for Sartan, big map)
+Siberia = TestCase()
+Siberia.name = 'Siberia'
+Siberia.extent = np.array([[161.65, 66.24], [162.365, 66.52]])
+Siberia.ela_h = 800
+Siberia.dx = 800
+Siberia.mb_grad = 2.5
+Siberia.smooth_border_px = 2
+Siberia.smooth_border_h = 50
+
+# Siberia II, interest arousing smooth peak
+Siberia2 = TestCase()
+Siberia2.name = 'SiberiaII'
+Siberia2.extent = np.array([[163.51, 67.19], [163.75, 67.27]])
+Siberia2.ela_h = 775
+Siberia2.dx = 300
+Siberia2.mb_grad = 2.5
+Siberia2.smooth_border_px = 2
+Siberia2.smooth_border_h = 50
+
+#Siberia III, taken from book (search for Sartan, big map)
+Siberia3 = TestCase()
+Siberia3.name = 'SiberiaIII'
+Siberia3.extent = np.array([[141.10, 68.01], [142.10, 68.38]])
+Siberia3.ela_h = 900
+Siberia3.dx = 1000
+Siberia3.mb_grad = 2.5
+Siberia3.smooth_border_px = 2
+Siberia3.smooth_border_h = 50
+
+#Tergun Bogd / Ikh Bogd, Mongolia, p.968
+Bogd = TestCase()
+Bogd.name = 'Tergun Bogd'
+Bogd.extent = np.array([[100.17, 44.91], [100.39, 45.02]])
+Bogd.ela_h = 3550
+Bogd.dx = 400
+Bogd.mb_grad = 2.5
+Bogd.smooth_border_px = 2
+Bogd.smooth_border_h = 2000
+
+#Mt Semuru, Indonesia, p.1024
+Semuru = TestCase()
+Semuru.name = 'Semuru'
+Semuru.extent = np.array([[112.898, -8.135], [112.952, -8.083]])
+Semuru.ela_h = 3000
+Semuru.mb_grad = 3.5
+Semuru.dx = 150
+Semuru.smooth_border_px = 2
+Semuru.smooth_border_h = 1500
+
+#Mt Slamet (Teagal Peak), Indonesia, p.1024
+Slamet = TestCase()
+Slamet.name = 'Slamet'
+Slamet.extent = np.array([[109.179, -7.275], [109.25, -7.21]])
+Slamet.ela_h = 2750
+Slamet.mb_grad = 3.5
+Slamet.dx = 150
+Slamet.smooth_border_px = 2
+Slamet.smooth_border_h = 1500
+
+#Marion Island, p.1084
+Marion = TestCase()
+Marion.name = 'Marion Island'
+Marion.extent = np.array([[37.58, -46.98], [37.90, -46.83]])
+Marion.ela_h = 850
+Marion.mb_grad = 3.5
+Marion.dx = 300
+Marion.smooth_border_px = 2
+Marion.smooth_border_h = 0
+
+#Mt Owen, NZ, p.1051
+Owen = TestCase()
+Owen.name = 'Mt Owen'
+Owen.extent = np.array([[172.46, -41.63], [172.66, -41.46]])
+Owen.ela_h = 1300
+Owen.dx = 400
+Owen.mb_grad = 3.5
+Owen.smooth_border_px = 2
+Owen.smooth_border_h = 300

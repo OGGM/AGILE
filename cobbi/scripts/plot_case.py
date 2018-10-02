@@ -5,7 +5,7 @@ from cobbi.utils import test_cases
 from cobbi.inversion import *
 import matplotlib.colors as colors
 
-case = test_cases.kinabalu
+case = test_cases.Kinabalu
 case.dx = 600
 case.smooth_border_px = 2
 

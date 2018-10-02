@@ -22,7 +22,7 @@ from cobbi.inversion import first_guess
 # Initialize OGGM and set up the default run parameters
 cfg.initialize()
 
-case = test_cases.arderin
+case = test_cases.Arderin
 entity = {'min_x': case.extent[0, 0],
           'max_x': case.extent[1, 0],
           'min_y': case.extent[0, 1],

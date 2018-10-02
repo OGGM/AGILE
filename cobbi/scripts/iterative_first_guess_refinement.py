@@ -7,8 +7,9 @@ import numpy as np
 f = 1
 df = 0.1
 
-case = test_cases.arderin
+case = test_cases.Arderin
 case.dx = 800
+case.ela_h = 450
 case.smooth_border_px = 1
 
 y0 = 0
@@ -59,12 +60,36 @@ lambs[3] = 30.
 test = LCurveTest(case, y0, y_spinup_end, y_end)
 test.lambdas = lambs
 test.basedir = '/data/philipp/tests/first_guess/iterative/'
+adaption = 0
 
-for f in [1, 0.8]:
-    fg = first_guess(test.reference_surf.detach().numpy(),
-                     test.ice_mask.detach().numpy(), case.dx, factor=f)
-    test.first_guess = torch.tensor(fg, dtype=torch.float)
-    test.maxiter = 30
-    test.run_minimize()
+i = 0
+while i < 100:#range(10):
+
+    f = 1.
+    fg = first_guess(test.reference_surf,
+                     test.ice_mask, case.dx, factor=f)
+    #fg = fg + adaption
+
+    #with torch.no_grad():
+    #    bed = torch.tensor(fg, dtype=torch.float, requires_grad=False)
+    #    init_ice_thick = torch.tensor(test.start_surf - fg, dtype=torch.float,
+    #                                  requires_grad=False)
+    #    model = Upstream2D(bed, dx=case.dx, mb_model=test.mb, y0=y_spinup_end,
+    #                       glen_a=cfg.PARAMS['glen_a'], ice_thick_filter=None,
+    #                       init_ice_thick=init_ice_thick)
+    #    model.run_until(y_end)
+    #    s = model.surface_h.detach().numpy()
+
+    first_guess_bias = ((fg - test.bed_2d) * test.ice_mask).mean()
+    #print('Mean bias (m): ' + str(first_guess_bias))
+    #print('f: ' + str(f))
+    #print('Adaption (m): ' + str(adaption))
+    #adaption = adaption - first_guess_bias / 3.
+    #f -= df
+    plt.figure()
+    plt.imshow((fg - test.bed_2d))
+    plt.show()
+    i = i + 1
+
 
 print('end')

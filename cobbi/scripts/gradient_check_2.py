@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 
 #case = test_cases.mayan_ice_cap
-case = test_cases.blafell
+case = test_cases.Blafell
 case.dx = 600
 case.smooth_border_px = 4
 

@@ -4,7 +4,7 @@ from cobbi.utils.optimization import *
 import matplotlib.pyplot as plt
 import numpy as np
 
-case = test_cases.blafell
+case = test_cases.Blafell
 case.dx = 600
 case.smooth_border_px = 1
 

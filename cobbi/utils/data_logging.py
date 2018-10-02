@@ -5,7 +5,7 @@ import matplotlib.colors as colors
 import pickle
 import gzip
 from oggm import cfg
-
+#from cobbi.utils.optimization import LCurveTest
 
 class MidpointNormalize(colors.Normalize):
     # see: https://matplotlib.org/users/colormapnorms.html#custom-normalization-two-linear-ranges
@@ -22,10 +22,19 @@ class MidpointNormalize(colors.Normalize):
 
 class DataLogger(object):
 
-    def __init__(self, ref_bed, ref_surf, first_guess_bed):
-        self.reset(ref_bed, ref_surf, first_guess_bed)
+    def __init__(self, ref_bed, exact_surf, ref_surf, first_guess_bed):
+        self.reset(ref_bed, exact_surf, ref_surf, first_guess_bed)
 
-    def reset(self, ref_bed, ref_surf, first_guess_bed):
+    def __init__(self, lcurve_test):
+        self.reset(lcurve_test.bed_2d,
+                   lcurve_test.exact_surf,
+                   lcurve_test.reference_surf,
+                   lcurve_test.first_guess)
+        self.case = lcurve_test.case
+        self.solver = lcurve_test.solver
+        self.minimize_options = lcurve_test.minimize_options
+
+    def reset(self, ref_bed, exact_surf, ref_surf, first_guess_bed):
         self.grads = []
         self.costs = []
         self.c_terms = []
@@ -34,8 +43,12 @@ class DataLogger(object):
         self.step_indices = []
         self.lambdas = np.zeros(9)
         self.ref_bed = ref_bed
+        self.exact_surf = exact_surf
         self.ref_surf = ref_surf
         self.first_guess_bed = first_guess_bed
+        self.solver = None
+        self.minimize_options = None
+        self.case = None
 
     def filter_data_from_optimization(self):
         # Filter all "exploratory" model runs to only get "real" iteration steps
@@ -197,6 +210,7 @@ def load_pickle(filepath, use_compression=None):
     with _open(filepath, 'rb') as f:
         out = pickle.load(f)
     return out
+
 
 def write_pickle(var, filepath, use_compression=None):
     """ Writes a variable to a pickle on disk.

@@ -3,9 +3,9 @@ from cobbi.inversion import *
 import matplotlib.pyplot as plt
 #from torch.optim import LBFGS
 
-case = test_cases.mayan_ice_cap
-case = test_cases.mayan_ice_cap
-case = test_cases.blafell
+case = test_cases.Mayan_ice_cap
+case = test_cases.Mayan_ice_cap
+case = test_cases.Blafell
 case.dx = 600
 case.smooth_border_px = 5
 
