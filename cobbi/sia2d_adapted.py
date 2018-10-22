@@ -278,26 +278,17 @@ class Upstream2D(Model2D):
 
         # We introduce Gamma to shorten the equations
         self.gamma = self.glen_a * (self.RHO * G) ** self.N / (self.N + 2) * \
-                     torch.tensor(2., dtype=torch.float, requires_grad=False)
+                     torch.tensor(2., dtype=torch.float)
 
         # forward time stepping stability criteria
         # default is just beyond R. Hindmarsh's idea of 1/2(n+1)
 
-        self.cfl = torch.tensor(cfl, dtype=torch.float, requires_grad=False)
-        self.max_dt = torch.tensor(max_dt, dtype=torch.float,
-                                   requires_grad=False)
+        self.cfl = torch.tensor(cfl, dtype=torch.float)
+        self.max_dt = torch.tensor(max_dt, dtype=torch.float)
 
         # extend into 2D
         self.Lx = 0.5 * (self.nx - 1) * self.dx
         self.Ly = 0.5 * (self.ny - 1) * self.dy
-
-        # Some indices
-        #self.k = np.arange(0, self.ny)
-        #self.kp = np.hstack([np.arange(1, self.ny), self.ny - 1])
-        #self.km = np.hstack([0, np.arange(0, self.ny - 1)])
-        #self.l = np.arange(0, self.nx)
-        #self.lp = np.hstack([np.arange(1, self.nx), self.nx - 1])
-        #self.lm = np.hstack([0, np.arange(0, self.nx - 1)])
 
     def diffusion_upstream_2d(self):
         # Builded upon the Eq. (62) with the term in y in the diffusivity.
@@ -377,11 +368,12 @@ class Upstream2D(Model2D):
                                       torch.max(torch.abs(D_k_dn))),
                             torch.max(torch.max(torch.abs(D_l_up)),
                                       torch.max(torch.abs(D_l_dn))))
-        if divisor == 0:
-            dt_cfl = self.max_dt
-        else:
-            dt_cfl = (self.cfl * torch.min(self.dx ** 2., self.dy ** 2.) /
-                      divisor)
+        #if divisor == 0:
+        #    dt_cfl = self.max_dt
+        #else:
+        # TODO: raise errors at least
+        dt_cfl = (self.cfl * torch.min(self.dx ** 2., self.dy ** 2.) /
+                  divisor)
 
         # --- Calculate Final diffusion term
         div_k = (D_k_up * S_kpdiff / self.dy -
@@ -397,9 +389,8 @@ class Upstream2D(Model2D):
         div_q, dt_cfl = self.diffusion_upstream_2d()
 
         dt_use = torch.clamp(torch.min(torch.tensor([dt_cfl, dt],
-                                                    dtype=torch.float,
-                                                    requires_grad=False)),
-                             0., self.max_dt.item())
+                                                    dtype=torch.float)),
+                             0., self.max_dt)
 
         self.ice_thick[1:-1, 1:-1] = torch.clamp(
             self.surface_h[1:-1, 1:-1] +

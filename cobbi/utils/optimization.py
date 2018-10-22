@@ -29,7 +29,7 @@ class LCurveTest(object):
         self.mb = su[3]
         self.bed_2d = su[4].detach().numpy()
 
-        self.lambdas = torch.zeros(9, dtype=torch.float)
+        self.lambdas = torch.zeros(9, dtype=torch.float, requires_grad=False)
         self.first_guess = get_first_guess(self.reference_surf, self.ice_mask,
                                            self.case.dx)
         
@@ -75,6 +75,53 @@ class LCurveTest(object):
             print(log_entry)
             self.optim_log += log_entry
 
+    def run_minimize2(self, update_scaling=0.5, write_specs=True):
+        self.optim_log = ''
+        if write_specs:
+            self.clear_dir(self.get_current_basedir())
+            self.write_string_to_file('settings.txt',
+                                      self.get_setting_as_string())
+        dl = DataLogger(self)
+        self.data_logger = dl
+
+        self.cost_func = create_cost_function(self.start_surf,
+                                              self.reference_surf,
+                                              self.ice_mask, self.case.dx,
+                                              self.mb, self.y_spinup_end,
+                                              self.y_end,
+                                              self.lambdas,
+                                              dl)
+        guessed_bed = self.first_guess.copy()
+        for i in range(self.minimize_options['maxiter']):
+            cost, grad = self.cost_func(guessed_bed)
+            self.iteration_info_callback(guessed_bed)
+            if cost < 10:
+                break
+            grad = grad.reshape(guessed_bed.shape)
+            gradmax_index = np.unravel_index(np.argmax(np.abs(grad)), grad.shape)
+            surf_diff = np.abs(dl.surfs[-1][gradmax_index]
+                                    - self.reference_surf[gradmax_index])
+            k = surf_diff / np.abs(grad[gradmax_index])
+            guessed_bed = guessed_bed - update_scaling * k * grad
+
+
+        #res = minimize(fun=self.cost_func,
+        #               x0=self.first_guess.astype(np.float64).flatten(),
+        #               method=self.solver, jac=True,
+        #               options=self.minimize_options,
+        #               callback=self.iteration_info_callback)
+
+        if write_specs:
+            self.write_string_to_file('log.txt', self.optim_log)
+            dir = self.get_current_basedir()
+            dl.filter_data_from_optimization()
+            data_logging.write_pickle(dl, dir + 'data_logger.pkl')
+            dl.plot_all(dir)
+            plt.close('all')
+        del self.cost_func
+        self.cost_func = None
+        self.optimization_counter += 1
+
     def run_minimize(self, write_specs=True):
         self.optim_log = ''
         if write_specs:
@@ -105,6 +152,8 @@ class LCurveTest(object):
             data_logging.write_pickle(dl, dir + 'data_logger.pkl')
             dl.plot_all(dir)
             plt.close('all')
+        del self.cost_func
+        self.cost_func = None
         self.optimization_counter += 1
 
     def write_string_to_file(self, filename, text):

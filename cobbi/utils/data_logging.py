@@ -95,7 +95,7 @@ class DataLogger(object):
     def plot_costs(self, basedir):
         plt.figure()
         plt.semilogy(self.costs)
-        plt.xlabel('function call #')
+        plt.xlabel('Iteration #')
         plt.ylabel('Cost')
         plt.savefig(basedir + 'cost.pdf')
         plt.clf()
@@ -106,7 +106,7 @@ class DataLogger(object):
         for i in range(self.lambdas.size):
             plt.semilogy(data[:, i], label='Reg {:d}'.format(i))
         plt.semilogy(data[:, -1], label='Bare cost')
-        plt.xlabel('function call #')
+        plt.xlabel('Iteration #')
         plt.ylabel('Cost')
         plt.legend()
         plt.savefig(basedir + 'c_terms.pdf')
@@ -125,7 +125,7 @@ class DataLogger(object):
         plt.figure()
         plt.semilogy(self.get_bed_rmses(), label='Bed')
         plt.semilogy(self.get_surf_rmses(), label='Surface')
-        plt.xlabel('function call #')
+        plt.xlabel('Iteration #')
         plt.ylabel('RMSE')
         plt.legend()
         plt.savefig(basedir + 'bed_surf_rmse.pdf')

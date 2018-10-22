@@ -35,11 +35,12 @@ def first_thickness_guess(obs_surf, ice_mask, map_dx, smoothing=None):
 
 
 def first_guess(surf, ice_mask, map_dx, slope_cutoff_angle=5.0, factor=1):
-    h_difference = surf[ice_mask].max() - surf[ice_mask].min()
-    h_difference = min(1.6, h_difference / 1000.)
+    glacier_surf = np.ma.masked_array(surf, np.logical_not(ice_mask))
+    h_difference = glacier_surf.max() - glacier_surf.min()
+    # h_difference = min(1.6, h_difference / 1000.)
     # https://doi.org/10.1080/13658816.2011.627859
     tau = 0.005 + 1.598 * h_difference - 0.435 * h_difference ** 2
-    if h_difference == 1.6:
+    if h_difference >= 1.6:
         tau = 1.5
     tau = tau * 1e5
 
@@ -121,21 +122,26 @@ def get_first_guess(reference_surf, ice_mask, dx):
     return first_guess(reference_surf, ice_mask,dx)
 
 
-def create_cost_function(spinup_surface, surface_to_match, ice_mask,
+def create_cost_function(spinup_surface, surface_to_match, glacier_mask,
                          dx, mb, y_spinup_end, y_end, lambs, data_logger=None):
 
-    ice_mask = torch.tensor(ice_mask, dtype=torch.float)
-    spinup_surface = torch.tensor(spinup_surface, dtype=torch.float)
-    surface_to_match = torch.tensor(surface_to_match, dtype=torch.float)
-    n_ice_mask = float(ice_mask.sum())
-    n_grid = float(ice_mask.numel())
-    conv_filter = torch.ones((1, 1, 3, 3))
-    
+    n_ice_mask = float(glacier_mask.sum())
+    n_grid = float(glacier_mask.size)
+
     # define cost_function
     def cost_function(b):
-        bed = torch.tensor(b.reshape(spinup_surface.shape), dtype=torch.float,
+        lambdas = lambs.detach().clone()
+        ice_mask = torch.tensor(glacier_mask, dtype=torch.float,
+                                requires_grad=False)
+        start_surf = torch.tensor(spinup_surface, dtype=torch.float,
+                                  requires_grad=False)
+        reference_surf = torch.tensor(surface_to_match, dtype=torch.float,
+                                      requires_grad=False)
+        conv_filter = torch.ones((1, 1, 3, 3), requires_grad=False)
+
+        bed = torch.tensor(b.reshape(start_surf.shape), dtype=torch.float,
                            requires_grad=True)
-        init_ice_thick = spinup_surface - bed
+        init_ice_thick = start_surf - bed
         model = Upstream2D(bed, dx=dx, mb_model=mb, y0=y_spinup_end,
                            glen_a=cfg.PARAMS['glen_a'], ice_thick_filter=None,
                            init_ice_thick=init_ice_thick)
@@ -146,31 +152,32 @@ def create_cost_function(spinup_surface, surface_to_match, ice_mask,
         ice_region = (s - bed) > 0
         ice_region = ice_region.type(dtype=torch.float)
 
-        inner_mask = torch.zeros(spinup_surface.shape)
+        inner_mask = torch.zeros(start_surf.shape)
         inner_mask[1:-1, 1:-1] = torch.conv2d(
-            torch.tensor(ice_region.unsqueeze(0).unsqueeze(0),
-                         dtype=torch.float),
+            ice_region.unsqueeze(0).unsqueeze(0),
             conv_filter) == 9
 
-        c = get_costs(lambs, surface_to_match, s, bed, n_grid, ice_region,
-                         inner_mask, ice_mask, n_ice_mask, dx)
+        c = get_costs(lambdas, reference_surf, s, bed, n_grid, ice_region,
+                      inner_mask, ice_mask, n_ice_mask, dx)
         cost = c.sum()
 
-        cost.backward()
+        cost.backward(retain_graph=False)
         with torch.no_grad():
             grad = bed.grad
-            grad = grad.detach().numpy().flatten().astype(np.float64)
+            grad_val = grad.detach().numpy().flatten().astype(np.float64)
             bed.grad.zero_()
-            cost = cost.detach().numpy().astype(np.float64)
+            cost_val = cost.detach().numpy().astype(np.float64)
 
         if data_logger is not None:
             data_logger.c_terms.append(c.detach().numpy())
-            data_logger.costs.append(cost)
-            data_logger.grads.append(grad)
+            data_logger.costs.append(cost_val)
+            data_logger.grads.append(grad_val)
             data_logger.beds.append(bed.detach().numpy())
             data_logger.surfs.append(s.detach().numpy())
 
-        return cost, grad
+        del ice_mask, bed, s, reference_surf, start_surf, c, cost, grad, lambdas
+
+        return cost_val, grad_val
 
     return cost_function
 
@@ -180,11 +187,16 @@ def get_costs(lambs, surface_to_match, s, bed, n_grid, ice_region, inner_mask,
 
     n_inner_mask = inner_mask.sum()
     cost = torch.zeros(10)
-
-    cost[-1] = (surface_to_match - s).pow(2).sum() \
-               / ice_region.sum().type(dtype=torch.float)
+    lamb00 = 0.5
+    margin = (ice_region - inner_mask)
+    cost[-1] = ((surface_to_match - s) * (1. - margin)).pow(2).sum() \
+               / inner_mask.sum().type(dtype=torch.float)
+    cost[-1] = cost[-1] + lamb00 *\
+               ((surface_to_match - s) * margin).pow(2).sum() \
+               / margin.sum().type(dtype=torch.float)
 
     if lambs[0] != 0:
+        # penalize large derivatives of ice thickness
         it = s - bed
         dit_dx = (it[:, :-2] - it[:, 2:]) / (2. * dx)
         dit_dy = (it[:-2, :] - it[2:, :]) / (2. * dx)
@@ -194,6 +206,7 @@ def get_costs(lambs, surface_to_match, s, bed, n_grid, ice_region, inner_mask,
                 (dit_dx.pow(2).sum() + dit_dy.pow(2).sum()) / n_inner_mask)
 
     if lambs[1] != 0:
+        # penalize large derivatives of bed inside glacier bounds
         db_dx = (bed[:, :-2] - bed[:, 2:]) / dx
         db_dy = (bed[:-2, :] - bed[2:, :]) / dx
         db_dx = db_dx * inner_mask[:, 1:-1]
@@ -241,17 +254,44 @@ def get_costs(lambs, surface_to_match, s, bed, n_grid, ice_region, inner_mask,
         ddb_dy = ddb_dy * (ice_region - inner_mask)[1:-1, :]
         cost[6] = lambs[6] * ((ddb_dx.pow(2).sum() + ddb_dy.pow(2).sum())
                                 / (ice_region - inner_mask)[1:-1, 1:-1].sum())
-
+    
     if lambs[7] != 0:
+        # penalize high curvature of surface inside glacier
+        dds_dx = (s[:, :-2] + s[:, 2:] - 2 * s[:, 1:-1]) / dx ** 2
+        dds_dy = (s[:-2, :] + s[2:, :] - 2 * s[1:-1, :]) / dx ** 2
+        dds_dx = dds_dx * inner_mask[:, 1:-1]
+        dds_dy = dds_dy * inner_mask[1:-1, :]
+        cost[7] = lambs[7] * ((dds_dx.pow(2).sum() + dds_dy.pow(2).sum())
+                                / n_inner_mask)
+
+    if lambs[8] != 0:
+        lmsd = LocalMeanSquaredDifference.apply
+        cost[8] = lambs[8] * lmsd(s, surface_to_match, ice_region, ice_mask, bed)
+    #if lambs[7] != 0:
         # penalizes not matching ice masks between reference and modelled
         # in comparison to lamb3 independent of icethickness at not matching
         # grid cells
-        cost[7] = lambs[7]* (inner_mask - ice_mask).pow(2).sum() / n_grid
+    #    cost[7] = lambs[7]* (inner_mask - ice_mask).pow(2).sum() / n_grid
 
-    if lambs[8] != 0:
+    #if lambs[8] != 0:
         # penalizes differences in surface height with power of 4 to put
         # more emphasize on larger deviations
-        cost[8] = lambs[8] * ((surface_to_match - s).pow(2).sum()
-                              / ice_region.sum().type(dtype=torch.float))
+    #    cost[8] = lambs[8] * ((surface_to_match - s).pow(2).sum()
+    #                          / ice_region.sum().type(dtype=torch.float))
 
     return cost
+
+
+class LocalMeanSquaredDifference(torch.autograd.Function):
+
+    @staticmethod
+    def forward(ctx, modelled_surf, surface_to_match, ice_region, ice_mask, bed):
+        ctx.save_for_backward(modelled_surf, surface_to_match, ice_region, ice_mask, bed)
+        msd = (modelled_surf - surface_to_match).pow(2).sum() / ice_region.sum().type(dtype=torch.float)
+        return msd
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        modelled_surf, observed_surf, ice_region, ice_mask, bed = ctx.saved_tensors
+        grad_modelled_surf = (modelled_surf - observed_surf) * ice_mask
+        return None, None, None, None, grad_modelled_surf

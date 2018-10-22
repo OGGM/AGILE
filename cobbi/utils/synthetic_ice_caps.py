@@ -153,6 +153,45 @@ class NonRGIGlacierDirectory(GlacierDirectory):
         """
         raise NotImplementedError
 
+    def get_filepath(self, filename, delete=False, filesuffix=''):
+        """Absolute path to a specific file.
+
+        Parameters
+        ----------
+        filename : str
+            file name (must be listed in cfg.BASENAME)
+        delete : bool
+            delete the file if exists
+        filesuffix : str
+            append a suffix to the filename (useful for model runs). Note
+            that the BASENAME remains same.
+
+        Returns
+        -------
+        The absolute path to the desired file
+        """
+        # TODO: in config übernehmen
+        my_basenames = {'reference_surf': 'reference_surf.tiff',
+                        'start_surf': 'start_surf.tiff',
+                        'ice_mask': 'ice_mask.shp',
+                        'surface': 'surface.tiff'}
+
+        if filename not in cfg.BASENAMES and filename not in my_basenames:
+            raise ValueError(filename + ' not in cfg.BASENAMES.')
+
+        if filename in my_basenames:
+            fname = my_basenames[filename]
+        else:
+            fname = cfg.BASENAMES[filename]
+        if filesuffix:
+            fname = fname.split('.')
+            assert len(fname) == 2
+            fname = fname[0] + filesuffix + '.' + fname[1]
+        out = os.path.join(self.dir, fname)
+        if delete and os.path.isfile(out):
+            os.remove(out)
+        return out
+
 
 @entity_task(log, writes=['glacier_grid', 'dem', 'outlines'])
 def define_nonrgi_glacier_region(gdir:NonRGIGlacierDirectory, dx=400.):
@@ -275,7 +314,7 @@ def define_nonrgi_glacier_region(gdir:NonRGIGlacierDirectory, dx=400.):
                               x0y0=x0y0)
     glacier_grid.to_json(gdir.get_filepath('glacier_grid'))
 
-    # Write DEM source info
+    # Write DEM source infodem_dss
     source_txt = DEM_SOURCE_INFO.get(dem_source, dem_source)
     with open(gdir.get_filepath('dem_source'), 'w') as fw:
         fw.write(source_txt)

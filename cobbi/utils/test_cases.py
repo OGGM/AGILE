@@ -16,7 +16,7 @@ class TestCase(object):
 
 # Mayan Ice Cap, Sierra los Cuchumantes, Guatemala, Qtny Glaciation p. 846
 Mayan_ice_cap = TestCase()
-Mayan_ice_cap.extent = np.array([[-91.70, 15.43], [-91.41, 15.62]])
+Mayan_ice_cap.extent = np.array([[-91.63, 15.43], [-91.43, 15.62]])
 Mayan_ice_cap.ela_h = 3600
 Mayan_ice_cap.name = 'Mayan Ice Cap'
 Mayan_ice_cap.dx = 500
@@ -54,10 +54,10 @@ Arderin.smooth_border_px = 2
 # Richter (1961) and Klinge (2001)
 Khangai = TestCase()
 Khangai.name = 'Khangai'
-Khangai.extent = np.array([[96.75, 48.20], [100.70, 46.30]])
-Khangai.ela_h = 2800
+Khangai.extent = np.array([[96.75, 48.20], [100.72, 46.30]])
+Khangai.ela_h = 2950
 Khangai.mb_grad = 2.
-Khangai.dx = 2000
+Khangai.dx = 3000
 Khangai.smooth_border_px = 5
 
 # Changbai, China/North-korea, p. 994
@@ -84,11 +84,11 @@ Nanhuta.smooth_border_h = 2000
 # Mount Kinabalu, Malaysia? p. 1024
 Kinabalu = TestCase()
 Kinabalu.name = 'Kinabalu'
-Kinabalu.extent = np.array([[116.46, 6.00], [116.69, 6.16]])
-Kinabalu.ela_h = 3000
-Kinabalu.mb_grad = 3.5
-Kinabalu.dx = 200
-Kinabalu.smooth_border_px = 3
+Kinabalu.extent = np.array([[116.515, 6.022], [116.645, 6.138]])
+Kinabalu.ela_h = 2850
+Kinabalu.mb_grad = 4.0
+Kinabalu.dx = 300
+Kinabalu.smooth_border_px = 0
 
 # Osura Trikora, Indonesien, p. 1034
 Trikora = TestCase()
@@ -105,7 +105,7 @@ Giluwe.name = 'Giluwe'
 Giluwe.extent = np.array([[143.80, -6.12], [144.00, -5.95]])
 Giluwe.ela_h = 3700
 Giluwe.mb_grad = 4.
-Giluwe.dx = 400
+Giluwe.dx = 500
 Giluwe.smooth_border_px = 2
 
 #Gowanbridge, NZ
@@ -151,8 +151,8 @@ Siberia3.smooth_border_h = 50
 #Tergun Bogd / Ikh Bogd, Mongolia, p.968
 Bogd = TestCase()
 Bogd.name = 'Tergun Bogd'
-Bogd.extent = np.array([[100.17, 44.91], [100.39, 45.02]])
-Bogd.ela_h = 3550
+Bogd.extent = np.array([[100.16, 44.885], [100.41, 45.04]])
+Bogd.ela_h = 3400
 Bogd.dx = 400
 Bogd.mb_grad = 2.5
 Bogd.smooth_border_px = 2
@@ -181,7 +181,7 @@ Slamet.smooth_border_h = 1500
 #Marion Island, p.1084
 Marion = TestCase()
 Marion.name = 'Marion Island'
-Marion.extent = np.array([[37.58, -46.98], [37.90, -46.83]])
+Marion.extent = np.array([[37.61, -46.96], [37.81, -46.845]])
 Marion.ela_h = 850
 Marion.mb_grad = 3.5
 Marion.dx = 300
@@ -197,3 +197,13 @@ Owen.dx = 400
 Owen.mb_grad = 3.5
 Owen.smooth_border_px = 2
 Owen.smooth_border_h = 300
+
+#Nanisivik / Arctic Bay
+Nanisivik = TestCase()
+Nanisivik.name = 'Nanisivik Arctic Bay'
+Nanisivik.extent= np.array([[-85.80, 72.34], [-83.40, 73.07]])
+Nanisivik.ela_h = 650
+Nanisivik.dx = 2000
+Nanisivik.mb_grad = 2.
+Nanisivik.smooth_border_px = 2
+Nanisivik.smooth_border_h = 0
