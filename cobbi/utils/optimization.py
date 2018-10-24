@@ -99,12 +99,13 @@ class LCurveTest(object):
             if cost < 10:
                 break
             grad = grad.reshape(guessed_bed.shape)
-            gradmax_index = np.unravel_index(np.argmax(np.abs(grad)), grad.shape)
-            surf_diff = np.abs(dl.surfs[-1][gradmax_index]
-                                    - self.reference_surf[gradmax_index])
-            k = surf_diff / np.abs(grad[gradmax_index])
-            guessed_bed = guessed_bed - update_scaling * k * grad
-
+            surf_diff = dl.surfs[-1] - self.reference_surf
+            # TODO: reference_surf, ice_mask
+            locally_to_compensate = surf_diff**2 / self.ice_mask.sum()
+            n = locally_to_compensate / grad
+            n[np.isinf(n)] = np.nan
+            n = np.nanmax(np.abs(n))
+            guessed_bed = guessed_bed - update_scaling * n * grad
 
         #res = minimize(fun=self.cost_func,
         #               x0=self.first_guess.astype(np.float64).flatten(),
