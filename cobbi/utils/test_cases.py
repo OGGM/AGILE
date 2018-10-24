@@ -12,6 +12,8 @@ class TestCase(object):
         self.mb_grad = 3.0
         self.smooth_border_px = 0
         self.smooth_border_h = 0.
+        self.mb_max_alt = None
+        self.mb_min_alt = None
 
 
 # Mayan Ice Cap, Sierra los Cuchumantes, Guatemala, Qtny Glaciation p. 846
@@ -85,8 +87,8 @@ Nanhuta.smooth_border_h = 2000
 Kinabalu = TestCase()
 Kinabalu.name = 'Kinabalu'
 Kinabalu.extent = np.array([[116.515, 6.022], [116.645, 6.138]])
-Kinabalu.ela_h = 2850
-Kinabalu.mb_grad = 4.0
+Kinabalu.ela_h = 3070
+Kinabalu.mb_grad = 4.
 Kinabalu.dx = 300
 Kinabalu.smooth_border_px = 0
 
@@ -102,11 +104,13 @@ Trikora.smooth_border_px = 3
 # Mount Giluwe, Papua New Guinea, p.1033
 Giluwe = TestCase()
 Giluwe.name = 'Giluwe'
-Giluwe.extent = np.array([[143.80, -6.12], [144.00, -5.95]])
-Giluwe.ela_h = 3700
-Giluwe.mb_grad = 4.
-Giluwe.dx = 500
-Giluwe.smooth_border_px = 2
+Giluwe.extent = np.array([[143.855, -6.067], [143.947, -5.995]])
+# with 3700m and 500dx: np.array([[143.805, -6.115], [143.985, -5.96]])
+Giluwe.ela_h = 3890
+Giluwe.mb_grad = 3.5
+Giluwe.dx = 250
+Giluwe.smooth_border_px = 0
+Giluwe.mb_max_alt = 4200
 
 #Gowanbridge, NZ
 Gowanbridge = TestCase()
@@ -201,9 +205,10 @@ Owen.smooth_border_h = 300
 #Nanisivik / Arctic Bay
 Nanisivik = TestCase()
 Nanisivik.name = 'Nanisivik Arctic Bay'
-Nanisivik.extent= np.array([[-85.80, 72.34], [-83.40, 73.07]])
-Nanisivik.ela_h = 650
+Nanisivik.extent= np.array([[-85.88, 72.34], [-83.40, 73.07]])
+Nanisivik.ela_h = 625
 Nanisivik.dx = 2000
 Nanisivik.mb_grad = 2.
 Nanisivik.smooth_border_px = 2
 Nanisivik.smooth_border_h = 0
+Nanisivik.mb_max_alt = 850

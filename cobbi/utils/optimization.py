@@ -48,6 +48,7 @@ class LCurveTest(object):
                                      'disp': True}
 
         self.data_logger = DataLogger(self)
+        self.optimization_bounds = None
 
     def iteration_info_callback(self, x0):
         i = len(self.data_logger.costs) - 1
@@ -142,6 +143,7 @@ class LCurveTest(object):
         res = minimize(fun=self.cost_func,
                        x0=self.first_guess.astype(np.float64).flatten(),
                        method=self.solver, jac=True,
+                       bounds=self.optimization_bounds,
                        options=self.minimize_options,
                        callback=self.iteration_info_callback)
 

@@ -9,8 +9,8 @@ import os
 case = test_cases.Giluwe
 #case.dx = 600
 #case.smooth_border_px = 2
-print(case.mb_grad)
-print(case.ela_h)
+#print(case.mb_grad)
+#print(case.ela_h)
 
 basedir = '/data/philipp/tests/cases/'
 basedir = os.path.join(basedir, case.name)
@@ -29,7 +29,78 @@ reference_surf = reference_surf.detach().numpy()
 ice_mask = ice_mask.detach().numpy()
 bed_2d = bed_2d.detach().numpy()
 
-first_bed_guess = first_guess(reference_surf, ice_mask, case.dx)
+#first_bed_guess = first_guess(reference_surf, ice_mask, case.dx)
+
+def run_forward(mb_model, b, spinup_surf):
+    with torch.no_grad():
+        start_surf = torch.tensor(spinup_surf, dtype=torch.float,
+                                  requires_grad=False)
+        bed = torch.tensor(b.reshape(start_surf.shape), dtype=torch.float,
+                           requires_grad=False)
+        init_ice_thick = start_surf - bed
+        reference_model = Upstream2D(bed, dx=case.dx, mb_model=mb_model, y0=0,
+                                     glen_a=cfg.PARAMS['glen_a'],
+                                     ice_thick_filter=None,
+                                     init_ice_thick=init_ice_thick)
+        reference_model.run_until(y_end)
+        return reference_model.surface_h.detach().numpy()
+
+
+def compute_mean_bias(first_guess_surf, reference_surf, ice_mask):
+    bias = (first_guess_surf - reference_surf).sum() / ice_mask.sum()
+    # not totally exact, as first_guess_surf can (and probably will) not match ice_mask
+    # exactly and the mean would have to be computed otherwise, but is ok for a first impression
+    return bias
+
+
+def iterative_first_guess(f, init_sca, reference_surf, ice_mask, dx,
+                          mb_model, start_surf):
+    max_iter = 100.
+    sca = init_sca
+    sca_step_size = 0.5
+    sca_step = 0.
+    min_sca = 1.5
+    max_sca = 5.0
+
+    first_bed_guess = first_guess(reference_surf, ice_mask, dx, factor=f,
+                                  slope_cutoff_angle=sca)
+    first_guess_surf = run_forward(mb_model, first_bed_guess, start_surf)
+    bias = compute_mean_bias(first_guess_surf, reference_surf, ice_mask)
+    print(bias)
+    i = 1
+    while abs(bias) > 5 and i < max_iter:
+        if bias > 0:
+            # need lower surface and therefore most probably also lower bed
+            if sca_step > 0:
+                # last step was positive as bias was negative -> reduce stepping
+                sca_step_size *= 0.5
+            sca_step = -sca_step_size
+        else:
+            if sca_step < 0:
+                # last step was negative as bias was positive -> reduce stepping
+                sca_step_size *= 0.5
+            sca_step = sca_step_size
+        sca = np.clip(sca + sca_step, min_sca, max_sca)
+
+        i = i + 1
+        first_bed_guess = first_guess(reference_surf, ice_mask, dx, factor=f,
+                                      slope_cutoff_angle=sca)
+        first_guess_surf = run_forward(mb_model, first_bed_guess, start_surf)
+        bias = compute_mean_bias(first_guess_surf, reference_surf, ice_mask)
+        print(bias)
+        print(sca)
+        if sca <= min_sca or sca >= max_sca:
+            break  # TODO: do not break after first time this condition is met... bias could go into other direction again
+
+    print('iteration finished')
+    print(i)
+    print(bias)
+    print(sca)
+    return first_bed_guess, sca, bias
+
+first_bed_guess, sca, bias = iterative_first_guess(1., 5., reference_surf,
+                                                   ice_mask, case.dx, mb,
+                                                   start_surf)
 
 ref_ice_mask = (reference_surf - bed_2d) == 0
 

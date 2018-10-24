@@ -17,7 +17,7 @@ from cobbi.utils.synthetic_ice_caps import NonRGIGlacierDirectory
 from cobbi.utils.synthetic_ice_caps \
     import define_nonrgi_glacier_region, smooth_dem_borders
 from cobbi.utils.massbalance_pytorch \
-    import LinearMassBalance
+    import ClippedLinearMassBalance
 #from cobbi.inversion import first_guess
 
 #extended_logging_in_cost_function = True
@@ -103,7 +103,9 @@ def spin_up(case, y_spinup_end, y_end):
     ds = salem.GeoTiff(gdir.get_filepath('dem', filesuffix='_smooth_border'))
     bed_2d = torch.tensor(ds.get_vardata(), dtype=torch.float, requires_grad=False)
 
-    mb = LinearMassBalance(case.ela_h, grad=case.mb_grad)
+    mb = ClippedLinearMassBalance(case.ela_h, grad=case.mb_grad,
+                                  max_mb_alt=case.mb_max_alt,
+                                  min_mb_alt=case.mb_min_alt)
     # Create glacier
     with torch.no_grad():
         reference_model = Upstream2D(bed_2d, dx=case.dx, mb_model=mb, y0=0,
@@ -188,12 +190,14 @@ def get_costs(lambs, surface_to_match, s, bed, n_grid, ice_region, inner_mask,
     n_inner_mask = inner_mask.sum()
     cost = torch.zeros(10)
     lamb00 = 0.5
-    margin = (ice_region - inner_mask)
-    cost[-1] = ((surface_to_match - s) * (1. - margin)).pow(2).sum() \
-               / inner_mask.sum().type(dtype=torch.float)
-    cost[-1] = cost[-1] + lamb00 *\
-               ((surface_to_match - s) * margin).pow(2).sum() \
-               / margin.sum().type(dtype=torch.float)
+    #margin = (ice_region - inner_mask)
+    #cost[-1] = ((surface_to_match - s) * (1. - margin)).pow(2).sum() \
+    #           / inner_mask.sum().type(dtype=torch.float)
+    #cost[-1] = cost[-1] + lamb00 *\
+    #           ((surface_to_match - s) * margin).pow(2).sum() \
+    #           / margin.sum().type(dtype=torch.float)
+    cost[-1] = ((surface_to_match - s)).pow(2).sum() \
+               / ice_region.sum().type(dtype=torch.float)
 
     if lambs[0] != 0:
         # penalize large derivatives of ice thickness
