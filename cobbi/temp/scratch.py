@@ -12,7 +12,10 @@ np.random.seed(0)
 n = 5
 
 lambda_values = np.zeros((9, n))
-lambda_values[0] = [1., 5., 12., 25., 50.]
+lambda_values[0] = [1., 10., 70., 200., 2000]
+lambda_values[0] = lambda_values[0][::-1]
+lambda_values[1] = [1., 10., 70., 200., 2000]
+lambda_values[1] = lambda_values[1][::-1]
 lambda_values[2] = [10., 3., 30., None, None]
 lambda_values[4] = [1., 20., 100., 300., 625.]
 lambda_values[5] = [1., 10., 40., 100., 300.]
@@ -22,9 +25,9 @@ lambda_values[7] = [4., 40., 150., 400., 800.]
 lambdas_list = []
 
 lambdas_list = []
-lambdas_list.append(np.zeros(9))
+#lambdas_list.append(np.zeros(9))
 
-for i in [2, 0, 4, 5, 6, 7]:
+for i in [1, 2, 0, 4, 5, 6, 7]:
     for j in range(n):
         lambdas = np.zeros(9)
         if lambda_values[i, j] is not None:
@@ -41,11 +44,11 @@ case = test_cases.Giluwe
 
 y0 = 0
 y_spinup_end = 2000
-y_end = 2100
+y_end = 2200
 
 solver = 'CG'
 minimize_options = {
-    'maxiter': 100,
+    'maxiter': 300,
     #'ftol': 1e-3,
     #'xtol': 1e-30,
     #'gtol': 1e-4,
@@ -68,17 +71,17 @@ sca = 5.
 test.first_guess = first_guess(test.reference_surf, test.ice_mask, test.case.dx,
                                slope_cutoff_angle=sca, factor=f)
 test.basedir = '/data/philipp/tests/giluwe/no_noise/'
-test.maxiter = 100
+test.maxiter = 300
 #test.optimization_counter =
 # Disturb surface:
 #test.add_surface_noise(std=5) #, zoom=1.5)
 start_at = 0
-test.optimization_counter = start_at + 1400
+test.optimization_counter = start_at + 2100
 my_list = lambdas_list[start_at:]
 for lambs in my_list:
     #try:
     test.lambdas = torch.tensor(lambs, dtype=torch.float, requires_grad=False)
-    test.run_minimize2(update_scaling=0.25)
+    test.run_minimize2(update_scaling=0.4)
     #except:
     #    pass
 
