@@ -189,15 +189,15 @@ def get_costs(lambs, surface_to_match, s, bed, n_grid, ice_region, inner_mask,
 
     n_inner_mask = inner_mask.sum()
     cost = torch.zeros(10)
-    lamb00 = 0.5
-    #margin = (ice_region - inner_mask)
-    #cost[-1] = ((surface_to_match - s) * (1. - margin)).pow(2).sum() \
-    #           / inner_mask.sum().type(dtype=torch.float)
-    #cost[-1] = cost[-1] + lamb00 *\
-    #           ((surface_to_match - s) * margin).pow(2).sum() \
-    #           / margin.sum().type(dtype=torch.float)
-    cost[-1] = ((surface_to_match - s)).pow(2).sum() \
-               / ice_region.sum().type(dtype=torch.float)
+    lamb00 = 0.2
+    margin = (ice_region - inner_mask)
+    cost[-1] = ((surface_to_match - s) * (1. - margin)).pow(2).sum() \
+               / inner_mask.sum().type(dtype=torch.float)
+    cost[-1] = cost[-1] + lamb00 *\
+               ((surface_to_match - s) * margin).pow(2).sum() \
+               / margin.sum().type(dtype=torch.float)
+    #cost[-1] = ((surface_to_match - s)).pow(2).sum() \
+    #           / ice_region.sum().type(dtype=torch.float)
 
     if lambs[0] != 0:
         # penalize large derivatives of ice thickness
