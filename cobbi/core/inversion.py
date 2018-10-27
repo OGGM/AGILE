@@ -4,7 +4,7 @@ import numpy as np
 import logging
 import salem
 from scipy.optimize import minimize
-from matplotlib.pyplot import plt
+import matplotlib.pyplot as plt
 from cobbi.core import data_logging
 from cobbi.core.data_logging import DataLogger
 from cobbi.core.arithmetics import rmse
@@ -15,34 +15,24 @@ from cobbi.core.cost_function import create_cost_func
 # Module logger
 log = logging.getLogger(__name__)
 
+
 class InversionDirectory(object):
 
-    def __init__(self, gdir: NonRGIGlacierDirectory, case, yrs_to_run, mb_model,
-                 solver='L-BFGS-B',
-                 minimize_options=None):
+    def __init__(self, gdir: NonRGIGlacierDirectory):
         self.gdir = gdir
-        self.lambdas = torch.zeros(9, dtype=torch.float)
+        self.inv_settings = gdir.inversion_settings
+        self.true_bed = None
+        self.first_guessed_bed = None
+        self.ref_surf = None
+        self.minimize_log = ''
         self.cost_func = None
-        self.optim_log = ''
-        self.optimization_counter = 0
-        self.case.dx
-        self.yrs_to_run = yrs_to_run
-        self.mb_model = self.mb_model
-        self.solver = solver
-        self.maxiter = 100
-        self.minimize_options = minimize_options
-        if minimize_options is None:
-            self.minimize_options = {'maxiter': self.maxiter,
-                                     'disp': True}
-        self.data_logger = DataLogger(self)
-        self.optimization_bounds = None
 
     def iteration_info_callback(self, x0):
         i = len(self.data_logger.costs) - 1
         if i >= 0:
             dl = self.data_logger
             dl.step_indices.append(i)
-            b = self.bed_2d
+            b = self.true_bed
             log_entry = ''
             log_entry += '----------------------------------------------\n'
             log_entry += 'Function Call: {:d}\n'.format(i)
@@ -53,15 +43,15 @@ class InversionDirectory(object):
             log_entry += 'Bed Max_diff: {:g}\n'.format(
                 np.max(np.abs(dl.beds[i] - b)))
             log_entry += 'Surface RMSE: {:g}\n'.format(
-                  rmse(dl.surfs[i], self.reference_surf))
-            if self.surface_noise is not None:
-                log_entry += 'Surface RMSE (from exact): {:g}\n'.format(
-                    rmse(dl.surfs[i], self.exact_surf))
+                  rmse(dl.surfs[i], self.ref_surf))
+            #if self.surface_noise is not None:
+            #    log_entry += 'Surface RMSE (from exact): {:g}\n'.format(
+            #        rmse(dl.surfs[i], self.exact_surf))
             log_entry += 'Surface Max_diff: {:g}\n'.format(
                   np.max(np.abs(dl.surfs[i]
-                                - self.reference_surf)))
+                                - self.ref_surf)))
             print(log_entry)
-            self.optim_log += log_entry
+            self.minimize_log += log_entry
 
     def write_string_to_file(self, filename, text):
         dir = self.get_current_basedir()
@@ -70,24 +60,10 @@ class InversionDirectory(object):
         with open(os.path.join(dir, filename), 'w') as f:
             f.write(text)
 
-    def get_setting_as_string(self):
-        s = ''
-        s += 'basedir = \'{:s}\''.format(self.basedir)
-        s += '\ncase = ' + self.case.name
-        s += '\ncase.dx = {:d}'.format(self.case.dx)
-        s += '\ncase.smooth_border_px = {:d}'.format(self.case.smooth_border_px)
-        s += '\ny0 = {:d}'.format(self.y0)
-        s += '\ny_spinup_end = {:d}'.format(self.y_spinup_end)
-        s += '\nself.y_end = {:d}'.format(self.y_end)
-        s += '\nlambdas = ' + str(self.lambdas)
-        s += '\noptimization_counter = {:d}'.format(self.optimization_counter)
-        s += '\nsolver = ' + self.solver
-        s += '\nminimize_options = ' + str(self.minimize_options)
-        return s
-
     def get_current_basedir(self):
         return os.path.join(self.gdir.dir,
-                            '{:d}/'.format(self.optimization_counter))
+                            '{:d}/'.format(self.inv_settings[
+                                               'inversion_counter']))
 
     def clear_dir(self, dir):
         if os.path.exists(dir):
@@ -97,42 +73,69 @@ class InversionDirectory(object):
             if not os.path.exists(dir):
                 os.makedirs(dir, exist_ok=True)
 
-    def run_minimize(self, write_specs=True):
-        self.optim_log = ''
-        if write_specs:
+    def _read_all_data(self):
+        """
+        Reads all necessary information from files in gdir for
+        minimization/optimization and logging.
+        """
+        self.true_bed = salem.GeoTiff(
+            self.gdir.get_filepath('dem')).get_vardata()
+        self.ref_surf = salem.GeoTiff(
+            self.gdir.get_filepath('dem', '_ref')).get_vardata()
+        self.first_guessed_bed = salem.GeoTiff(
+            self.gdir.get_filepath('first_guessed_bed')).get_vardata()
+
+    def run_minimize(self, cost_func):
+        """
+        Here the actual minimization of the cost_function is done via
+        scipy.optimize.minimize
+
+        Parameters
+        ----------
+        cost_func: function
+            Cost function to minimize. Accepts a bed array of size of the
+            spinup_surface as input and outputs a scalar variable, which is
+            the cost for this bed.
+
+        Returns
+        -------
+        Result of minimization and DataLogger, if
+        inv_settings['log_minimize_steps'] = True
+
+        """
+        self._read_all_data()
+        self.minimize_log = ''
+        self.data_logger = None
+        self.cost_func = cost_func
+        if self.inv_settings['log_minimize_steps']:
             self.clear_dir(self.get_current_basedir())
             self.write_string_to_file('settings.txt',
                                       self.get_setting_as_string())
-        dl = DataLogger(self)
-        self.data_logger = dl
-
-        self.cost_func = create_cost_func(self.gdir, self.lambdas,
-                                          self.yrs_to_run, self.case.dx,
-                                          self.mb_model, self.data_logger)
-
-        first_guessed_bed = salem.GeoTiff(self.gdir.get_filepath(
-            'first_guessed_bed'))
+            dl = DataLogger(self)
+            self.data_logger = dl
 
         res = minimize(fun=self.cost_func,
-                       x0=first_guessed_bed.astype(np.float64).flatten(),
+                       x0=self.first_guessed_bed.astype(np.float64).flatten(),
                        method=self.solver, jac=True,
                        bounds=self.optimization_bounds,
                        options=self.minimize_options,
                        callback=self.iteration_info_callback)
 
-        if write_specs:
-            self.write_string_to_file('log.txt', self.optim_log)
+        if self.inv_settings['log_minimize_steps']:
+            self.write_string_to_file('log.txt', self.minimize_log)
             dir = self.get_current_basedir()
-            dl.filter_data_from_optimization()
+            dl.filter_data_from_optimization()  # Optional, if we want to
+
             data_logging.write_pickle(dl, dir + 'data_logger.pkl')
             dl.plot_all(dir)
             plt.close('all')
-        del self.cost_func
-        self.cost_func = None
-        self.optimization_counter += 1
+
+            return res, dl
+
+        return res
 
     def run_minimize2(self, update_scaling=0.5, write_specs=True):
-        self.optim_log = ''
+        self.minimize_log = ''
         if write_specs:
             self.clear_dir(self.get_current_basedir())
             self.write_string_to_file('settings.txt',
@@ -170,7 +173,7 @@ class InversionDirectory(object):
         #               callback=self.iteration_info_callback)
 
         if write_specs:
-            self.write_string_to_file('log.txt', self.optim_log)
+            self.write_string_to_file('log.txt', self.minimize_log)
             dir = self.get_current_basedir()
             dl.filter_data_from_optimization()
             data_logging.write_pickle(dl, dir + 'data_logger.pkl')

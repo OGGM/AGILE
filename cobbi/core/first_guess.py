@@ -76,19 +76,15 @@ def first_guess(surf, ice_mask, dx, slope_cutoff_angle=5.0, factor=1):
 
 
 @entity_task(log, writes=['first_guessed_bed'])
-def compile_first_guess(gdir, dx, slope_cutoff_angle=5.0, factor=1):
+def compile_first_guess(gdir):
     """
     Runs first guess on a glacier directory and saves result to the
     glacier_directory
 
     Name dedicated to @fmaussion
 
-    Parameters
-    ----------
-    gdir: NonRGIGlacierDirectory
-        GlacierDirectory containing 'dem_ref' as a reference surface and
-        'dem' as the
-    dx: float
+    dictionary inversion settings in gdir should contain:
+    case for case.dx: float
         resolution of the surface grid. (unit: [m])
     slope_cutoff_angle: float
         determines minimal slope used for inversion. Smaller slopes are
@@ -101,19 +97,29 @@ def compile_first_guess(gdir, dx, slope_cutoff_angle=5.0, factor=1):
         case of ice caps (depending on how strong the ice cap is governed
         by single flow arms. (unit: [])
 
+    Parameters
+    ----------
+    gdir: NonRGIGlacierDirectory
+        GlacierDirectory containing 'dem_ref' as a reference surface and
+        'dem' as the
+
     Returns
     -------
     estimated bed height as ndarray with same shape as surface array of domain
 
     """
-
+    inv_settings = gdir.inversion_settings
+    case = inv_settings['case']
+    slope_cutoff_angle = inv_settings['fg_slope_cuttof_angle']
+    factor = inv_settings['fg_shape_factor']
     ice_mask = np.load(gdir.get_filepath('ice_mask', '_ref'))
 
     with rasterio.open(gdir.get_filepath('dem', '_ref')) as src:
         surf = src.read(1)
         profile = src.profile
 
-    first_guessed_bed = first_guess(surf, ice_mask, dx, slope_cutoff_angle,
+    first_guessed_bed = first_guess(surf, ice_mask, case.dx,
+                                    slope_cutoff_angle,
                                     factor)
 
     with rasterio.open(gdir.get_filepath('first_guessed_bed'),

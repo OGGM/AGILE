@@ -1,7 +1,16 @@
 import os
 import shutil
+import json
+import numpy as np
 from oggm import cfg
 from oggm.utils import GlacierDirectory, mkdir
+
+EXTENDED_BASENAMES = {
+    'first_guessed_bed': 'first_guessed_bed.tiff',
+    'inversion_settings': 'inversion_settings.json',
+    'ice_mask': 'ice_mask.npy',
+    'inverted_bed': 'inverted_bed.tiff'
+}
 
 
 class NonRGIGlacierDirectory(GlacierDirectory):
@@ -128,4 +137,77 @@ class NonRGIGlacierDirectory(GlacierDirectory):
         """
         raise NotImplementedError
 
+    @property
+    def inversion_settings(self):
+        """Dictionary with settings for the inversion"""
+        with open(self.get_filepath('inversion_settings'), 'r') as f:
+            inv_settings = json.load(f)
 
+    def write_inversion_settings(self, case, mb_spinup=None,
+                                 mb_forward_run=None, yrs_spinup=2000,
+                                 yrs_forward_run=500,
+                                 fg_slope_cutoff_angle=5.0,
+                                 fg_shape_factor=1.0,
+                                 reg_parameters=np.zeros(10),
+                                 solver='L-BFGS-B', minimize_options=None,
+                                 inversion_counter=0, log_minimize_steps=True):
+        """
+        TODO
+
+        Parameters
+        ----------
+        case
+        mb_spinup
+        mb_forward_run
+        yrs_spinup
+        yrs_forward_run
+        reg_parameters
+        solver
+        minimize_options
+        inversion_counter
+        log_minimize_steps
+
+        Returns
+        -------
+        Nothing
+        """
+
+        inv_settings = locals()
+        inv_settings.pop('self')
+        with open(self.get_filepath('inversion_settings'), 'w') as f:
+            json.dump(inv_settings, f)
+
+        def get_filepath(self, filename, delete=False, filesuffix=''):
+            """Absolute path to a specific file.
+
+            Parameters
+            ----------
+            filename : str
+                file name (must be listed in cfg.BASENAME)
+            delete : bool
+                delete the file if exists
+            filesuffix : str
+                append a suffix to the filename (useful for model runs). Note
+                that the BASENAME remains same.
+
+            Returns
+            -------
+            The absolute path to the desired file
+            """
+
+            if filename not in EXTENDED_BASENAMES and \
+                    filename not in cfg.BASENAMES:
+                raise ValueError(filename + ' not in known BASENAMES.')
+
+            if filename in EXTENDED_BASENAMES:
+                fname = EXTENDED_BASENAMES[filename]
+            else:
+                fname = cfg.BASENAMES[filename]
+            if filesuffix:
+                fname = fname.split('.')
+                assert len(fname) == 2
+                fname = fname[0] + filesuffix + '.' + fname[1]
+            out = os.path.join(self.dir, fname)
+            if delete and os.path.isfile(out):
+                os.remove(out)
+            return out
