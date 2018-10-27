@@ -24,8 +24,8 @@ with open(get_demo_file('dem_sources.json'), 'r') as fr:
 # -------------------------------
 
 
-@entity_task(log, writes=['glacier_grid', 'dem', 'dem_source'])
-def define_nonrgi_glacier_region(gdir:NonRGIGlacierDirectory, dx=400.):
+# @entity_task(log, writes=['glacier_grid', 'dem', 'dem_source'])
+def define_nonrgi_glacier_region(gdir:NonRGIGlacierDirectory):
     """
     Very first task: define the glacier's local grid.
 
@@ -43,6 +43,7 @@ def define_nonrgi_glacier_region(gdir:NonRGIGlacierDirectory, dx=400.):
         grid spacing
     """
     xx, yy = gdir.extent_ll
+    dx = gdir.case.dx
 
     # Make a local glacier map
     proj_params = dict(name='tmerc', lat_0=0., lon_0=gdir.cenlon,

@@ -2,7 +2,8 @@ import torch
 import numpy as np
 import rasterio
 import salem
-from oggm import entity_task
+from oggm import entity_task, cfg
+from cobbi.core.sia2d_adapted import Upstream2D
 import logging
 # -------------------------------
 # Further initialization / extended import tasks
@@ -10,7 +11,7 @@ import logging
 log = logging.getLogger(__name__)
 
 
-@entity_task(log, writes=['spinup_dem', 'spinup_ice_thickness'])
+# @entity_task(log, writes=['dem_spinup', 'ice_thickness_spinup'])
 @torch.no_grad()
 def spinup(gdir, case, yr_spinup_end, mb=None):
     """
@@ -33,19 +34,21 @@ def spinup(gdir, case, yr_spinup_end, mb=None):
         bed = src.read(1)
         profile = src.profile
 
-    spinup_surf = run_forward(gdir, yr_spinup_end, case, bed)
+    spinup_surf = run_forward(gdir, case, yr_spinup_end, bed, mb=mb)
 
-    with rasterio.open(gdir.get_filepath('dem', '_spinup'),
+    profile['dtype'] = 'float32'
+    with rasterio.open(gdir.get_filepath('spinup_dem'),
                        'w', **profile) as dst:
         dst.write(spinup_surf, 1)
 
     spinup_it = spinup_surf - bed
-    np.save(gdir.get_filepath('ice_thickness', '_spinup'), spinup_it)
+    np.save(gdir.get_filepath('spinup_ice_thickness'), spinup_it)
 
     return spinup_surf, spinup_it
 
+
 @torch.no_grad()
-def run_forward(gdir, yrs, case, bed, mb=None, init_ice_thick=None):
+def run_forward(gdir, case, yrs, bed, mb=None, init_ice_thick=None):
     """
     Wrapper for run_forward_core. Can derive mass-balance from case, if not
     given, accepts strings for bed_files as well as ndarrays and tensors
@@ -55,10 +58,10 @@ def run_forward(gdir, yrs, case, bed, mb=None, init_ice_thick=None):
     ----------
     gdir: NonRGIGlacierDirectory
         The GlacierDirectory containing the data
-    yrs: float
-        yrs to run forward
     case: TestCase
         Case to be run, giving dx and mb (if not specified)
+    yrs: float
+        yrs to run forward
     bed: FloatTensor, ndarray, string or list/tuple of strings
         either array/tensor of bed height (unit: [m]) or filename
         (+filesuffix) of bed to be loaded from gdir (e.g. 'dem')
@@ -90,8 +93,12 @@ def run_forward(gdir, yrs, case, bed, mb=None, init_ice_thick=None):
 
     bed_h = torch.tensor(bed_arr, dtype=torch.float,
                          requires_grad=False)
+    ice_thick = init_ice_thick
+    if init_ice_thick is not None:
+        ice_thick = torch.tensor(ice_thick, dtype=torch.float,
+                                 requires_grad=False)
     return run_forward_core(yrs, bed_h, case.dx, mb_model,
-                            init_ice_thick).numpy()
+                            ice_thick).numpy()
 
 
 def run_forward_core(yrs, bed, dx, mb_model, init_ice_thick):
@@ -123,53 +130,52 @@ def run_forward_core(yrs, bed, dx, mb_model, init_ice_thick):
     return model.surface_h
 
 
-@entity_task(log, writes=[''])
+# @entity_task(log, writes=[''])
 @torch.no_grad()
-def create_glacier(gdir, case, yrs_to_run, yrs_for_spinup=None):
+def create_glacier(gdir, run_spinup=True):
     """
-    Creates a DEM-file for a glacier surface by running a forward model on
-    a spinup-state for a certain number of years. If there is no
-    spinup-state but a number of years given, the spin-up state is first
-    computed
+    Creates a DEM-file for a glacier surface by running a forward model
+    for spin-up to a first state and based on this state further on to a
+    next state
 
     Parameters
     ----------
     gdir: NonRGIGlacierDirectory
         GlacierDirectory possibly containing spinup-state and used for
         saving the final reference state
-    case: TestCase
-        TestCase giving information about e.g. dx and mass-balance
-    yrs_to_run: float
-        yrs to run forward from spinup-state to create final glacier.
-        (unit: [a])
-    yrs_for_spinup: float
-        optional argument. If this is specified, spinup is run for the given
-        number of years. (unit: [a])
+    run_spinup: bool
+        whether to run spin-up or rely on existing state
 
     Returns
     -------
 
     """
-    if yrs_for_spinup is not None:
-        spinup(gdir, case, yrs_for_spinup)
+    inv_settings = gdir.inversion_settings
+    if run_spinup:
+        spinup(gdir, inv_settings['case'],
+               inv_settings['yrs_spinup'],
+               mb=inv_settings['mb_spinup'])
 
-    spinup_it = gdir.get_filepath('ice_thickness', '_spinup')
-    spinup_surf = gdir.get_filepath('dem', '_spinup')
+    spinup_it = np.load(gdir.get_filepath('spinup_ice_thickness'))
+    spinup_surf = salem.GeoTiff(gdir.get_filepath('spinup_dem')).get_vardata()
 
     with rasterio.open(gdir.get_filepath('dem')) as src:
         bed = src.read(1)
         profile = src.profile
 
-    ref_surf = run_forward(gdir, yrs_to_run, case, bed,
+    ref_surf = run_forward(gdir, inv_settings['case'],
+                           inv_settings['yrs_forward_run'], bed,
+                           mb=inv_settings['mb_forward_run'],
                            init_ice_thick=spinup_it)
     ref_it = ref_surf - bed
     ref_ice_mask = ref_it > 0
 
-    with rasterio.open(gdir.get_filepath('dem', '_ref')) as src:
-        bed = src.read(1)
-        profile = src.profile
+    profile['dtype'] = 'float32'
+    with rasterio.open(gdir.get_filepath('ref_dem'),
+                       'w', **profile) as dst:
+        dst.write(spinup_surf, 1)
 
-    np.save(gdir.get_filepath('ice_thickness', '_ref'), ref_it)
-    np.save(gdir.get_filepath('ice_mask', '_ref'), ref_ice_mask)
+    np.save(gdir.get_filepath('ref_ice_thickness'), ref_it)
+    np.save(gdir.get_filepath('ref_ice_mask'), ref_ice_mask)
 
 

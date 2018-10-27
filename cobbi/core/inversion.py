@@ -21,6 +21,7 @@ class InversionDirectory(object):
     def __init__(self, gdir: NonRGIGlacierDirectory):
         self.gdir = gdir
         self.inv_settings = gdir.inversion_settings
+        # TODO: copy these inversion settings to subdirectory
         self.true_bed = None
         self.first_guessed_bed = None
         self.ref_surf = None
@@ -81,7 +82,7 @@ class InversionDirectory(object):
         self.true_bed = salem.GeoTiff(
             self.gdir.get_filepath('dem')).get_vardata()
         self.ref_surf = salem.GeoTiff(
-            self.gdir.get_filepath('dem', '_ref')).get_vardata()
+            self.gdir.get_filepath('ref_dem')).get_vardata()
         self.first_guessed_bed = salem.GeoTiff(
             self.gdir.get_filepath('first_guessed_bed')).get_vardata()
 
@@ -120,6 +121,9 @@ class InversionDirectory(object):
                        bounds=self.optimization_bounds,
                        options=self.minimize_options,
                        callback=self.iteration_info_callback)
+
+        # TODO: save 'inverted_bed' in directory: Attention: save to
+        # subdirectory
 
         if self.inv_settings['log_minimize_steps']:
             self.write_string_to_file('log.txt', self.minimize_log)

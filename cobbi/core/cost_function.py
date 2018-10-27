@@ -26,13 +26,13 @@ def create_cost_func(gdir, data_logger=None):
     # cost_fucntion
     conv_filter = torch.ones((1, 1, 3, 3), requires_grad=False)
     
-    spinup_surf = salem.GeoTiff(gdir.get_filepath('dem', '_spinup')).get_vardata()
+    spinup_surf = salem.GeoTiff(gdir.get_filepath('spinup_dem')).get_vardata()
     spinup_surf = torch.tensor(spinup_surf, dtype=torch.float,
                                requires_grad=False)
-    ref_surf = salem.GeoTiff(gdir.get_filepath('dem', '_ref')).get_vardata()
+    ref_surf = salem.GeoTiff(gdir.get_filepath('ref_dem')).get_vardata()
     ref_surf = torch.tensor(ref_surf, dtype=torch.float,
                             requires_grad=False)
-    ref_ice_mask = np.load(gdir.get_filepath('ice_mask', 'ref'))
+    ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
     ref_ice_mask = torch.tensor(ref_ice_mask, dtype=torch.float,
                                 requires_grad=False)
     ref_inner_mask = torch.zeros(ref_ice_mask.shape)

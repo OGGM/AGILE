@@ -75,7 +75,7 @@ def first_guess(surf, ice_mask, dx, slope_cutoff_angle=5.0, factor=1):
     return bed
 
 
-@entity_task(log, writes=['first_guessed_bed'])
+# @entity_task(log, writes=['first_guessed_bed'])
 def compile_first_guess(gdir):
     """
     Runs first guess on a glacier directory and saves result to the
@@ -112,9 +112,9 @@ def compile_first_guess(gdir):
     case = inv_settings['case']
     slope_cutoff_angle = inv_settings['fg_slope_cuttof_angle']
     factor = inv_settings['fg_shape_factor']
-    ice_mask = np.load(gdir.get_filepath('ice_mask', '_ref'))
+    ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
 
-    with rasterio.open(gdir.get_filepath('dem', '_ref')) as src:
+    with rasterio.open(gdir.get_filepath('ref_dem')) as src:
         surf = src.read(1)
         profile = src.profile
 
