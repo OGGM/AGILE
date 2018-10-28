@@ -5,7 +5,8 @@ import json
 import numpy as np
 from oggm import cfg
 from oggm.utils import GlacierDirectory, mkdir
-from cobbi.core.data_logging import write_pickle, load_pickle  # TODO: move
+from cobbi.core.data_logging import write_pickle, load_pickle
+# TODO: move pickle methods
 
 EXTENDED_BASENAMES = {
     'first_guessed_bed': 'first_guessed_bed.tiff',
@@ -206,7 +207,7 @@ class NonRGIGlacierDirectory(GlacierDirectory):
                                  solver='L-BFGS-B', minimize_options=None,
                                  inversion_counter=0, log_minimize_steps=True):
         """
-        TODO
+        TODO: Documentation
 
         Parameters
         ----------

@@ -151,6 +151,7 @@ def smooth_dem_borders(gdir, border_h=0., px_count=10,
     pixels from the border from the desired border height to the height at
     the inner preserved part of the DEM
 
+    Deprecated
 
     Parameters
     ----------
@@ -168,7 +169,7 @@ def smooth_dem_borders(gdir, border_h=0., px_count=10,
         profile = src.profile
 
     if px_count > 0:
-        #TODO: fix bug for px_count = 1
+        # TODO: fix bug for px_count = 1
         pixel_vals[:, :px_count] = [np.linspace(border_h, i, px_count) for i in
                                     pixel_vals[:, px_count]]
 

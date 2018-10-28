@@ -23,7 +23,6 @@ class InversionDirectory(object):
     def __init__(self, gdir: NonRGIGlacierDirectory):
         self.gdir = gdir
         self.inv_settings = gdir.inversion_settings
-        # TODO: copy these inversion settings to subdirectory
         self.true_bed = None
         self.first_guessed_bed = None
         self.ref_surf = None
@@ -124,8 +123,8 @@ class InversionDirectory(object):
         callback = None
 
         if self.inv_settings['log_minimize_steps']:
-            self.clear_dir(self.get_current_basedir())  # TODO: really
-            # neccessary?
+            self.clear_dir(self.get_current_basedir())
+            # TODO: really useful -> respect reset argument in gdir?
             dl = DataLogger(self)
             self.data_logger = dl
             callback = self.iteration_info_callback
@@ -141,8 +140,6 @@ class InversionDirectory(object):
                        options=self.inv_settings['minimize_options'],
                        callback=callback)
 
-        # TODO: save 'inverted_bed' in directory: Attention: save to
-        # subdirectory
         inverted_bed = res.x.reshape(self.first_guessed_bed.shape)
         with rasterio.open(self.gdir.get_filepath('dem')) as src:
             profile = src.profile
@@ -162,52 +159,3 @@ class InversionDirectory(object):
             plt.close('all')
 
         return res
-
-    def run_minimize2(self, update_scaling=0.5, write_specs=True):
-        self.minimize_log = ''
-        if write_specs:
-            self.clear_dir(self.get_current_basedir())
-            self.write_string_to_file('settings.txt',
-                                      self.get_setting_as_string())
-        dl = DataLogger(self)
-        self.data_logger = dl
-
-        self.cost_func = create_cost_func(self.gdir, self.lambdas,
-                                          self.yrs_to_run, self.case.dx,
-                                          self.mb_model, self.data_logger)
-
-        first_guessed_bed = salem.GeoTiff(self.gdir.get_filepath(
-            'first_guessed_bed'))
-
-        for i in range(self.minimize_options['maxiter']):
-            cost, grad = self.cost_func(guessed_bed)
-            self.iteration_info_callback(guessed_bed)
-
-            if cost < 10:
-                break
-            grad = grad.reshape(guessed_bed.shape)
-            surf_diff = dl.surfs[-1] - self.reference_surf
-            # TODO: reference_surf, ice_mask
-            locally_to_compensate = surf_diff**2 / self.ice_mask.sum()
-            n = locally_to_compensate / grad
-            n[np.isinf(n)] = np.nan
-            n = np.nanmax(np.abs(n))
-            guessed_bed = guessed_bed - update_scaling * n * grad
-
-
-        #res = minimize(fun=self.cost_func,
-        #               x0=self.first_guess.astype(np.float64).flatten(),
-        #               method=self.solver, jac=True,
-        #               options=self.minimize_options,
-        #               callback=self.iteration_info_callback)
-
-        if write_specs:
-            self.write_string_to_file('log.txt', self.minimize_log)
-            dir = self.get_current_basedir()
-            dl.filter_data_from_optimization()
-            data_logging.write_pickle(dl, dir + 'data_logger.pkl')
-            dl.plot_all(dir)
-            plt.close('all')
-        del self.cost_func
-        self.cost_func = None
-        self.optimization_counter += 1
