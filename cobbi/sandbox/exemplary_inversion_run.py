@@ -7,6 +7,9 @@ from cobbi.core.utils import NonRGIGlacierDirectory
 from cobbi.core.first_guess import compile_first_guess
 from cobbi.core.inversion import InversionDirectory
 from cobbi.core.dynamics import create_glacier
+from cobbi.core.cost_function import create_cost_func
+from cobbi.core.inversion import InversionDirectory
+from cobbi.core import data_logging
 from oggm import cfg
 
 cfg.initialize()
@@ -14,14 +17,17 @@ cfg.initialize()
 basedir = '/path/to/example'
 basedir = '/media/philipp/Daten/test/Giluwe1'
 
-
+# TODO: think about IceThicknesses for case Giluwe
 # Choose a case
 case = test_cases.Giluwe
 gdir = NonRGIGlacierDirectory(case, basedir)
-gis.define_nonrgi_glacier_region(gdir)
+# only needed once:
+# gis.define_nonrgi_glacier_region(gdir)
 
 # create settings for out inversion
 lambdas = np.zeros(10)
+lambdas[0] = 0.2
+lambdas[3] = 10.
 minimize_options = {
     'maxiter': 300,
     'ftol': 1e-3,
@@ -32,12 +38,22 @@ minimize_options = {
     'disp': True
 }
 # TODO: bounds would be an additional option for minimization?
+# Theoretically also only needed once
 gdir.write_inversion_settings(mb_spinup=None,
                               yrs_spinup=2000,
                               yrs_forward_run=200,
                               reg_parameters=lambdas,
                               solver='L-BFGS-B',
-                              minimize_options=minimize_options)
+                              minimize_options=minimize_options,
+                              inversion_counter=2,
+                              fg_shape_factor=0.8
+                              )
 
 # Optional, if not reset=True and already ran once
-create_glacier(gdir)
+# only needed once:
+# create_glacier(gdir)
+compile_first_guess(gdir)
+idir = InversionDirectory(gdir)
+res = idir.run_minimize()
+#dl = data_logging.load_pickle(idir.get_current_basedir() + '/data_logger.pkl')
+print('end')

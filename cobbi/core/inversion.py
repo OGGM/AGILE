@@ -3,6 +3,7 @@ import os
 import numpy as np
 import logging
 import salem
+import rasterio
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 from cobbi.core import data_logging
@@ -10,6 +11,7 @@ from cobbi.core.data_logging import DataLogger
 from cobbi.core.arithmetics import rmse
 from cobbi.core.utils import NonRGIGlacierDirectory
 from cobbi.core.cost_function import create_cost_func
+from cobbi.core.data_logging import write_pickle
 # -------------------------------
 # Further initialization / extended import tasks
 # Module logger
@@ -27,6 +29,7 @@ class InversionDirectory(object):
         self.ref_surf = None
         self.minimize_log = ''
         self.cost_func = None
+        self.data_logger = None
 
     def iteration_info_callback(self, x0):
         i = len(self.data_logger.costs) - 1
@@ -34,23 +37,30 @@ class InversionDirectory(object):
             dl = self.data_logger
             dl.step_indices.append(i)
             b = self.true_bed
-            log_entry = ''
-            log_entry += '----------------------------------------------\n'
-            log_entry += 'Function Call: {:d}\n'.format(i)
-            log_entry += 'Iteration: {:d}\n'.format(
-                len(dl.step_indices))
-            log_entry += 'Cost: {:g}\n'.format(dl.costs[i])
-            log_entry += 'Bed RMSE: {:g}\n'.format(rmse(dl.beds[i], b))
-            log_entry += 'Bed Max_diff: {:g}\n'.format(
-                np.max(np.abs(dl.beds[i] - b)))
-            log_entry += 'Surface RMSE: {:g}\n'.format(
-                  rmse(dl.surfs[i], self.ref_surf))
+            log_entry = '''
+            ----------------------------------------------
+            Function Call: {func_call:d}
+            Iteration: {iteration:d}
+            Cost: {cost:g}
+            Bed RMSE: {bed_rmse:g}
+            Bed Max_diff: {bed_maxdiff:g}
+            Surface RMSE: {surf_rmse:g}
+            Surface Max_diff: {surf_maxdiff:g}
+            '''
+            myargs = {
+                'func_call': i,
+                'iteration': len(dl.step_indices),
+                'cost': dl.costs[i],
+                'bed_rmse': rmse(dl.beds[i], b),
+                'bed_maxdiff': np.max(np.abs(dl.beds[i] - b)),
+                'surf_rmse': rmse(dl.surfs[i], self.ref_surf),
+                'surf_maxdiff': np.max(np.abs(dl.surfs[i] - self.ref_surf))
+            }
+
             #if self.surface_noise is not None:
             #    log_entry += 'Surface RMSE (from exact): {:g}\n'.format(
             #        rmse(dl.surfs[i], self.exact_surf))
-            log_entry += 'Surface Max_diff: {:g}\n'.format(
-                  np.max(np.abs(dl.surfs[i]
-                                - self.ref_surf)))
+            log_entry = log_entry.format(**myargs)
             print(log_entry)
             self.minimize_log += log_entry
 
@@ -86,7 +96,12 @@ class InversionDirectory(object):
         self.first_guessed_bed = salem.GeoTiff(
             self.gdir.get_filepath('first_guessed_bed')).get_vardata()
 
-    def run_minimize(self, cost_func):
+    def get_subdir_filepath(self, filename, filesuffix=None):
+        original_path = self.gdir.get_filepath(filename, filesuffix=filesuffix)
+        original_path = os.path.split(original_path)
+        return os.path.join(self.get_current_basedir(), original_path[1])
+
+    def run_minimize(self):
         """
         Here the actual minimization of the cost_function is done via
         scipy.optimize.minimize
@@ -100,41 +115,51 @@ class InversionDirectory(object):
 
         Returns
         -------
-        Result of minimization and DataLogger, if
-        inv_settings['log_minimize_steps'] = True
+        Result of minimization as scipy.optimize.minimize returns
 
         """
         self._read_all_data()
         self.minimize_log = ''
         self.data_logger = None
-        self.cost_func = cost_func
+        callback = None
+
         if self.inv_settings['log_minimize_steps']:
-            self.clear_dir(self.get_current_basedir())
-            self.write_string_to_file('settings.txt',
-                                      self.get_setting_as_string())
+            self.clear_dir(self.get_current_basedir())  # TODO: really
+            # neccessary?
             dl = DataLogger(self)
             self.data_logger = dl
+            callback = self.iteration_info_callback
 
+        write_pickle(self.inv_settings,
+                     self.get_subdir_filepath('inversion_settings'))
+
+        self.cost_func = create_cost_func(self.gdir, self.data_logger)
         res = minimize(fun=self.cost_func,
                        x0=self.first_guessed_bed.astype(np.float64).flatten(),
-                       method=self.solver, jac=True,
-                       bounds=self.optimization_bounds,
-                       options=self.minimize_options,
-                       callback=self.iteration_info_callback)
+                       method=self.inv_settings['solver'], jac=True,
+                       bounds=None,  # TODO: allow bounds
+                       options=self.inv_settings['minimize_options'],
+                       callback=callback)
 
         # TODO: save 'inverted_bed' in directory: Attention: save to
         # subdirectory
+        inverted_bed = res.x.reshape(self.first_guessed_bed.shape)
+        with rasterio.open(self.gdir.get_filepath('dem')) as src:
+            profile = src.profile
+        profile['dtype'] = 'float64'
+        with rasterio.open(self.get_subdir_filepath('inverted_bed'),
+                           'w', **profile) as dst:
+            dst.write(inverted_bed, 1)
 
         if self.inv_settings['log_minimize_steps']:
             self.write_string_to_file('log.txt', self.minimize_log)
             dir = self.get_current_basedir()
             dl.filter_data_from_optimization()  # Optional, if we want to
 
-            data_logging.write_pickle(dl, dir + 'data_logger.pkl')
+            data_logging.write_pickle(dl,
+                                      self.get_subdir_filepath('data_logger'))
             dl.plot_all(dir)
             plt.close('all')
-
-            return res, dl
 
         return res
 

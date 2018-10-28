@@ -22,19 +22,19 @@ class MidpointNormalize(colors.Normalize):
 
 class DataLogger(object):
 
-    def __init__(self, ref_bed, exact_surf, ref_surf, first_guess_bed):
-        self.reset(ref_bed, exact_surf, ref_surf, first_guess_bed)
+    def __init__(self, true_bed, exact_surf, ref_surf, first_guessed_bed):
+        self.reset(true_bed, exact_surf, ref_surf, first_guessed_bed)
 
-    def __init__(self, lcurve_test):
-        self.reset(lcurve_test.bed_2d,
-                   lcurve_test.exact_surf,
-                   lcurve_test.reference_surf,
-                   lcurve_test.first_guess)
-        self.case = lcurve_test.case
-        self.solver = lcurve_test.solver
-        self.minimize_options = lcurve_test.minimize_options
+    def __init__(self, inv_dir):
+        self.reset(inv_dir.true_bed,
+                   inv_dir.ref_surf,
+                   inv_dir.ref_surf,
+                   inv_dir.first_guessed_bed)
+        self.case = inv_dir.inv_settings['case']
+        self.solver = inv_dir.inv_settings['solver']
+        self.minimize_options = inv_dir.inv_settings['minimize_options']
 
-    def reset(self, ref_bed, exact_surf, ref_surf, first_guess_bed):
+    def reset(self, true_bed, exact_surf, ref_surf, first_guessed_bed):
         self.grads = []
         self.costs = []
         self.c_terms = []
@@ -42,10 +42,10 @@ class DataLogger(object):
         self.beds = []
         self.step_indices = []
         self.lambdas = np.zeros(9)
-        self.ref_bed = ref_bed
+        self.true_bed = true_bed
         self.exact_surf = exact_surf
         self.ref_surf = ref_surf
-        self.first_guess_bed = first_guess_bed
+        self.first_guessed_bed = first_guessed_bed
         self.solver = None
         self.minimize_options = None
         self.case = None
@@ -71,7 +71,7 @@ class DataLogger(object):
         self.step_indices = np.arange(len(self.step_indices))
 
     def get_bed_differences(self):
-        return np.array(self.beds - self.ref_bed)
+        return np.array(self.beds - self.true_bed)
 
     def get_bed_rmses(self):
         return np.sqrt(np.mean(self.get_bed_differences() ** 2, axis=(1, 2)))
@@ -89,19 +89,19 @@ class DataLogger(object):
         self.plot_rmses(dir)
         self.plot_bed_differences(dir)
         self.plot_surf_differences(dir)
-        self.plot_grads(dir, self.ref_bed.shape)
+        self.plot_grads(dir, self.true_bed.shape)
         plt.ion()
 
     def plot_costs(self, basedir):
-        plt.figure()
+        fig = plt.figure()
         plt.semilogy(self.costs)
         plt.xlabel('Iteration #')
         plt.ylabel('Cost')
         plt.savefig(basedir + 'cost.pdf')
-        plt.clf()
+        plt.close(fig)
 
     def plot_c_terms(self, basedir):
-        plt.figure()
+        fig = plt.figure()
         data = np.array(self.c_terms)
         for i in range(self.lambdas.size):
             plt.semilogy(data[:, i], label='Reg {:d}'.format(i))
@@ -110,31 +110,31 @@ class DataLogger(object):
         plt.ylabel('Cost')
         plt.legend()
         plt.savefig(basedir + 'c_terms.pdf')
-        plt.clf()
+        plt.close(fig)
 
     def plot_image(self, data, max_val, title, filename):
-        plt.figure()
+        fig = plt.figure()
         im = plt.imshow(data, norm=MidpointNormalize(midpoint=0., vmin=-max_val,
                                                      vmax=max_val), cmap='RdBu')
         plt.title(title)
         plt.colorbar(im)
         plt.savefig(filename)
-        plt.clf()
+        plt.close(fig)
 
     def plot_rmses(self, basedir):
-        plt.figure()
+        fig = plt.figure()
         plt.semilogy(self.get_bed_rmses()[self.step_indices], label='Bed')
         plt.semilogy(self.get_surf_rmses()[self.step_indices], label='Surface')
         plt.xlabel('Iteration #')
         plt.ylabel('RMSE')
         plt.legend()
         plt.savefig(basedir + 'bed_surf_rmse.pdf')
-        plt.clf()
+        plt.close(fig)
 
     def plot_bed_differences(self, basedir, cbar_range=50):
         bed_differences = self.get_bed_differences()
         for i in self.step_indices:
-            plt.figure()
+            fig = plt.figure()
             im = plt.imshow(bed_differences[i, :, :],
                             norm=MidpointNormalize(midpoint=0.,
                                                    vmin=-cbar_range,
@@ -145,7 +145,7 @@ class DataLogger(object):
             cbar = plt.colorbar(im)
             cbar.set_label('Δb (m)')
             plt.savefig(basedir + 'bed_diff{:d}.png'.format(i))
-            plt.clf()
+            plt.close(fig)
 
     def plot_surf_differences(self, basedir, cbar_range=50):
         surf_differences = self.get_surf_differences()
@@ -154,7 +154,7 @@ class DataLogger(object):
             #                'Surface difference #{:d}, |max_diff|={:g}'.format(
             #                    i, np.max(np.abs(surf_differences[i]))),
             #                    basedir + 'surf_diff{:d}.png'.format(i))
-            plt.figure()
+            fig = plt.figure()
             im = plt.imshow(surf_differences[i, :, :],
                             norm=MidpointNormalize(midpoint=0.,
                                                    vmin=-cbar_range,
@@ -165,7 +165,7 @@ class DataLogger(object):
             cbar = plt.colorbar(im)
             cbar.set_label('Δs (m)')
             plt.savefig(basedir + 'surf_diff{:d}.png'.format(i))
-            plt.clf()
+            plt.close(fig)
 
     def plot_grads(self, basedir, ref_shape, cbar_range=None):
         cbar_min_max = cbar_range
@@ -176,7 +176,7 @@ class DataLogger(object):
             #                'Gradient #{:d}'.format(i),
             #                basedir + 'grad{:d}.png'.format(i))
 
-            plt.figure()
+            fig = plt.figure()
             im = plt.imshow(self.grads[i].reshape(ref_shape),
                             norm=MidpointNormalize(midpoint=0.,
                                                    vmin=-cbar_min_max,
@@ -186,7 +186,7 @@ class DataLogger(object):
             cbar = plt.colorbar(im)
             cbar.set_label('Gradient of cost-function (m$^{-1}$)')
             plt.savefig(basedir + 'grad{:d}.png'.format(i))
-            plt.clf()
+            plt.close(fig)
 
 
 def load_pickle(filepath, use_compression=None):

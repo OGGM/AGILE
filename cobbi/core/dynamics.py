@@ -122,10 +122,9 @@ def run_forward_core(yrs, bed, dx, mb_model, init_ice_thick):
     -------
     FloatTensor of surface height (unit: [m])
     """
-    model = Upstream2D(bed, dx=dx, mb_model=mb_model,
-                              y0=0, glen_a=cfg.PARAMS['glen_a'],
-                              ice_thick_filter=None,
-                              init_ice_thick=init_ice_thick)
+    model = Upstream2D(bed, dx=dx, mb_model=mb_model, y0=0,
+                       glen_a=cfg.PARAMS['glen_a'], ice_thick_filter=None,
+                       init_ice_thick=init_ice_thick)
     model.run_until(yrs)
     return model.surface_h
 

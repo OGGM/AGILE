@@ -18,8 +18,11 @@ EXTENDED_BASENAMES = {
     'ref_ice_thickness': 'ref_ice_thickness.npy',
     'spinup_dem': 'spinup_dem.tiff',
     'spinup_ice_mask': 'spinup_ice_mask.npy',
-    'spinup_ice_thickness': 'spinup_ice_thickness.npy'
+    'spinup_ice_thickness': 'spinup_ice_thickness.npy',
+    'data_logger': 'data_logger.pkl'
 }
+
+DEFAULT_REG_PARAMETERS = np.array([0.1, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 
 class NonRGIGlacierDirectory(GlacierDirectory):
     """GlacierDirectory for synthetic cases and glaciers, which are not
@@ -199,7 +202,7 @@ class NonRGIGlacierDirectory(GlacierDirectory):
                                  yrs_forward_run=500,
                                  fg_slope_cutoff_angle=5.0,
                                  fg_shape_factor=1.0,
-                                 reg_parameters=np.zeros(10),
+                                 reg_parameters=DEFAULT_REG_PARAMETERS,
                                  solver='L-BFGS-B', minimize_options=None,
                                  inversion_counter=0, log_minimize_steps=True):
         """

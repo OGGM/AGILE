@@ -110,7 +110,7 @@ def compile_first_guess(gdir):
     """
     inv_settings = gdir.inversion_settings
     case = inv_settings['case']
-    slope_cutoff_angle = inv_settings['fg_slope_cuttof_angle']
+    slope_cutoff_angle = inv_settings['fg_slope_cutoff_angle']
     factor = inv_settings['fg_shape_factor']
     ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
 
