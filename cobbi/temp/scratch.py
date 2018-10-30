@@ -25,9 +25,9 @@ lambda_values[7] = [4., 40., 150., 400., 800.]
 lambdas_list = []
 
 lambdas_list = []
-#lambdas_list.append(np.zeros(9))
+lambdas_list.append(np.zeros(9))
 
-for i in [1, 2, 0, 4, 5, 6, 7]:
+for i in [0, 1, 2, 4, 5, 6, 7]:
     for j in range(n):
         lambdas = np.zeros(9)
         if lambda_values[i, j] is not None:
@@ -46,12 +46,12 @@ y0 = 0
 y_spinup_end = 2000
 y_end = 2200
 
-solver = 'CG'
+solver = 'L-BFGS-B'
 minimize_options = {
-    'maxiter': 300,
-    #'ftol': 1e-3,
+    'maxiter': 100,
+    'ftol': 1e-3,
     #'xtol': 1e-30,
-    #'gtol': 1e-4,
+    'gtol': 1e-4,
     #'maxcor': 5,
     #'maxls': 10,
     'disp': True}
@@ -71,17 +71,18 @@ sca = 5.
 test.first_guess = first_guess(test.reference_surf, test.ice_mask, test.case.dx,
                                slope_cutoff_angle=sca, factor=f)
 test.basedir = '/data/philipp/tests/giluwe/no_noise/'
-test.maxiter = 300
+test.maxiter = 100
 #test.optimization_counter =
 # Disturb surface:
 #test.add_surface_noise(std=5) #, zoom=1.5)
 start_at = 0
-test.optimization_counter = start_at + 2100
+test.optimization_counter = start_at + 3000
 my_list = lambdas_list[start_at:]
 for lambs in my_list:
     #try:
     test.lambdas = torch.tensor(lambs, dtype=torch.float, requires_grad=False)
-    test.run_minimize2(update_scaling=0.4)
+    #test.run_minimize2(update_scaling=0.4)
+    test.run_minimize()
     #except:
     #    pass
 

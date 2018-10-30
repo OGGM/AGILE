@@ -170,7 +170,7 @@ def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_be
     n_ice_mask = ref_ice_mask.sum()
     n_grid = ref_surf.numel()
     margin = ref_ice_mask - ref_inner_mask
-    cost = torch.zeros(11)
+    cost = torch.zeros(12)
     # cost[-1] = (ref_surf - model_surf).pow(2).sum() / ref_ice_mask.sum()
     # TODO recheck all indices for reg_parameters and cost
     cost[-1] = ((ref_surf - model_surf) * (1. - margin)).pow(2).sum() \
@@ -265,6 +265,17 @@ def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_be
         lmsd = LocalMeanSquaredDifference.apply
         cost[9] = reg_parameters[9] * lmsd(model_surf, ref_surf, ref_ice_mask,
                                            ref_ice_mask, guessed_bed)
+
+    if reg_parameters[10] != 0:
+        # penalize large derivatives of bed under glacier
+        # -> avoids numerical instabilites
+        db_dx = (guessed_bed[:, :-1] - guessed_bed[:, 1:]) / dx
+        db_dy = (guessed_bed[:-1, :] - guessed_bed[1:, :]) / dx
+        db_dx = db_dx * model_ice_mask[:, 1:]
+        db_dy = db_dy * model_ice_mask[1:, :]
+        cost[10] = reg_parameters[10] * (
+                (db_dx.pow(2).sum() + db_dy.pow(2).sum())
+                / model_inner_mask.sum())
 
     return cost
 

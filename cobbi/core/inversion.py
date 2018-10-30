@@ -26,9 +26,12 @@ class InversionDirectory(object):
         self.true_bed = None
         self.first_guessed_bed = None
         self.ref_surf = None
+        self.ice_mask = None
         self.minimize_log = ''
         self.cost_func = None
         self.data_logger = None
+        if not 'minimize_bounds' in self.inv_settings:
+            self.inv_settings['minimize_bounds'] = None
 
     def iteration_info_callback(self, x0):
         i = len(self.data_logger.costs) - 1
@@ -94,6 +97,7 @@ class InversionDirectory(object):
             self.gdir.get_filepath('ref_dem')).get_vardata()
         self.first_guessed_bed = salem.GeoTiff(
             self.gdir.get_filepath('first_guessed_bed')).get_vardata()
+        self.ice_mask = np.load(self.gdir.get_filepath('ref_ice_mask'))
 
     def get_subdir_filepath(self, filename, filesuffix=None):
         original_path = self.gdir.get_filepath(filename, filesuffix=filesuffix)
@@ -122,6 +126,16 @@ class InversionDirectory(object):
         self.data_logger = None
         callback = None
 
+        #TODO: add optional (or add constraints)
+        #bounds = None
+        estimated_max_ice_thickness = 600.
+        estimated_min_ice_thickness = 2.
+        lower_bounds = self.ref_surf - estimated_max_ice_thickness * self.ice_mask
+        upper_bounds = self.ref_surf - estimated_min_ice_thickness * self.ice_mask
+        bounds = np.c_[lower_bounds.flatten(), upper_bounds.flatten()]
+
+        self.inv_settings['minimize_bounds'] = bounds
+
         if self.inv_settings['log_minimize_steps']:
             self.clear_dir(self.get_current_basedir())
             # TODO: really useful -> respect reset argument in gdir?
@@ -136,7 +150,7 @@ class InversionDirectory(object):
         res = minimize(fun=self.cost_func,
                        x0=self.first_guessed_bed.astype(np.float64).flatten(),
                        method=self.inv_settings['solver'], jac=True,
-                       bounds=None,  # TODO: allow bounds
+                       bounds=self.inv_settings['minimize_bounds'],  # TODO: allow bounds
                        options=self.inv_settings['minimize_options'],
                        callback=callback)
 

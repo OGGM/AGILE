@@ -17,13 +17,17 @@ EXTENDED_BASENAMES = {
     'ref_dem': 'ref_dem.tiff',
     'ref_ice_mask': 'ref_ice_mask.npy',
     'ref_ice_thickness': 'ref_ice_thickness.npy',
+    'true_ref_dem': 'true_ref_dem.tiff',
     'spinup_dem': 'spinup_dem.tiff',
     'spinup_ice_mask': 'spinup_ice_mask.npy',
     'spinup_ice_thickness': 'spinup_ice_thickness.npy',
-    'data_logger': 'data_logger.pkl'
+    'true_spinup_dem': 'true_spinup_dem.tiff',
+    'data_logger': 'data_logger.pkl',
+    'first_guessed_bed_noise': 'first_guessed_bed_noise.npy',
+    'dem_noise': 'dem_noise.npy'
 }
 
-DEFAULT_REG_PARAMETERS = np.array([0.1, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+DEFAULT_REG_PARAMETERS = np.array([0.1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 
 class NonRGIGlacierDirectory(GlacierDirectory):
     """GlacierDirectory for synthetic cases and glaciers, which are not
@@ -205,7 +209,8 @@ class NonRGIGlacierDirectory(GlacierDirectory):
                                  fg_shape_factor=1.0,
                                  reg_parameters=DEFAULT_REG_PARAMETERS,
                                  solver='L-BFGS-B', minimize_options=None,
-                                 inversion_counter=0, log_minimize_steps=True):
+                                 inversion_counter=0, log_minimize_steps=True,
+                                 minimize_bounds=None):
         """
         TODO: Documentation
 
