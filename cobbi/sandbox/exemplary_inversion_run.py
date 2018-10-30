@@ -27,7 +27,8 @@ gdir = NonRGIGlacierDirectory(case, basedir)
 # create settings for out inversion
 lambdas = np.zeros(10)
 lambdas[0] = 0.2
-lambdas[3] = 10.
+lambdas[2] = 0.01  # Try to ensure steps in solution -> stay numerically stable
+lambdas[3] = 1.2
 minimize_options = {
     'maxiter': 300,
     'ftol': 1e-3,
@@ -45,8 +46,8 @@ gdir.write_inversion_settings(mb_spinup=None,
                               reg_parameters=lambdas,
                               solver='L-BFGS-B',
                               minimize_options=minimize_options,
-                              inversion_counter=2,
-                              fg_shape_factor=0.8
+                              inversion_counter=5,
+                              fg_shape_factor=1.
                               )
 
 # Optional, if not reset=True and already ran once

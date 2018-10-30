@@ -189,8 +189,10 @@ def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_be
                 (dit_dx.pow(2).sum() + dit_dy.pow(2).sum()) / n_inner_mask)
 
     if reg_parameters[2] != 0:
-        # penalize large derivatives of bed inside glacier bounds
+        # penalize large derivative
+        # s of bed inside glacier bounds
         # TODO: is central differences really what we want here?
+        # TODO: need for whole domain to avoid numerical instability
         db_dx = (guessed_bed[:, :-2] - guessed_bed[:, 2:]) / dx
         db_dy = (guessed_bed[:-2, :] - guessed_bed[2:, :]) / dx
         db_dx = db_dx * model_inner_mask[:, 1:-1]
