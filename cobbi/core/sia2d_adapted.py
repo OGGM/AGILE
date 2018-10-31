@@ -371,8 +371,8 @@ class Upstream2D(Model2D):
                                       torch.max(torch.abs(D_l_dn))))
         #if divisor == 0:
         #    dt_cfl = self.max_dt
-        #else:
         # TODO: raise errors at least
+        #else:
         dt_cfl = (self.cfl * torch.min(self.dx ** 2., self.dy ** 2.) /
                   divisor)
 
@@ -392,6 +392,7 @@ class Upstream2D(Model2D):
         dt_use = torch.clamp(torch.min(torch.tensor([dt_cfl, dt],
                                                     dtype=torch.float)),
                              0., self.max_dt)
+        # TODO: track for memory leak
 
         self.ice_thick[1:-1, 1:-1] = torch.clamp(
             self.surface_h[1:-1, 1:-1] +

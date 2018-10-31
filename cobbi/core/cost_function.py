@@ -75,11 +75,13 @@ def cost_function(b, reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask,
                   data_logger=None):
     """
     Calculates cost for a given bed and other given parameters.
-    TODO
+
     Parameters
     ----------
-    b
-    reg_parameters
+    b: ndarray
+        Array of bed heights (unit: [m])
+    reg_parameters: list or ndarray or torch.Tensor
+        list or ndarray or torch.Tensor giving reg_parameters. Expected size: 11
     ref_surf: FloatTensor
         "Observed" surface height after forward run. This is supposed to be
         achieved. (unit: [m])
@@ -148,7 +150,7 @@ def cost_function(b, reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask,
 def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_bed,
               model_surf, model_ice_mask, model_inner_mask, dx):
     """
-    TODO:
+    TODO: Documentation
 
     Parameters
     ----------
@@ -192,7 +194,6 @@ def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_be
         # penalize large derivative
         # s of bed inside glacier bounds
         # TODO: is central differences really what we want here?
-        # TODO: need for whole domain to avoid numerical instability
         db_dx = (guessed_bed[:, :-2] - guessed_bed[:, 2:]) / dx
         db_dy = (guessed_bed[:-2, :] - guessed_bed[2:, :]) / dx
         db_dx = db_dx * model_inner_mask[:, 1:-1]
@@ -284,6 +285,8 @@ class LocalMeanSquaredDifference(torch.autograd.Function):
     """
     More or less test class for own functions on tensors with custom
     backward functions
+
+    Deprecated, only use as example
     """
     @staticmethod
     def forward(ctx, modelled_surf, surface_to_match, ice_region, ice_mask, bed):

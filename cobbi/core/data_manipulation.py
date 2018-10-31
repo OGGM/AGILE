@@ -1,7 +1,7 @@
 import numpy as np
 import rasterio
 import shutil
-from noise import pnoise2, snoise2
+from noise import pnoise2
 from scipy.ndimage import interpolation
 
 
@@ -124,7 +124,7 @@ def create_perlin_noise(gdir, desired_rmse=5., octaves=1, base=1., freq=8.0,
     noise = np.zeros((max_y, max_x))
     for y in range(max_y):
         for x in range(max_x):
-            # TODO: is pnoise or snoise better?
+            # use pnoise here, but snoise would be a reasonable choice as well
             noise[y, x] = pnoise2(x / freq, y / freq, octaves=octaves,
                                   base=base)
 

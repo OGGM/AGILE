@@ -49,7 +49,9 @@ def first_guess(surf, ice_mask, dx, slope_cutoff_angle=5.0, factor=1):
 
     """
 
-    # TODO: think about smoothing first guess?
+    # think about smoothing first guess?
+    # -> anyway not exactly as in paper, only rough estimate
+    # --> possible improvement, but not for now
 
     glacier_surf = np.ma.masked_array(surf, np.logical_not(ice_mask))
     h_difference = (glacier_surf.max() - glacier_surf.min()) / 1e3

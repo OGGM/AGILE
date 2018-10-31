@@ -76,7 +76,6 @@ class InversionDirectory(object):
     def get_current_basedir(self):
         return os.path.join(self.gdir.dir,
                             self.inv_settings['inversion_subdir'])
-        # TODO: rename inversion_counter to 'inversion_subdir'
 
     def clear_dir(self, dir):
         if os.path.exists(dir):
@@ -137,8 +136,7 @@ class InversionDirectory(object):
         bounds for this domain and this inversion settings
         """
         bounds = None
-        if ('bounds_min_max' in self.inv_settings and  # TODO: remove this condition, only for transitional purpose
-                self.inv_settings['bounds_min_max'] is not None):
+        if self.inv_settings['bounds_min_max'] is not None:
             min_ice_thickness = self.inv_settings['bounds_min_max'][0]
             max_ice_thickness = self.inv_settings['bounds_min_max'][1]
             lower_bounds = self.ref_surf - max_ice_thickness * self.ice_mask
@@ -209,7 +207,7 @@ class InversionDirectory(object):
         inverted_bed = res.x.reshape(self.first_guessed_bed.shape)
         # ----------------------------------------------------------------------
 
-        profile['dtype'] = 'float64'  # TODO: necessary?
+        profile['dtype'] = 'float64'
         with rasterio.open(self.get_subdir_filepath('inverted_bed'),
                            'w', **profile) as dst:
             dst.write(inverted_bed, 1)
