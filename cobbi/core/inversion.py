@@ -96,68 +96,119 @@ class InversionDirectory(object):
         self.ref_surf = salem.GeoTiff(
             self.gdir.get_filepath('ref_dem')).get_vardata()
         self.first_guessed_bed = salem.GeoTiff(
-            self.gdir.get_filepath('first_guessed_bed')).get_vardata()
+            self.get_subdir_filepath('first_guessed_bed')).get_vardata()
         self.ice_mask = np.load(self.gdir.get_filepath('ref_ice_mask'))
 
     def get_subdir_filepath(self, filename, filesuffix=None):
+        """
+        Gets the filepath for a file with a given name (without extension).
+        Works as and is based on get_filepath in GlacierDirectory,
+        but returns filepath in this inversion directory.
+
+        Parameters
+        ----------
+        filename: str
+            name of the file
+        filesuffix: str
+            optional filesuffix to the filename
+
+        Returns
+        -------
+        Entire path to this file in this inversion directory
+
+        """
         original_path = self.gdir.get_filepath(filename, filesuffix=filesuffix)
         original_path = os.path.split(original_path)
         return os.path.join(self.get_current_basedir(), original_path[1])
 
-    def run_minimize(self):
+    def get_bounds(self):
         """
-        Here the actual minimization of the cost_function is done via
-        scipy.optimize.minimize
-
-        Parameters
-        ----------
-        cost_func: function
-            Cost function to minimize. Accepts a bed array of size of the
-            spinup_surface as input and outputs a scalar variable, which is
-            the cost for this bed.
+        Creates bounds for the minimization on the current domain. If
+        'bounds_min_max' in inversion settings is None, no bounds are set.
+        Else, in Areas without ice, upper and lower bound are exactly as the
+        observed surface, otherwise min and max values for ice thickness are
+        taken from 'bounds_min_max' and give bounds in glacierized areas. (
+        min ice thickness determines upper bound and max ice thickness
+        determines lower bound)
 
         Returns
         -------
-        Result of minimization as scipy.optimize.minimize returns
+        bounds for this domain and this inversion settings
+        """
+        bounds = None
+        if ('bounds_min_max' in self.inv_settings and  # TODO: remove this condition, only for transitional purpose
+                self.inv_settings['bounds_min_max'] is not None):
+            min_ice_thickness = self.inv_settings['bounds_min_max'][0]
+            max_ice_thickness = self.inv_settings['bounds_min_max'][1]
+            lower_bounds = self.ref_surf - max_ice_thickness * self.ice_mask
+            upper_bounds = self.ref_surf - min_ice_thickness * self.ice_mask
+            bounds = np.c_[lower_bounds.flatten(), upper_bounds.flatten()]
+        return bounds
+
+    def run_minimize(self):
+        """
+        Here the actual minimization of the cost_function is done via
+        scipy.optimize.minimize.
+        First, data from the glacier directory is read and optionally a
+        DataLogger is created. The inversion settings used for this
+        particular inversion are saved in this subdirectory. Bounds for the
+        minimization are derived. Then the cost function is created and the
+        minimization of this cost function started. In the end, the result is
+        written to disk and optionally, further information is written to disk.
+
+        The whole process is dominated by the set inversion settings
+
+        Returns
+        -------
+        Result of minimization as scipy.optimize.minimize returns (res.x
+        gives flattened ndarray with bed, needs to be reshaped)
 
         """
+
+        # Copy first_guessed_bed to inversion directory
+        if self.inv_settings['log_minimize_steps']:
+            # TODO: really useful? -> respect reset argument in gdir?
+            self.clear_dir(self.get_current_basedir())
+
+        with rasterio.open(self.gdir.get_filepath('first_guessed_bed')) as src:
+            profile = src.profile
+            data = src.read(1)
+        with rasterio.open(self.get_subdir_filepath('first_guessed_bed'),
+                           'w', **profile) as dst:
+            dst.write(data, 1)
+
+        write_pickle(self.inv_settings,
+                     self.get_subdir_filepath('inversion_settings'))
+        # Write out reg_parameters to check easier later on
+        self.write_string_to_file(self.get_subdir_filepath('reg_parameters'),
+                                  str(self.inv_settings['reg_parameters']))
+
         self._read_all_data()
         self.minimize_log = ''
         self.data_logger = None
         callback = None
 
-        #TODO: add optional (or add constraints)
-        #bounds = None
-        estimated_max_ice_thickness = 600.
-        estimated_min_ice_thickness = 2.
-        lower_bounds = self.ref_surf - estimated_max_ice_thickness * self.ice_mask
-        upper_bounds = self.ref_surf - estimated_min_ice_thickness * self.ice_mask
-        bounds = np.c_[lower_bounds.flatten(), upper_bounds.flatten()]
-
-        self.inv_settings['minimize_bounds'] = bounds
-
         if self.inv_settings['log_minimize_steps']:
-            self.clear_dir(self.get_current_basedir())
-            # TODO: really useful -> respect reset argument in gdir?
             dl = DataLogger(self)
             self.data_logger = dl
             callback = self.iteration_info_callback
 
-        write_pickle(self.inv_settings,
-                     self.get_subdir_filepath('inversion_settings'))
+        # ----------------------------------------------------------------------
+        # Core: things are happening here:
+        bounds = self.get_bounds()
 
         self.cost_func = create_cost_func(self.gdir, self.data_logger)
         res = minimize(fun=self.cost_func,
                        x0=self.first_guessed_bed.astype(np.float64).flatten(),
                        method=self.inv_settings['solver'], jac=True,
-                       bounds=self.inv_settings['minimize_bounds'],  # TODO: allow bounds
+                       bounds=bounds,
                        options=self.inv_settings['minimize_options'],
                        callback=callback)
 
         inverted_bed = res.x.reshape(self.first_guessed_bed.shape)
-        with rasterio.open(self.gdir.get_filepath('dem')) as src:
-            profile = src.profile
-        profile['dtype'] = 'float64'
+        # ----------------------------------------------------------------------
+
+        profile['dtype'] = 'float64'  # TODO: necessary?
         with rasterio.open(self.get_subdir_filepath('inverted_bed'),
                            'w', **profile) as dst:
             dst.write(inverted_bed, 1)
@@ -166,7 +217,6 @@ class InversionDirectory(object):
             self.write_string_to_file('log.txt', self.minimize_log)
             dir = self.get_current_basedir()
             dl.filter_data_from_optimization()  # Optional, if we want to
-
             data_logging.write_pickle(dl,
                                       self.get_subdir_filepath('data_logger'))
             dl.plot_all(dir)

@@ -244,11 +244,11 @@ def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_be
                   - 2 * guessed_bed[:, 1:-1]) / dx ** 2
         ddb_dy = (guessed_bed[:-2, :] + guessed_bed[2:, :]
                   - 2 * guessed_bed[1:-1, :]) / dx ** 2
-        ddb_dx = ddb_dx * (ref_ice_mask - model_inner_mask)[:, 1:-1]
-        ddb_dy = ddb_dy * (ref_ice_mask - model_inner_mask)[1:-1, :]
+        ddb_dx = ddb_dx * (model_ice_mask - model_inner_mask)[:, 1:-1]
+        ddb_dy = ddb_dy * (model_ice_mask - model_inner_mask)[1:-1, :]
         cost[7] = reg_parameters[7] \
                   * ((ddb_dx.pow(2).sum() + ddb_dy.pow(2).sum())
-                     / (2 * (ref_ice_mask - model_inner_mask)[1:-1, 1:-1].sum()))
+                     / (2 * (model_ice_mask - model_inner_mask)[1:-1, 1:-1].sum()))
 
     if reg_parameters[8] != 0:
         # penalize high curvature of surface inside glacier
@@ -275,7 +275,7 @@ def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_be
         db_dy = db_dy * model_ice_mask[1:, :]
         cost[10] = reg_parameters[10] * (
                 (db_dx.pow(2).sum() + db_dy.pow(2).sum())
-                / model_inner_mask.sum())
+                / (2. * model_inner_mask.sum()))
 
     return cost
 

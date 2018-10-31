@@ -24,7 +24,8 @@ EXTENDED_BASENAMES = {
     'true_spinup_dem': 'true_spinup_dem.tiff',
     'data_logger': 'data_logger.pkl',
     'first_guessed_bed_noise': 'first_guessed_bed_noise.npy',
-    'dem_noise': 'dem_noise.npy'
+    'dem_noise': 'dem_noise.npy',
+    'reg_parameters': 'reg_parameters.txt'
 }
 
 DEFAULT_REG_PARAMETERS = np.array([0.1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
@@ -210,7 +211,7 @@ class NonRGIGlacierDirectory(GlacierDirectory):
                                  reg_parameters=DEFAULT_REG_PARAMETERS,
                                  solver='L-BFGS-B', minimize_options=None,
                                  inversion_counter=0, log_minimize_steps=True,
-                                 minimize_bounds=None):
+                                 bounds_min_max=None):
         """
         TODO: Documentation
 

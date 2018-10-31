@@ -131,7 +131,7 @@ class DataLogger(object):
         plt.savefig(basedir + 'bed_surf_rmse.pdf')
         plt.close(fig)
 
-    def plot_bed_differences(self, basedir, cbar_range=50):
+    def plot_bed_differences(self, basedir, cbar_range=200):
         bed_differences = self.get_bed_differences()
         for i in self.step_indices:
             fig = plt.figure()
