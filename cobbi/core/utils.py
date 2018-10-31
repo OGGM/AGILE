@@ -210,7 +210,7 @@ class NonRGIGlacierDirectory(GlacierDirectory):
                                  fg_shape_factor=1.0,
                                  reg_parameters=DEFAULT_REG_PARAMETERS,
                                  solver='L-BFGS-B', minimize_options=None,
-                                 inversion_counter=0, log_minimize_steps=True,
+                                 inversion_subdir='0', log_minimize_steps=True,
                                  bounds_min_max=None):
         """
         TODO: Documentation

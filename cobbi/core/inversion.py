@@ -75,12 +75,14 @@ class InversionDirectory(object):
 
     def get_current_basedir(self):
         return os.path.join(self.gdir.dir,
-                            self.inv_settings['inversion_counter'])
+                            self.inv_settings['inversion_subdir'])
+        # TODO: rename inversion_counter to 'inversion_subdir'
 
     def clear_dir(self, dir):
         if os.path.exists(dir):
             for f in os.listdir(dir):
-                os.remove(os.path.join(dir, f))
+                if not str.endswith(f, '.py'):
+                    os.remove(os.path.join(dir, f))
         else:
             if not os.path.exists(dir):
                 os.makedirs(dir, exist_ok=True)
