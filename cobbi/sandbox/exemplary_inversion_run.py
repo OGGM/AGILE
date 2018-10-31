@@ -30,14 +30,14 @@ gdir = NonRGIGlacierDirectory(case, basedir)
 lambdas = np.zeros(11)
 lambdas[0] = 0.2
 lambdas[3] = 1.5
-#lambdas[7] = 5e4
+lambdas[7] = 1e7
 lambdas[10] = 2
 
 minimize_options = {
     'maxiter': 300,
-    'ftol': 1e-4,
+    'ftol': 0.5e-3,
     #'xtol': 1e-30,
-    'gtol': 0.5e-4,
+    'gtol': 1e-4,
     #'maxcor': 5,
     #'maxls': 10,
     'disp': True
@@ -50,7 +50,7 @@ gdir.write_inversion_settings(mb_spinup=None,
                               reg_parameters=lambdas,
                               solver='L-BFGS-B',
                               minimize_options=minimize_options,
-                              inversion_counter=1001,
+                              inversion_counter=1004,
                               fg_shape_factor=1.,
                               bounds_min_max=(2, 600)
                               )
@@ -58,7 +58,7 @@ gdir.write_inversion_settings(mb_spinup=None,
 # Optional, if not reset=True and already ran once
 # only needed once:
 #create_glacier(gdir)
-compile_first_guess(gdir)
+#compile_first_guess(gdir)
 idir = InversionDirectory(gdir)
 res = idir.run_minimize()
 #dl = data_logging.load_pickle(idir.get_current_basedir() + '/data_logger.pkl')

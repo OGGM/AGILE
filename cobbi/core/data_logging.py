@@ -41,7 +41,7 @@ class DataLogger(object):
         self.surfs = []
         self.beds = []
         self.step_indices = []
-        self.lambdas = np.zeros(9)
+        self.lambdas = np.zeros(11)
         self.true_bed = true_bed
         self.exact_surf = exact_surf
         self.ref_surf = ref_surf
@@ -105,7 +105,7 @@ class DataLogger(object):
         data = np.array(self.c_terms)
         for i in range(self.lambdas.size):
             plt.semilogy(data[:, i], label='Reg {:d}'.format(i))
-        plt.semilogy(data[:, -1], label='Bare cost')
+        plt.semilogy(data[:, -1], label='Bare cost', color='k')
         plt.xlabel('Iteration #')
         plt.ylabel('Cost')
         plt.legend()
