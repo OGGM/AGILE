@@ -1,6 +1,8 @@
 import torch
 import matplotlib.pyplot as plt
 import numpy as np
+import os
+import shutil
 
 from cobbi.core import gis, test_cases
 from cobbi.core.utils import NonRGIGlacierDirectory
@@ -17,20 +19,20 @@ np.seed = 0  # needs to be fixed for reproducible results with noise
 cfg.initialize()
 
 basedir = '/path/to/example'
-basedir = '/data/philipp/thesis_test/Giluwe/perfect'
+basedir = '/data/philipp/thesis_test/Giluwe/perfect_reference'
 
 # TODO: think about IceThicknesses for case Giluwe
 # Choose a case
 case = test_cases.Giluwe
 gdir = NonRGIGlacierDirectory(case, basedir)
 # only needed once:
-#gis.define_nonrgi_glacier_region(gdir)
+gis.define_nonrgi_glacier_region(gdir)
 
-# create settings for out inversion
+# create settings for inversion
 lambdas = np.zeros(11)
 lambdas[0] = 0.2
 lambdas[3] = 1.5
-lambdas[7] = 1e7
+lambdas[7] = 1e5
 lambdas[10] = 2
 
 minimize_options = {
@@ -42,24 +44,30 @@ minimize_options = {
     #'maxls': 10,
     'disp': True
 }
-# TODO: bounds would be an additional option for minimization?
-# Theoretically also only needed once
+
 gdir.write_inversion_settings(mb_spinup=None,
                               yrs_spinup=2000,
                               yrs_forward_run=200,
                               reg_parameters=lambdas,
                               solver='L-BFGS-B',
                               minimize_options=minimize_options,
-                              inversion_counter=1004,
+                              inversion_counter=0,
                               fg_shape_factor=1.,
                               bounds_min_max=(2, 600)
                               )
 
 # Optional, if not reset=True and already ran once
 # only needed once:
-#create_glacier(gdir)
-#compile_first_guess(gdir)
+create_glacier(gdir)
+compile_first_guess(gdir)
 idir = InversionDirectory(gdir)
 res = idir.run_minimize()
 #dl = data_logging.load_pickle(idir.get_current_basedir() + '/data_logger.pkl')
+
+
+# copy this script to inversion directory for reproducibility
+path_to_file = '/home/philipp/COBBI/cobbi/sandbox/exemplary_inversion_run.py'
+fname = os.path.split(path_to_file)[-1]
+shutil.copy(path_to_file, os.path.join(idir.get_current_basedir(), fname))
+
 print('end')

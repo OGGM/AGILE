@@ -1,6 +1,7 @@
 import numpy as np
 import rasterio
 import shutil
+from noise import pnoise2, snoise2
 from scipy.ndimage import interpolation
 
 
@@ -108,6 +109,28 @@ def create_noise(gdir, std=3, zoom=-1, glacier_only=True):
     if zoom > 0:
         noise = interpolation.zoom(noise, zoom)[0:ref_ice_mask.shape[0],
                                                 0:ref_ice_mask.shape[1]]
+    if glacier_only:
+        noise = noise * ref_ice_mask
+
+    return noise
+
+
+def create_perlin_noise(gdir, desired_rmse=5., octaves=1, base=1., freq=8.0,
+                        glacier_only=True):
+
+    ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
+    max_y, max_x = ref_ice_mask.shape
+
+    noise = np.zeros((max_y, max_x))
+    for y in range(max_y):
+        for x in range(max_x):
+            # TODO: is pnoise or snoise better?
+            noise[y, x] = pnoise2(x / freq, y / freq, octaves=octaves,
+                                  base=base)
+
+    rmse = np.sqrt(np.mean(noise**2))
+    noise *= desired_rmse / rmse
+
     if glacier_only:
         noise = noise * ref_ice_mask
 

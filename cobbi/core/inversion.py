@@ -75,8 +75,7 @@ class InversionDirectory(object):
 
     def get_current_basedir(self):
         return os.path.join(self.gdir.dir,
-                            '{:d}/'.format(self.inv_settings[
-                                               'inversion_counter']))
+                            self.inv_settings['inversion_counter'])
 
     def clear_dir(self, dir):
         if os.path.exists(dir):
