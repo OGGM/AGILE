@@ -172,7 +172,7 @@ def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_be
     n_ice_mask = ref_ice_mask.sum()
     n_grid = ref_surf.numel()
     margin = ref_ice_mask - ref_inner_mask
-    cost = torch.zeros(12)
+    cost = torch.zeros(5)
     # cost[-1] = (ref_surf - model_surf).pow(2).sum() / ref_ice_mask.sum()
     # TODO recheck all indices for reg_parameters and cost
     cost[-1] = ((ref_surf - model_surf) * (1. - margin)).pow(2).sum() \
@@ -181,64 +181,24 @@ def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_be
               ((ref_surf - model_surf) * margin).pow(2).sum() / margin.sum()
 
     if reg_parameters[1] != 0:
-        # penalize large derivatives of ice thickness
-        it = model_surf - guessed_bed
-        dit_dx = (it[:, :-2] - it[:, 2:]) / (2. * dx)
-        dit_dy = (it[:-2, :] - it[2:, :]) / (2. * dx)
-        dit_dx = dit_dx * model_inner_mask[:, 1:-1]
-        dit_dy = dit_dy * model_inner_mask[1:-1, :]
-        cost[1] = reg_parameters[1] * (
-                (dit_dx.pow(2).sum() + dit_dy.pow(2).sum()) / n_inner_mask)
-
-    if reg_parameters[2] != 0:
-        # penalize large derivative
-        # s of bed inside glacier bounds
-        # TODO: is central differences really what we want here?
-        db_dx = (guessed_bed[:, :-2] - guessed_bed[:, 2:]) / dx
-        db_dy = (guessed_bed[:-2, :] - guessed_bed[2:, :]) / dx
-        db_dx = db_dx * model_inner_mask[:, 1:-1]
-        db_dy = db_dy * model_inner_mask[1:-1, :]
-        cost[2] = reg_parameters[2] * (
-                (db_dx.pow(2).sum() + db_dy.pow(2).sum()) / n_inner_mask)
-
-    if reg_parameters[3] != 0:
         # penalizes ice thickness, where ice thickness should be 0
-        cost[3] = reg_parameters[3] * (((model_surf - guessed_bed)
+        cost[1] = reg_parameters[1] * (((model_surf - guessed_bed)
                                         * (1. - ref_ice_mask)).pow(2).sum()
                                        / (n_grid - n_ice_mask))
 
-    if reg_parameters[4] != 0:
-        # penalizes bed != reference surf where we know about the bed
-        # height because of ice thickness == 0
-        cost[4] = reg_parameters[4] * \
-                  (((ref_surf - guessed_bed)
-                    * (1. - ref_ice_mask)).pow(2).sum()
-                   / (n_grid - n_ice_mask))
+    if reg_parameters[2] != 0:
+        # penalize large derivatives of bed under glacier
+        # -> avoids numerical instabilites
+        db_dx = (guessed_bed[:, :-1] - guessed_bed[:, 1:]) / dx
+        db_dy = (guessed_bed[:-1, :] - guessed_bed[1:, :]) / dx
+        db_dx = db_dx * ref_ice_mask[:, 1:]
+        db_dy = db_dy * ref_ice_mask[1:, :]
+        cost[2] = reg_parameters[2] * (
+                (db_dx.pow(2).sum() + db_dy.pow(2).sum())
+                / (2. * ref_ice_mask.sum()))
+                # TODO: was model_inner_mask better?
 
-    if reg_parameters[5] != 0:
-        # penalize high curvature of ice thickness (in glacier bounds)
-        it = model_surf - guessed_bed
-        ddit_dx = (it[:, :-2] + it[:, 2:] - 2 * it[:, 1:-1]) / dx ** 2
-        ddit_dy = (it[:-2, :] + it[2:, :] - 2 * it[1:-1, :]) / dx ** 2
-        ddit_dx = ddit_dx * model_inner_mask[:, 1:-1]
-        ddit_dy = ddit_dy * model_inner_mask[1:-1, :]
-        cost[5] = reg_parameters[5] * ((ddit_dx.pow(2).sum()
-                                        + ddit_dy.pow(2).sum())
-                                       / (2 * n_inner_mask))
-
-    if reg_parameters[6] != 0:
-        # penalize high curvature of bed (in glacier bounds)
-        ddb_dx = (guessed_bed[:, :-2] + guessed_bed[:, 2:]
-                  - 2 * guessed_bed[:, 1:-1]) / dx ** 2
-        ddb_dy = (guessed_bed[:-2, :] + guessed_bed[2:, :]
-                  - 2 * guessed_bed[1:-1, :]) / dx ** 2
-        ddb_dx = ddb_dx * model_inner_mask[:, 1:-1]
-        ddb_dy = ddb_dy * model_inner_mask[1:-1, :]
-        cost[6] = reg_parameters[6] * ((ddb_dx.pow(2).sum()
-                                        + ddb_dy.pow(2).sum())
-                                       / (2. * n_inner_mask))
-
-    if reg_parameters[7] != 0:
+    if reg_parameters[3] != 0:
         # penalize high curvature of bed exactly at boundary pixels of
         # glacier for a smooth transition from glacier-free to glacier
         ddb_dx = (guessed_bed[:, :-2] + guessed_bed[:, 2:]
@@ -247,9 +207,60 @@ def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_be
                   - 2 * guessed_bed[1:-1, :]) / dx ** 2
         ddb_dx = ddb_dx * (model_ice_mask - model_inner_mask)[:, 1:-1]
         ddb_dy = ddb_dy * (model_ice_mask - model_inner_mask)[1:-1, :]
-        cost[7] = reg_parameters[7] \
+        cost[3] = reg_parameters[3] \
                   * ((ddb_dx.pow(2).sum() + ddb_dy.pow(2).sum())
                      / (2 * (model_ice_mask - model_inner_mask)[1:-1, 1:-1].sum()))
+    """
+    if reg_parameters[3] != 0:
+        # penalize large derivatives of ice thickness
+        it = model_surf - guessed_bed
+        dit_dx = (it[:, :-2] - it[:, 2:]) / (2. * dx)
+        dit_dy = (it[:-2, :] - it[2:, :]) / (2. * dx)
+        dit_dx = dit_dx * model_inner_mask[:, 1:-1]
+        dit_dy = dit_dy * model_inner_mask[1:-1, :]
+        cost[3] = reg_parameters[3] * (
+                (dit_dx.pow(2).sum() + dit_dy.pow(2).sum()) / n_inner_mask)
+
+    if reg_parameters[4] != 0:
+        # penalize large derivatives of bed inside glacier bounds
+        # TODO: is central differences really what we want here?
+        db_dx = (guessed_bed[:, :-2] - guessed_bed[:, 2:]) / dx
+        db_dy = (guessed_bed[:-2, :] - guessed_bed[2:, :]) / dx
+        db_dx = db_dx * model_inner_mask[:, 1:-1]
+        db_dy = db_dy * model_inner_mask[1:-1, :]
+        cost[4] = reg_parameters[4] * (
+                (db_dx.pow(2).sum() + db_dy.pow(2).sum()) / n_inner_mask)
+
+    if reg_parameters[5] != 0:
+        # penalizes bed != reference surf where we know about the bed
+        # height because of ice thickness == 0
+        cost[5] = reg_parameters[5] * \
+                  (((ref_surf - guessed_bed)
+                    * (1. - ref_ice_mask)).pow(2).sum()
+                   / (n_grid - n_ice_mask))
+
+    if reg_parameters[6] != 0:
+        # penalize high curvature of ice thickness (in glacier bounds)
+        it = model_surf - guessed_bed
+        ddit_dx = (it[:, :-2] + it[:, 2:] - 2 * it[:, 1:-1]) / dx ** 2
+        ddit_dy = (it[:-2, :] + it[2:, :] - 2 * it[1:-1, :]) / dx ** 2
+        ddit_dx = ddit_dx * model_inner_mask[:, 1:-1]
+        ddit_dy = ddit_dy * model_inner_mask[1:-1, :]
+        cost[6] = reg_parameters[6] * ((ddit_dx.pow(2).sum()
+                                        + ddit_dy.pow(2).sum())
+                                       / (2 * n_inner_mask))
+
+    if reg_parameters[7] != 0:
+        # penalize high curvature of bed (in glacier bounds)
+        ddb_dx = (guessed_bed[:, :-2] + guessed_bed[:, 2:]
+                  - 2 * guessed_bed[:, 1:-1]) / dx ** 2
+        ddb_dy = (guessed_bed[:-2, :] + guessed_bed[2:, :]
+                  - 2 * guessed_bed[1:-1, :]) / dx ** 2
+        ddb_dx = ddb_dx * model_inner_mask[:, 1:-1]
+        ddb_dy = ddb_dy * model_inner_mask[1:-1, :]
+        cost[7] = reg_parameters[7] * ((ddb_dx.pow(2).sum()
+                                        + ddb_dy.pow(2).sum())
+                                       / (2. * n_inner_mask))
 
     if reg_parameters[8] != 0:
         # penalize high curvature of surface inside glacier
@@ -266,17 +277,7 @@ def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_be
         lmsd = LocalMeanSquaredDifference.apply
         cost[9] = reg_parameters[9] * lmsd(model_surf, ref_surf, ref_ice_mask,
                                            ref_ice_mask, guessed_bed)
-
-    if reg_parameters[10] != 0:
-        # penalize large derivatives of bed under glacier
-        # -> avoids numerical instabilites
-        db_dx = (guessed_bed[:, :-1] - guessed_bed[:, 1:]) / dx
-        db_dy = (guessed_bed[:-1, :] - guessed_bed[1:, :]) / dx
-        db_dx = db_dx * model_ice_mask[:, 1:]
-        db_dy = db_dy * model_ice_mask[1:, :]
-        cost[10] = reg_parameters[10] * (
-                (db_dx.pow(2).sum() + db_dy.pow(2).sum())
-                / (2. * model_inner_mask.sum()))
+    """
 
     return cost
 

@@ -28,7 +28,7 @@ EXTENDED_BASENAMES = {
     'reg_parameters': 'reg_parameters.txt'
 }
 
-DEFAULT_REG_PARAMETERS = np.array([0.1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+DEFAULT_REG_PARAMETERS = np.array([0.1, 0, 0, 0])
 
 class NonRGIGlacierDirectory(GlacierDirectory):
     """GlacierDirectory for synthetic cases and glaciers, which are not

@@ -36,11 +36,13 @@ gdir = NonRGIGlacierDirectory(case, basedir)
 #gis.define_nonrgi_glacier_region(gdir)
 
 # create settings for inversion
-lambdas = np.zeros(11)
-lambdas[0] = 0.2
-lambdas[3] = 1.5
-lambdas[7] = 1e5
-lambdas[10] = 2
+lambdas = np.zeros(4)
+lambdas[0] = 0.2  # TODO: better
+lambdas[1] = 1.5  # TODO: really useful? (Better if smaller than 1 to focus
+# on inner domain)
+lambdas[2] = 2
+lambdas[3] = 1e5
+
 
 minimize_options = {
     'maxiter': 300,
