@@ -55,7 +55,7 @@ class InversionDirectory(object):
                 'iteration': len(dl.step_indices),
                 'cost': dl.costs[i],
                 'bed_rmse': rmse(dl.beds[i], b),
-                'bed_bias': np.sum(dl.beds[i] - b),
+                'bed_bias': np.sum(dl.beds[i] - b)/np.sum(self.ice_mask),
                 'bed_maxdiff': np.max(np.abs(dl.beds[i] - b)),
                 'surf_rmse': rmse(dl.surfs[i], self.ref_surf),
                 'surf_maxdiff': np.max(np.abs(dl.surfs[i] - self.ref_surf))
