@@ -5,6 +5,7 @@ import matplotlib.colors as colors
 import pickle
 import gzip
 from oggm import cfg
+import os
 #from cobbi.utils.optimization import LCurveTest
 
 class MidpointNormalize(colors.Normalize):
@@ -97,7 +98,7 @@ class DataLogger(object):
         plt.semilogy(self.costs)
         plt.xlabel('Iteration #')
         plt.ylabel('Cost')
-        plt.savefig(basedir + 'cost.pdf')
+        plt.savefig(os.path.join(basedir, 'cost.pdf'))
         plt.close(fig)
 
     def plot_c_terms(self, basedir):
@@ -109,7 +110,7 @@ class DataLogger(object):
         plt.xlabel('Iteration #')
         plt.ylabel('Cost')
         plt.legend()
-        plt.savefig(basedir + 'c_terms.pdf')
+        plt.savefig(os.path.join(basedir, 'c_terms.pdf'))
         plt.close(fig)
 
     def plot_image(self, data, max_val, title, filename):
@@ -128,7 +129,7 @@ class DataLogger(object):
         plt.xlabel('Iteration #')
         plt.ylabel('RMSE')
         plt.legend()
-        plt.savefig(basedir + 'bed_surf_rmse.pdf')
+        plt.savefig(os.path.join(basedir, 'bed_surf_rmse.pdf'))
         plt.close(fig)
 
     def plot_bed_differences(self, basedir, cbar_range=200):
@@ -144,7 +145,7 @@ class DataLogger(object):
                                 i, np.max(np.abs(bed_differences[i]))))
             cbar = plt.colorbar(im)
             cbar.set_label('Δb (m)')
-            plt.savefig(basedir + 'bed_diff{:d}.png'.format(i))
+            plt.savefig(os.path.join(basedir, 'bed_diff{:d}.png'.format(i)))
             plt.close(fig)
 
     def plot_surf_differences(self, basedir, cbar_range=50):
@@ -164,7 +165,7 @@ class DataLogger(object):
                                 i, np.max(np.abs(surf_differences[i]))))
             cbar = plt.colorbar(im)
             cbar.set_label('Δs (m)')
-            plt.savefig(basedir + 'surf_diff{:d}.png'.format(i))
+            plt.savefig(os.path.join(basedir, 'surf_diff{:d}.png'.format(i)))
             plt.close(fig)
 
     def plot_grads(self, basedir, ref_shape, cbar_range=None):
@@ -185,7 +186,7 @@ class DataLogger(object):
             plt.title('Gradient #{:d}'.format(i))
             cbar = plt.colorbar(im)
             cbar.set_label('Gradient of cost-function (m$^{-1}$)')
-            plt.savefig(basedir + 'grad{:d}.png'.format(i))
+            plt.savefig(os.path.join(basedir, 'grad{:d}.png'.format(i)))
             plt.close(fig)
 
 

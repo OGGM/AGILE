@@ -25,7 +25,7 @@ freq = 8.  # determines coherence of noise. Larger frequ gives larger
 base = 3  # works like np.random.seed
 
 basedir = '/path/to/example'
-basedir = '/data/philipp/thesis_test/Giluwe/noisy_first_guess/'
+basedir = '/data/philipp/thesis_test2/Giluwe/noisy_first_guess/'
 
 
 # TODO: think about IceThicknesses for case Giluwe
@@ -37,7 +37,7 @@ gdir = NonRGIGlacierDirectory(case, basedir)
 
 # create settings for inversion
 lambdas = np.zeros(4)
-lambdas[0] = 0.2  # TODO: better
+lambdas[0] = 0.2  # TODO: better if on entire non reference glacier area (+boundary)
 lambdas[1] = 1.5  # TODO: really useful? (Better if smaller than 1 to focus
 # on inner domain)
 lambdas[2] = 2

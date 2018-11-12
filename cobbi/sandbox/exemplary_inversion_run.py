@@ -19,19 +19,19 @@ np.seed = 0  # needs to be fixed for reproducible results with noise
 cfg.initialize()
 
 basedir = '/path/to/example'
-basedir = '/data/philipp/thesis_test/Giluwe/perfect_reference'
+basedir = '/data/philipp/thesis_test2/Giluwe/identical_twin'
 
 # TODO: think about IceThicknesses for case Giluwe
 # Choose a case
 case = test_cases.Giluwe
 gdir = NonRGIGlacierDirectory(case, basedir)
 # only needed once:
-gis.define_nonrgi_glacier_region(gdir)
+# gis.define_nonrgi_glacier_region(gdir)
 
 # create settings for inversion
 lambdas = np.zeros(4)
-lambdas[0] = 0.2  # TODO: better
-lambdas[1] = 1.5  # TODO: really useful? (Better if smaller than 1 to focus
+lambdas[0] = 0.1  # TODO: better
+lambdas[1] = 0.8  # TODO: really useful? (Better if smaller than 1 to focus
 # on inner domain)
 lambdas[2] = 2
 lambdas[3] = 1e5
@@ -52,23 +52,26 @@ gdir.write_inversion_settings(mb_spinup=None,
                               reg_parameters=lambdas,
                               solver='L-BFGS-B',
                               minimize_options=minimize_options,
-                              inversion_counter=0,
+                              inversion_subdir='3',
                               fg_shape_factor=1.,
                               bounds_min_max=(2, 600)
                               )
 
 # Optional, if not reset=True and already ran once
 # only needed once:
-create_glacier(gdir)
-compile_first_guess(gdir)
-idir = InversionDirectory(gdir)
-res = idir.run_minimize()
-#dl = data_logging.load_pickle(idir.get_current_basedir() + '/data_logger.pkl')
+# create_glacier(gdir)
+# compile_first_guess(gdir)
 
+idir = InversionDirectory(gdir)
 
 # copy this script to inversion directory for reproducibility
 path_to_file = '/home/philipp/COBBI/cobbi/sandbox/exemplary_inversion_run.py'
 fname = os.path.split(path_to_file)[-1]
+if not os.path.exists(idir.get_current_basedir()):
+    os.makedirs(idir.get_current_basedir(), exist_ok=True)
 shutil.copy(path_to_file, os.path.join(idir.get_current_basedir(), fname))
+
+res = idir.run_minimize()
+#dl = data_logging.load_pickle(idir.get_current_basedir() + '/data_logger.pkl')
 
 print('end')
