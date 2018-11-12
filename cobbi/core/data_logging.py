@@ -42,7 +42,7 @@ class DataLogger(object):
         self.surfs = []
         self.beds = []
         self.step_indices = []
-        self.lambdas = np.zeros(5)
+        self.lambdas = np.zeros(4)
         self.true_bed = true_bed
         self.exact_surf = exact_surf
         self.ref_surf = ref_surf
