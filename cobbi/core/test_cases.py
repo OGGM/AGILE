@@ -219,12 +219,12 @@ Owen.smooth_border_px = 2
 Owen.smooth_border_h = 300
 
 #Borden Peninsula
-Nanisivik = TestCase()
-Nanisivik.name = 'Borden Peninsula'
-Nanisivik.extent= np.array([[-85.88, 72.34], [-83.40, 73.07]])
-Nanisivik.ela_h = 625
-Nanisivik.dx = 2000
-Nanisivik.mb_grad = 2.
-Nanisivik.smooth_border_px = 2
-Nanisivik.smooth_border_h = 0
-Nanisivik.mb_max_alt = 850
+Borden = TestCase()
+Borden.name = 'Borden Peninsula'
+Borden.extent= np.array([[-85.88, 72.34], [-83.40, 73.07]])
+Borden.ela_h = 625
+Borden.dx = 2000
+Borden.mb_grad = 2.
+Borden.smooth_border_px = 2
+Borden.smooth_border_h = 0
+Borden.mb_max_alt = 850
