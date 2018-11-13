@@ -208,6 +208,7 @@ class NonRGIGlacierDirectory(GlacierDirectory):
                                  yrs_forward_run=500,
                                  fg_slope_cutoff_angle=5.0,
                                  fg_shape_factor=1.0,
+                                 fg_min_height=None,
                                  reg_parameters=DEFAULT_REG_PARAMETERS,
                                  solver='L-BFGS-B', minimize_options=None,
                                  inversion_subdir='0', log_minimize_steps=True,

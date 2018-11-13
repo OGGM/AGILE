@@ -83,7 +83,7 @@ def compile_first_guess(gdir):
     Runs first guess on a glacier directory and saves result to the
     glacier_directory
 
-    Name dedicated to @fmaussion
+    Name dedicated to @fmaussion ;-)
 
     dictionary inversion settings in gdir should contain:
     case for case.dx: float
@@ -98,6 +98,9 @@ def compile_first_guess(gdir):
         glaciers is 0.8 (Paul and Linsbauer) but should be more like 1 in
         case of ice caps (depending on how strong the ice cap is governed
         by single flow arms. (unit: [])
+    fg_min_height: float
+        if included, first guess is cut at this height, i.e. no lower values
+        are allowed
 
     Parameters
     ----------
@@ -123,6 +126,10 @@ def compile_first_guess(gdir):
     first_guessed_bed = first_guess(surf, ice_mask, case.dx,
                                     slope_cutoff_angle,
                                     factor)
+    if 'fg_min_height' in inv_settings and \
+            inv_settings['fg_min_height'] is not None:
+        first_guessed_bed = np.clip(first_guessed_bed,
+                                    inv_settings['fg_min_height'], None)
 
     with rasterio.open(gdir.get_filepath('first_guessed_bed'),
                        'w', **profile) as dst:
