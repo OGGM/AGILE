@@ -221,9 +221,9 @@ Owen.smooth_border_h = 300
 #Borden Peninsula
 Borden = TestCase()
 Borden.name = 'Borden Peninsula'
-Borden.extent= np.array([[-85.88, 72.34], [-83.40, 73.07]])
-Borden.ela_h = 625
-Borden.dx = 2000
+Borden.extent= np.array([[-85.67, 72.46], [-83.75, 72.94]])
+Borden.ela_h = 650
+Borden.dx = 1500
 Borden.mb_grad = 2.
 Borden.smooth_border_px = 2
 Borden.smooth_border_h = 0
