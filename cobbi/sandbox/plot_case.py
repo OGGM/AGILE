@@ -21,10 +21,10 @@ np.seed = 0  # needs to be fixed for reproducible results with noise
 cfg.initialize()
 
 basedir = '/path/to/example'
-basedir = '/data/philipp/thesis_test2/Borden/plot_case'
+basedir = '/data/philipp/thesis_test2/Giluwe/plot_case'
 
 # Choose a case
-case = test_cases.Borden
+case = test_cases.Giluwe
 gdir = NonRGIGlacierDirectory(case, basedir)
 # only needed once:
 gis.define_nonrgi_glacier_region(gdir)

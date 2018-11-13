@@ -141,6 +141,7 @@ def compile_first_guess(gdir):
     return first_guessed_bed
 
 def interpolate_all_boundary(first_guessed_bed, ice_mask):
+    # TODO: ugly, documentation
     conv_array = np.ones((3,3))
     boundary = convolve2d(ice_mask, conv_array, mode='same') * ice_mask
     boundary = np.where(np.logical_and(boundary < 9, boundary > 0), True, False)

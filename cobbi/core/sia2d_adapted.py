@@ -394,7 +394,7 @@ class Upstream2D(Model2D):
                              0., self.max_dt)
         # TODO: track for memory leak
         # do not allow for less than a tenth of 'usual' time stepping to avoid
-        # memory overflow (restrict it to thousand times minimal ...
+        # memory overflow (restrict it to twenty times minimal ...
         if dt_cfl != dt and dt_cfl / self.max_dt < 0.05:
             raise MemoryError('Stopping dynamics run to avoid memory overflow')
 

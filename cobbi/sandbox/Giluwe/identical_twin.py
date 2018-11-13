@@ -19,7 +19,7 @@ np.seed = 0  # needs to be fixed for reproducible results with noise
 cfg.initialize()
 
 basedir = '/path/to/example'
-basedir = '/data/philipp/thesis_test2/Giluwe/identical_twin'
+basedir = '/data/philipp/thesis_test2/Giluwe/identical_twin_int_bound'
 
 # TODO: think about IceThicknesses for case Giluwe
 # Choose a case
@@ -30,11 +30,17 @@ gdir = NonRGIGlacierDirectory(case, basedir)
 
 # create settings for inversion
 lambdas = np.zeros(4)
-lambdas[0] = 0.2  # TODO: better
-lambdas[1] = 1.0  # TODO: really useful? (Better if smaller than 1 to focus
+# without border interpolation
+# lambdas[0] = 0.2  # TODO: better
+# lambdas[1] = 1.0  # TODO: really useful? (Better if smaller than 1 to focus
 # on inner domain?)
+# lambdas[2] = 2
+# lambdas[3] = 1e7
+lambdas[0] = 0.2
+lambdas[1] = 0.
 lambdas[2] = 2
-lambdas[3] = 1e7
+lambdas[3] = 1e5
+
 
 minimize_options = {
     'maxiter': 300,
@@ -52,7 +58,7 @@ gdir.write_inversion_settings(mb_spinup=None,
                               reg_parameters=lambdas,
                               solver='L-BFGS-B',
                               minimize_options=minimize_options,
-                              inversion_subdir='5',
+                              inversion_subdir='9',
                               fg_shape_factor=1.,
                               bounds_min_max=(2, 600)
                               )
