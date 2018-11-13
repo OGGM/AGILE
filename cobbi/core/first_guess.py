@@ -3,6 +3,7 @@ import numpy as np
 import rasterio
 from oggm import cfg, entity_task
 import logging
+from scipy.signal import convolve2d
 
 # -------------------------------
 # Further initialization / extended import tasks
@@ -74,6 +75,7 @@ def first_guess(surf, ice_mask, dx, slope_cutoff_angle=5.0, factor=1):
 
     thick = tau / (cfg.PARAMS['ice_density'] * cfg.G * f * sin_angle)
     bed = surf - thick * ice_mask
+    bed = interpolate_all_boundary(bed, ice_mask)
     return bed
 
 
@@ -126,6 +128,7 @@ def compile_first_guess(gdir):
     first_guessed_bed = first_guess(surf, ice_mask, case.dx,
                                     slope_cutoff_angle,
                                     factor)
+
     if 'fg_min_height' in inv_settings and \
             inv_settings['fg_min_height'] is not None:
         first_guessed_bed = np.clip(first_guessed_bed,
@@ -135,4 +138,28 @@ def compile_first_guess(gdir):
                        'w', **profile) as dst:
         dst.write(first_guessed_bed, 1)
 
+    return first_guessed_bed
+
+def interpolate_all_boundary(first_guessed_bed, ice_mask):
+    conv_array = np.ones((3,3))
+    boundary = convolve2d(ice_mask, conv_array, mode='same') * ice_mask
+    boundary = np.where(np.logical_and(boundary < 9, boundary > 0), True, False)
+    indices = np.argwhere(boundary)
+    for ind in indices:
+        bed_vals = first_guessed_bed[
+                   ind[0] - 1:ind[0] + 2,
+                   ind[1] - 1:ind[1] + 2]
+
+        bound_vals = boundary[
+                   ind[0] - 1:ind[0] + 2,
+                   ind[1] - 1:ind[1] + 2]
+
+        #mask_vals = ice_mask[
+        #           ind[0] - 1:ind[0] + 1,
+        #           ind[0] - 1:ind[0] + 1]
+
+        masked_bed_vals = np.ma.masked_array(bed_vals,
+                                             mask=bound_vals)
+        # TODO: replace by proper interpolation
+        first_guessed_bed[ind[0], ind[1]] = np.mean(masked_bed_vals)
     return first_guessed_bed

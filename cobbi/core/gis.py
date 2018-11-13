@@ -127,6 +127,10 @@ def define_nonrgi_glacier_region(gdir:NonRGIGlacierDirectory):
             # Configuration
             resampling=resampling)
 
+        # TODO: ugly
+        if gdir.case.name == 'Borden Peninsula':
+            print('Anti ice patch used')
+            dst_array[32, 27] = gdir.case.ela_h - 5
         dest.write(dst_array, 1)
 
     for dem_ds in dem_dss:
@@ -142,6 +146,8 @@ def define_nonrgi_glacier_region(gdir:NonRGIGlacierDirectory):
     source_txt = DEM_SOURCE_INFO.get(dem_source, dem_source)
     with open(gdir.get_filepath('dem_source'), 'w') as fw:
         fw.write(source_txt)
+
+
 
 
 def smooth_dem_borders(gdir, border_h=0., px_count=10,

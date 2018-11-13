@@ -40,7 +40,7 @@ def spinup(gdir, case, yr_spinup_end, mb=None):
     with rasterio.open(gdir.get_filepath('spinup_dem'),
                        'w', **profile) as dst:
         dst.write(spinup_surf, 1)
-
+    spinup_surf = salem.GeoTiff(gdir.get_filepath('spinup_dem')).get_vardata()
     spinup_it = spinup_surf - bed
     np.save(gdir.get_filepath('spinup_ice_thickness'), spinup_it)
 
@@ -166,14 +166,16 @@ def create_glacier(gdir, run_spinup=True):
                            inv_settings['yrs_forward_run'], bed,
                            mb=inv_settings['mb_forward_run'],
                            init_ice_thick=spinup_it)
-    ref_it = ref_surf - bed
-    ref_ice_mask = ref_it > 0
+
 
     profile['dtype'] = 'float32'
     with rasterio.open(gdir.get_filepath('ref_dem'),
                        'w', **profile) as dst:
-        dst.write(spinup_surf, 1)
+        dst.write(ref_surf, 1)
 
+    ref_surf = salem.GeoTiff(gdir.get_filepath('ref_dem')).get_vardata()
+    ref_it = ref_surf - bed
+    ref_ice_mask = ref_it > 0
     np.save(gdir.get_filepath('ref_ice_thickness'), ref_it)
     np.save(gdir.get_filepath('ref_ice_mask'), ref_ice_mask)
 

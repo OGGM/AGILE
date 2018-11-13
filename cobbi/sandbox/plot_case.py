@@ -64,20 +64,19 @@ first_bed_guess = compile_first_guess(gdir)
 
 spinup_surf = salem.GeoTiff(gdir.get_filepath('spinup_dem')).get_vardata()
 reference_surf = salem.GeoTiff(gdir.get_filepath('ref_dem')).get_vardata()
-ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
 bed_2d = salem.GeoTiff(gdir.get_filepath('dem')).get_vardata()
 
-ref_ice_mask = (reference_surf - bed_2d) == 0
-
-ice_mask_for_plot = np.ma.masked_array(np.full(ice_mask.shape, 1),
-                                       mask=ref_ice_mask)
-
-masked_ice_thick_end = np.ma.masked_array(reference_surf - bed_2d,
-                                          mask=ref_ice_mask)
-masked_ice_thick_start = np.ma.masked_array(spinup_surf - bed_2d,
-                                            mask=ref_ice_mask)
+ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
+ice_mask_for_plot = np.ma.masked_array(np.full(ref_ice_mask.shape, 1),
+                                       mask=np.logical_not(ref_ice_mask))
+ref_it = np.load(gdir.get_filepath('ref_ice_thickness'))
+spinup_it = np.load(gdir.get_filepath('spinup_ice_thickness'))
+masked_ice_thick_end = np.ma.masked_array(ref_it,
+                                          mask=np.logical_not(ref_ice_mask))
+masked_ice_thick_start = np.ma.masked_array(spinup_it,
+                                            mask=np.logical_not(ref_ice_mask))
 masked_reference_surf = np.ma.masked_array(reference_surf,
-                                           mask=ref_ice_mask)
+                                           mask=np.logical_not(ref_ice_mask))
 
 plt.ioff()
 

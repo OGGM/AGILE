@@ -35,11 +35,11 @@ if first_run:
 
 # create settings for inversion
 lambdas = np.zeros(4)
-lambdas[0] = 0.2  # TODO: better if on entire non reference glacier area (+boundary)
-lambdas[1] = 1.5  # TODO: really useful? (Better if smaller than 1 to focus
-# on inner domain)
+lambdas[0] = 0.2  # TODO: better
+lambdas[1] = 1.0  # TODO: really useful? (Better if smaller than 1 to focus
+# on inner domain?)
 lambdas[2] = 2
-lambdas[3] = 1e5
+lambdas[3] = 1e7
 
 
 minimize_options = {
@@ -79,7 +79,7 @@ for noise_parameters in all_noise_parameters:
                                   minimize_options=minimize_options,
                                   inversion_subdir=subdir,
                                   fg_shape_factor=1.,
-                                  bounds_min_max=(2, 600)
+                                  bounds_min_max=(2, 300)
                                   )
 
     # Optional, if not reset=True and already ran once
@@ -104,7 +104,7 @@ for noise_parameters in all_noise_parameters:
     idir = InversionDirectory(gdir)
 
     # copy this script to inversion directory for reproducibility
-    path_to_file = '/home/philipp/COBBI/cobbi/sandbox' \
+    path_to_file = '/home/philipp/COBBI/cobbi/sandbox/Giluwe' \
                    '/noisy_first_guess_inversion_run.py'
     fname = os.path.split(path_to_file)[-1]
     dst_dir = idir.get_current_basedir()
@@ -113,7 +113,13 @@ for noise_parameters in all_noise_parameters:
     shutil.copy(path_to_file, os.path.join(dst_dir, fname))
 
     # Finally run inversion
-    res = idir.run_minimize()
+    try:
+        res = idir.run_minimize()
+    except MemoryError as merr:
+        error_file = os.path.join(idir.get_current_basedir(),
+                                  'memory_error.txt')
+        err_text = 'Memory error due to extreme ice dynamics\n' + merr.args[0]
+        idir.write_string_to_file(error_file, err_text)
     #dl = data_logging.load_pickle(idir.get_current_basedir() + '/data_logger.pkl')
 
 

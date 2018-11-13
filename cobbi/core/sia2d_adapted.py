@@ -394,8 +394,8 @@ class Upstream2D(Model2D):
                              0., self.max_dt)
         # TODO: track for memory leak
         # do not allow for less than a tenth of 'usual' time stepping to avoid
-        # memory overflow (restrict it to ten times usual ...
-        if dt_cfl != dt and dt_cfl / self.max_dt < 0.1:
+        # memory overflow (restrict it to thousand times minimal ...
+        if dt_cfl != dt and dt_cfl / self.max_dt < 0.05:
             raise MemoryError('Stopping dynamics run to avoid memory overflow')
 
         self.ice_thick[1:-1, 1:-1] = torch.clamp(

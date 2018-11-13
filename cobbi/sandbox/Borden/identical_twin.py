@@ -19,22 +19,20 @@ np.seed = 0  # needs to be fixed for reproducible results with noise
 cfg.initialize()
 
 basedir = '/path/to/example'
-basedir = '/data/philipp/thesis_test2/Giluwe/identical_twin'
+basedir = '/data/philipp/thesis_test2/Borden/identical_twin'
 
-# TODO: think about IceThicknesses for case Giluwe
 # Choose a case
-case = test_cases.Giluwe
+case = test_cases.Borden
 gdir = NonRGIGlacierDirectory(case, basedir)
 # only needed once:
 # gis.define_nonrgi_glacier_region(gdir)
 
 # create settings for inversion
 lambdas = np.zeros(4)
-lambdas[0] = 0.1  # TODO: better
-lambdas[1] = 0.8  # TODO: really useful? (Better if smaller than 1 to focus
-# on inner domain)
-lambdas[2] = 2
-lambdas[3] = 1e5
+lambdas[0] = 0.1
+lambdas[1] = 0.5
+lambdas[2] = 50
+lambdas[3] = 1e8
 
 minimize_options = {
     'maxiter': 300,
@@ -52,9 +50,11 @@ gdir.write_inversion_settings(mb_spinup=None,
                               reg_parameters=lambdas,
                               solver='L-BFGS-B',
                               minimize_options=minimize_options,
-                              inversion_subdir='3',
+                              inversion_subdir='0',
                               fg_shape_factor=1.,
-                              bounds_min_max=(2, 600)
+                              fg_slope_cutoff_angle=2.5,
+                              fg_min_height=-30,
+                              bounds_min_max=(2, 1000)
                               )
 
 # Optional, if not reset=True and already ran once
@@ -65,7 +65,8 @@ gdir.write_inversion_settings(mb_spinup=None,
 idir = InversionDirectory(gdir)
 
 # copy this script to inversion directory for reproducibility
-path_to_file = '/home/philipp/COBBI/cobbi/sandbox/exemplary_inversion_run.py'
+path_to_file = '/home/philipp/COBBI/cobbi/sandbox/Borden' \
+               '/identical_twin.py'
 fname = os.path.split(path_to_file)[-1]
 if not os.path.exists(idir.get_current_basedir()):
     os.makedirs(idir.get_current_basedir(), exist_ok=True)
