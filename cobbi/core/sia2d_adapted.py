@@ -369,12 +369,12 @@ class Upstream2D(Model2D):
                                       torch.max(torch.abs(D_k_dn))),
                             torch.max(torch.max(torch.abs(D_l_up)),
                                       torch.max(torch.abs(D_l_dn))))
-        #if divisor == 0:
-        #    dt_cfl = self.max_dt
-        # TODO: raise errors at least
-        #else:
-        dt_cfl = (self.cfl * torch.min(self.dx ** 2., self.dy ** 2.) /
-                  divisor)
+        if divisor == 0:
+            dt_cfl = self.max_dt
+         # TODO: check when this happens -> raise exception?
+        else:
+            dt_cfl = (self.cfl * torch.min(self.dx ** 2., self.dy ** 2.) /
+                      divisor)
 
         # --- Calculate Final diffusion term
         div_k = (D_k_up * S_kpdiff / self.dy -
@@ -393,6 +393,10 @@ class Upstream2D(Model2D):
                                                     dtype=torch.float)),
                              0., self.max_dt)
         # TODO: track for memory leak
+        # do not allow for less than a tenth of 'usual' time stepping to avoid
+        # memory overflow (restrict it to ten times usual ...
+        if dt_cfl != dt and dt_cfl / self.max_dt < 0.1:
+            raise MemoryError('Stopping dynamics run to avoid memory overflow')
 
         self.ice_thick[1:-1, 1:-1] = torch.clamp(
             self.surface_h[1:-1, 1:-1] +
