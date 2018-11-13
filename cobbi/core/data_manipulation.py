@@ -1,11 +1,12 @@
 import numpy as np
 import rasterio
 import shutil
+import salem
 from noise import pnoise2
 from scipy.ndimage import interpolation
 
 
-def add_noise_to_first_guess(gdir, noise):
+def add_noise_to_first_guess(gdir, noise, cut_noise=True, min_ice_thick=5):
     """
     Adds noise to the first guess. Saves this to the file with the first guess
     and also saves the applied noise.
@@ -16,8 +17,12 @@ def add_noise_to_first_guess(gdir, noise):
         GlacierDirectory containing the first guess
     noise: ndarray
         noise to apply to the first guess
+    cut_noise: bool
+        whether or not the noise should be cut to not penetrate the surface
+        and require a minimum ice thickness if applied to first guess
+    min_ice_thick: float
+        minimum ice thickness, only applied if noise is cut
     """
-    np.save(gdir.get_filepath('first_guessed_bed_noise'), noise)
 
     fg_filepath = gdir.get_filepath('first_guessed_bed')
 
@@ -25,11 +30,30 @@ def add_noise_to_first_guess(gdir, noise):
         first_guessed_bed = src.read(1)
         profile = src.profile
 
+    if cut_noise:
+        desired_rmse = np.sqrt(np.mean(noise ** 2))
+        ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
+        ref_surf = salem.GeoTiff(gdir.get_filepath('ref_dem')).get_vardata()
+
+        penetrating = (first_guessed_bed + noise - min_ice_thick > ref_surf)
+        penetrating *= ref_ice_mask
+
+        noise = np.where(penetrating,
+                         ref_surf - first_guessed_bed - min_ice_thick,
+                         noise)
+        print('desired rmse: {:g}\\rmse after cutting: {:g}'.format(
+            desired_rmse, np.sqrt(np.mean(noise ** 2))))
+        # TODO: will result in problems
+        # rmse = np.sqrt(np.mean(noise ** 2))
+        # noise *= desired_rmse / rmse  # rescale to desired RMSE
+
     first_guessed_bed = first_guessed_bed + noise
 
     profile['dtype'] = 'float64'
     with rasterio.open(fg_filepath, 'w', **profile) as dst:
         dst.write(first_guessed_bed, 1)
+
+    np.save(gdir.get_filepath('first_guessed_bed_noise'), noise)
 
 
 def take_true_bed_as_first_guess(gdir):
@@ -117,6 +141,22 @@ def create_noise(gdir, std=3, zoom=-1, glacier_only=True):
 
 def create_perlin_noise(gdir, desired_rmse=5., octaves=1, base=1., freq=8.0,
                         glacier_only=True):
+    """
+    TODO: Documentation
+
+    Parameters
+    ----------
+    gdir
+    desired_rmse
+    octaves
+    base
+    freq
+    glacier_only
+
+    Returns
+    -------
+
+    """
 
     ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
     max_y, max_x = ref_ice_mask.shape
@@ -128,10 +168,10 @@ def create_perlin_noise(gdir, desired_rmse=5., octaves=1, base=1., freq=8.0,
             noise[y, x] = pnoise2(x / freq, y / freq, octaves=octaves,
                                   base=base)
 
-    rmse = np.sqrt(np.mean(noise**2))
-    noise *= desired_rmse / rmse
-
     if glacier_only:
         noise = noise * ref_ice_mask
+
+    rmse = np.sqrt(np.mean(noise**2))
+    noise *= desired_rmse / rmse
 
     return noise

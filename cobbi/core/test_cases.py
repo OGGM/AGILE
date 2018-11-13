@@ -218,9 +218,9 @@ Owen.mb_grad = 3.5
 Owen.smooth_border_px = 2
 Owen.smooth_border_h = 300
 
-#Nanisivik / Arctic Bay
+#Borden Peninsula
 Nanisivik = TestCase()
-Nanisivik.name = 'Nanisivik Arctic Bay'
+Nanisivik.name = 'Borden Peninsula'
 Nanisivik.extent= np.array([[-85.88, 72.34], [-83.40, 73.07]])
 Nanisivik.ela_h = 625
 Nanisivik.dx = 2000

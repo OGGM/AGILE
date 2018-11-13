@@ -1,5 +1,6 @@
 import torch
 import os
+import shutil
 import numpy as np
 import logging
 import salem
@@ -177,6 +178,9 @@ class InversionDirectory(object):
         with rasterio.open(self.get_subdir_filepath('first_guessed_bed'),
                            'w', **profile) as dst:
             dst.write(data, 1)
+        if os.path.exists(self.gdir.get_filepath('first_guessed_bed_noise')):
+            shutil.copy(self.gdir.get_filepath('first_guessed_bed_noise'),
+                        self.get_subdir_filepath('first_guessed_bed_noise'))
 
         write_pickle(self.inv_settings,
                      self.get_subdir_filepath('inversion_settings'))
