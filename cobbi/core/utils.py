@@ -25,7 +25,8 @@ EXTENDED_BASENAMES = {
     'data_logger': 'data_logger.pkl',
     'first_guessed_bed_noise': 'first_guessed_bed_noise.npy',
     'dem_noise': 'dem_noise.npy',
-    'reg_parameters': 'reg_parameters.txt'
+    'reg_parameters': 'reg_parameters.txt',
+    'case_table': 'case_table.csv'
 }
 
 DEFAULT_REG_PARAMETERS = np.array([0.1, 0, 0, 0])
