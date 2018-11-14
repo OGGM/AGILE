@@ -31,7 +31,7 @@ def create_case_table(gdir):
     x = (gdir.case.extent[0, 0] + gdir.case.extent[1, 0])/2.
     y = (gdir.case.extent[0, 1] + gdir.case.extent[1, 1])/2.
 
-    vals['coordinates'] = '${:g}$°W, ${:g}$°N'.format(x, y)
+    vals['coordinates'] = '${:g}\\degree$W, ${:g}\\degree$N'.format(x, y)
 
     data_row = row.format(**vals)
 
@@ -42,7 +42,7 @@ def create_case_table(gdir):
 
 
 def eval_identical_twin(idir):
-    header = 'case,run,icevolerr,rmsebed,rmsesurf,biassurf,biasbed,' \
+    header = 'case,run,icevolerr,rmsebed,rmsesurf,biasbed,biassurf,' \
              'corr,rmsefg,biasfg,' \
              'iterations\n'
     row = '{case:s},{run:s},${dV:.2f}$,${rmsebed:.1f}$,${rmsesurf:.1f}$,' \
@@ -65,7 +65,8 @@ def eval_identical_twin(idir):
 
     vals['biasbed'] = mean_BIAS(dl.beds[-1], dl.true_bed, ref_ice_mask)
     vals['biassurf'] = mean_BIAS(dl.surfs[-1], dl.ref_surf, ref_ice_mask)
-    vals['biasfg'] = mean_BIAS(dl.beds[-1], dl.first_guessed_bed, ref_ice_mask)
+    vals['biasfg'] = mean_BIAS(dl.first_guessed_bed, dl.true_bed,
+                               ref_ice_mask)
 
     masked_true_bed = np.ma.masked_array(dl.true_bed,
                                          mask=np.logical_not(ref_ice_mask))

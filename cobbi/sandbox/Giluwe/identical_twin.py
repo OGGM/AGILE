@@ -73,7 +73,7 @@ if not os.path.exists(idir.get_current_basedir()):
     os.makedirs(idir.get_current_basedir(), exist_ok=True)
 shutil.copy(path_to_file, os.path.join(idir.get_current_basedir(), fname))
 
-res = idir.run_minimize()
+#res = idir.run_minimize()
 eval_identical_twin(idir)
 #dl = data_logging.load_pickle(idir.get_current_basedir() + '/data_logger.pkl')
 

@@ -12,6 +12,7 @@ from cobbi.core.dynamics import create_glacier
 from cobbi.core.cost_function import create_cost_func
 from cobbi.core.inversion import InversionDirectory
 from cobbi.core import data_logging
+from cobbi.core.table_creation import create_case_table
 import salem
 from oggm import cfg
 import matplotlib.colors as colors
@@ -21,38 +22,21 @@ np.seed = 0  # needs to be fixed for reproducible results with noise
 cfg.initialize()
 
 basedir = '/path/to/example'
-basedir = '/media/philipp/Daten/thesis_test2/Borden/plot_case'
+basedir = '/data/philipp/thesis/plot_case'
 
 # Choose a case
-case = test_cases.Borden
+case = test_cases.Giluwe
 gdir = NonRGIGlacierDirectory(case, basedir)
 # only needed once:
 gis.define_nonrgi_glacier_region(gdir)
 
-# create settings for inversion
-lambdas = np.zeros(4)
-
-minimize_options = {
-    'maxiter': 300,
-    'ftol': 0.5e-3,
-    #'xtol': 1e-30,
-    'gtol': 1e-4,
-    #'maxcor': 5,
-    #'maxls': 10,
-    'disp': True
-}
-gdir.write_inversion_settings(mb_spinup=None,
-                              yrs_spinup=2000,
+gdir.write_inversion_settings(yrs_spinup=2000,
                               yrs_forward_run=200,
-                              reg_parameters=lambdas,
-                              solver='L-BFGS-B',
-                              minimize_options=minimize_options,
-                              inversion_subdir='7',
+                              inversion_subdir=None,
                               fg_shape_factor=1.,
-                              fg_slope_cutoff_angle=2.5,
-                              fg_min_height=-30,
-                              fg_interp_boundary=True,
-                              bounds_min_max=(2, 1000)
+                              fg_slope_cutoff_angle=5, #2.5
+                              #fg_min_height=-30,
+                              fg_interp_boundary=False #True
                               )
 
 y_spinup = gdir.inversion_settings['yrs_spinup']
@@ -62,6 +46,7 @@ y_end = gdir.inversion_settings['yrs_forward_run'] + y_spinup
 create_glacier(gdir)
 first_bed_guess = compile_first_guess(gdir)
 
+create_case_table(gdir)
 
 spinup_surf = salem.GeoTiff(gdir.get_filepath('spinup_dem')).get_vardata()
 reference_surf = salem.GeoTiff(gdir.get_filepath('ref_dem')).get_vardata()
