@@ -189,10 +189,12 @@ def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_be
     if reg_parameters[2] != 0:
         # penalize large derivatives of bed under glacier
         # -> avoids numerical instabilites
-        db_dx = (guessed_bed[:, :-1] - guessed_bed[:, 1:]) / dx
-        db_dy = (guessed_bed[:-1, :] - guessed_bed[1:, :]) / dx
-        db_dx = db_dx * ref_ice_mask[:, 1:]
-        db_dy = db_dy * ref_ice_mask[1:, :]
+        db_dx1 = (guessed_bed[:, :-2] - guessed_bed[:, 1:-1]).abs() / dx
+        db_dx2 = (guessed_bed[:, 1:-1] - guessed_bed[:, 2:]).abs() / dx
+        db_dy1 = (guessed_bed[:-2, :] - guessed_bed[1:-1, :]).abs() / dx
+        db_dy2 = (guessed_bed[1:-1, :] - guessed_bed[2:, :]).abs() / dx
+        db_dx = 0.5 * (db_dx1 + db_dx2) * ref_ice_mask[:, 1:1]
+        db_dy = 0.5 * (db_dy1 + db_dy2) * ref_ice_mask[1:1, :]
         cost[2] = reg_parameters[2] * (
                 (db_dx.pow(2).sum() + db_dy.pow(2).sum()))
                 # / (2. * ref_ice_mask.sum()))
