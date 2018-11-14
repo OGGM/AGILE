@@ -1,10 +1,7 @@
 import numpy as np
 
 def create_case_table(gdir):
-    header = 'Case;$ELA (m)$;$\\frac{\delta m}{\delta z} (yr^{-1})$;$z_{' \
-             'max} (m)$;$\\alpha_{max}$;$\\Delta x (m)$;$V (km^{3})$;$A (' \
-             'km^2)$;$h$\\n' \
-             'mean (min / max);coordinates\n'
+    header = 'case;ela;mbgrad;zmax;sca;dx;V;A;h;coordinates;coordinates\n'
     row = '{case:s};{ela_h:d};{mb_grad:g};{mb_max_alt:d};{sca:g}°;{dx:d};{' \
           'vol:.2g};{area:.2g};{mean_it:.1g} ({max_it:.2g} / {min_it:.2g});{coordinates}'
 
