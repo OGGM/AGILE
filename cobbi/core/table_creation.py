@@ -24,8 +24,8 @@ def create_case_table(gdir):
     vals['mean_it'] = np.mean(masked_it)
     vals['min_it'] = np.min(masked_it)
     vals['max_it'] = np.max(masked_it)
-    vals['coordinates'] = '\\shortstack{{${:g}$°W, ${:g}$°N to  \\ \\' \
-                          '${:g}$°W, ${:g}$°N}}'.format(
+    vals['coordinates'] = '\\shortstack{{${:g}$°W, ${:g}$°N to  \\\\' \
+                          '${:g}$°W, ${:g}$°N }}'.format(
         gdir.case.extent[0, 0],
         gdir.case.extent[0, 1],
         gdir.case.extent[1, 0],
