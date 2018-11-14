@@ -1,10 +1,10 @@
 import numpy as np
 
 def create_case_table(gdir):
-    header = 'case;ela;mbgrad;zmax;sca;dx;V;A;h;coordinates;coordinates\n'
-    row = '{case:s};{ela_h:d};{mb_grad:g};{mb_max_alt:d};{sca:g}°;{dx:d};{' \
-          'vol:.2g};{area:.2g};{{{mean_it:.1g} ({max_it:.2g} / {' \
-          'min_it:.2g})}};{{{coordinates}}}'
+    header = 'case,ela,mbgrad,zmax,sca,dx,V,A,h,coordinates\n'
+    row = '{case:s},${ela_h:d}$,${mb_grad:g}$,${mb_max_alt:d}$,${sca:g}°$,' \
+          '${dx:d}$,${vol:.2f}$,${area:.2f}$,{{${mean_it:.1f}$' \
+          '(${max_it:.1f}$ / ${min_it:.1f}$)}},{{{coordinates}}}'
 
     vals = {}
     vals['case'] = gdir.case.name
@@ -24,7 +24,8 @@ def create_case_table(gdir):
     vals['mean_it'] = np.mean(masked_it)
     vals['min_it'] = np.min(masked_it)
     vals['max_it'] = np.max(masked_it)
-    vals['coordinates'] = '{:g}°W,{:g}°N to {:g}°W,{:g}°N'.format(
+    vals['coordinates'] = '${:g}°$W, ${:g}°$N to \\newline ${:g}°$W, ' \
+                          '${:g}°$N'.format(
         gdir.case.extent[0, 0],
         gdir.case.extent[0, 1],
         gdir.case.extent[1, 0],
@@ -32,7 +33,7 @@ def create_case_table(gdir):
 
     data_row = row.format(**vals)
 
-    with open(gdir.get_filepath('case_table'), 'w') as f:
+    with open(gdir.get_filepath('casetable'), 'w') as f:
         f.writelines([header, data_row])
 
     return [header, data_row]
