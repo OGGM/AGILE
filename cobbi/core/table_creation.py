@@ -3,7 +3,8 @@ import numpy as np
 def create_case_table(gdir):
     header = 'case;ela;mbgrad;zmax;sca;dx;V;A;h;coordinates;coordinates\n'
     row = '{case:s};{ela_h:d};{mb_grad:g};{mb_max_alt:d};{sca:g}°;{dx:d};{' \
-          'vol:.2g};{area:.2g};{mean_it:.1g} ({max_it:.2g} / {min_it:.2g});{coordinates}'
+          'vol:.2g};{area:.2g};{{mean_it:.1g} ({max_it:.2g} / {' \
+          'min_it:.2g})};{coordinates}'
 
     vals = {}
     vals['case'] = gdir.case.name
