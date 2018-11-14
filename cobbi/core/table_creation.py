@@ -3,7 +3,7 @@ import numpy as np
 def create_case_table(gdir):
     header = 'Case;$ELA (m)$;$\\frac{\delta m}{\delta z} (yr^{-1})$;$z_{' \
              'max} (m)$;$\\alpha_{max}$;$\\Delta x (m)$;$V (km^{3})$;$A (' \
-             'km^2)$;$h$\\n ' \
+             'km^2)$;$h$\\n' \
              'mean (min / max);coordinates\n'
     row = '{case:s};{ela_h:d};{mb_grad:g};{mb_max_alt:d};{sca:g}°;{dx:d};{' \
           'vol:.2g};{area:.2g};{mean_it:.1g} ({max_it:.2g} / {min_it:.2g});{coordinates}'
@@ -26,11 +26,11 @@ def create_case_table(gdir):
     vals['mean_it'] = np.mean(masked_it)
     vals['min_it'] = np.min(masked_it)
     vals['max_it'] = np.max(masked_it)
-    vals['coordinates'] = '{:g}°W,{:g}°N to {:g}°W,{:g}°N'.format(
+    vals['coordinates'] = '{' + '{:g}°W,{:g}°N to {:g}°W,{:g}°N'.format(
         gdir.case.extent[0, 0],
         gdir.case.extent[0, 1],
         gdir.case.extent[1, 0],
-        gdir.case.extent[1, 1])
+        gdir.case.extent[1, 1]) + '}'
 
     data_row = row.format(**vals)
 
