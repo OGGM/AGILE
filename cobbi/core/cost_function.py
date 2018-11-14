@@ -193,8 +193,8 @@ def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_be
         db_dx2 = (guessed_bed[:, 1:-1] - guessed_bed[:, 2:]).abs() / dx
         db_dy1 = (guessed_bed[:-2, :] - guessed_bed[1:-1, :]).abs() / dx
         db_dy2 = (guessed_bed[1:-1, :] - guessed_bed[2:, :]).abs() / dx
-        db_dx_sq = 0.5 * (db_dx1.pow(2) + db_dx2.pow(2)) * ref_ice_mask[:, 1:1]
-        db_dy_sq = 0.5 * (db_dy1.pow(2) + db_dy2.pow(2)) * ref_ice_mask[1:1, :]
+        db_dx_sq = 0.5 * (db_dx1.pow(2) + db_dx2.pow(2)) * ref_ice_mask[:, 1:-1]
+        db_dy_sq = 0.5 * (db_dy1.pow(2) + db_dy2.pow(2)) * ref_ice_mask[1:-1, :]
         cost[2] = reg_parameters[2] * 0.5 * ((db_dx_sq.sum() + db_dy_sq.sum()))
                 # / (2. * ref_ice_mask.sum()))
                 # TODO: think about first squaring forward and backward and then adding vs adding and then squaring
