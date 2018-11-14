@@ -26,7 +26,8 @@ EXTENDED_BASENAMES = {
     'first_guessed_bed_noise': 'first_guessed_bed_noise.npy',
     'dem_noise': 'dem_noise.npy',
     'reg_parameters': 'reg_parameters.txt',
-    'casetable': 'casetable.csv'
+    'casetable': 'casetable.csv',
+    'results' : 'results.csv'
 }
 
 DEFAULT_REG_PARAMETERS = np.array([0.1, 0, 0, 0])

@@ -12,15 +12,13 @@ from cobbi.core.dynamics import create_glacier
 from cobbi.core.cost_function import create_cost_func
 from cobbi.core.inversion import InversionDirectory
 from cobbi.core import data_logging
-from cobbi.core.table_creation import create_case_table
+from cobbi.core.table_creation import create_case_table, eval_identical_twin
 from oggm import cfg
-
-np.seed = 0  # needs to be fixed for reproducible results with noise
 
 cfg.initialize()
 
 basedir = '/path/to/example'
-basedir = '/data/philipp/thesis_test2/Borden/identical_twin2'
+basedir = '/data/philipp/thesis/identical_twin'
 
 # Choose a case
 case = test_cases.Borden
@@ -32,7 +30,7 @@ gdir = NonRGIGlacierDirectory(case, basedir)
 lambdas = np.zeros(4)
 lambdas[0] = 0.2
 lambdas[1] = 0.25
-lambdas[2] = 10
+lambdas[2] = 100
 lambdas[3] = 1e5
 
 minimize_options = {
@@ -51,7 +49,7 @@ gdir.write_inversion_settings(mb_spinup=None,
                               reg_parameters=lambdas,
                               solver='L-BFGS-B',
                               minimize_options=minimize_options,
-                              inversion_subdir='1001',
+                              inversion_subdir='identical twin',
                               fg_shape_factor=1.,
                               fg_slope_cutoff_angle=2.5,
                               fg_min_height=-30,
@@ -61,8 +59,8 @@ gdir.write_inversion_settings(mb_spinup=None,
 
 # Optional, if not reset=True and already ran once
 # only needed once:
-# create_glacier(gdir)
-# compile_first_guess(gdir)
+create_glacier(gdir)
+compile_first_guess(gdir)
 create_case_table(gdir)
 
 idir = InversionDirectory(gdir)
@@ -76,6 +74,7 @@ if not os.path.exists(idir.get_current_basedir()):
 shutil.copy(path_to_file, os.path.join(idir.get_current_basedir(), fname))
 
 res = idir.run_minimize()
+eval_identical_twin(idir)
 #dl = data_logging.load_pickle(idir.get_current_basedir() + '/data_logger.pkl')
 
 print('end')
