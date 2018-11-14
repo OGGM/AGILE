@@ -29,10 +29,10 @@ gdir = NonRGIGlacierDirectory(case, basedir)
 
 # create settings for inversion
 lambdas = np.zeros(4)
-lambdas[0] = 0.1
-lambdas[1] = 0.5
-lambdas[2] = 1e2
-lambdas[3] = 1e5
+lambdas[0] = 0.1 * 4.175
+lambdas[1] = 0.5 * 0.599
+lambdas[2] = 1e2 * (1 / 2.)
+lambdas[3] = 1e5 * 2.088
 
 minimize_options = {
     'maxiter': 300,
@@ -54,6 +54,7 @@ gdir.write_inversion_settings(mb_spinup=None,
                               fg_shape_factor=1.,
                               fg_slope_cutoff_angle=2.5,
                               fg_min_height=-30,
+                              fg_interp_boundary=True,
                               bounds_min_max=(2, 1000)
                               )
 

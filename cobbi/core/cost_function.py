@@ -176,15 +176,15 @@ def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_be
     # cost[-1] = (ref_surf - model_surf).pow(2).sum() / ref_ice_mask.sum()
     # TODO recheck all indices for reg_parameters and cost
     cost[-1] = ((ref_surf - model_surf) * (1. - margin)).pow(2).sum() \
-               / ref_inner_mask.sum()
+               # / ref_inner_mask.sum()
     cost[0] = reg_parameters[0] *\
-              ((ref_surf - model_surf) * margin).pow(2).sum() / margin.sum()
+              ((ref_surf - model_surf) * margin).pow(2).sum() #/ margin.sum()
 
     if reg_parameters[1] != 0:
         # penalizes ice thickness, where ice thickness should be 0
         cost[1] = reg_parameters[1] * (((model_surf - guessed_bed)
-                                        * (1. - ref_ice_mask)).pow(2).sum()
-                                       / (n_grid - n_ice_mask))
+                                        * (1. - ref_ice_mask)).pow(2).sum())
+                                       # / (n_grid - n_ice_mask))
 
     if reg_parameters[2] != 0:
         # penalize large derivatives of bed under glacier
@@ -194,8 +194,8 @@ def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_be
         db_dx = db_dx * ref_ice_mask[:, 1:]
         db_dy = db_dy * ref_ice_mask[1:, :]
         cost[2] = reg_parameters[2] * (
-                (db_dx.pow(2).sum() + db_dy.pow(2).sum())
-                / (2. * ref_ice_mask.sum()))
+                (db_dx.pow(2).sum() + db_dy.pow(2).sum()))
+                # / (2. * ref_ice_mask.sum()))
                 # TODO: was model_inner_mask better?
 
     if reg_parameters[3] != 0:
@@ -208,8 +208,9 @@ def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_be
         ddb_dx = ddb_dx * (model_ice_mask - model_inner_mask)[:, 1:-1]
         ddb_dy = ddb_dy * (model_ice_mask - model_inner_mask)[1:-1, :]
         cost[3] = reg_parameters[3] \
-                  * ((ddb_dx.pow(2).sum() + ddb_dy.pow(2).sum())
-                     / (2 * (model_ice_mask - model_inner_mask)[1:-1, 1:-1].sum()))
+                  * ((ddb_dx.pow(2).sum() + ddb_dy.pow(2).sum()))
+                  #   / (2 * (model_ice_mask - model_inner_mask)[1:-1,
+                  # 1:-1].sum()))
     """
     if reg_parameters[3] != 0:
         # penalize large derivatives of ice thickness

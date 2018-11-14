@@ -75,7 +75,6 @@ def first_guess(surf, ice_mask, dx, slope_cutoff_angle=5.0, factor=1):
 
     thick = tau / (cfg.PARAMS['ice_density'] * cfg.G * f * sin_angle)
     bed = surf - thick * ice_mask
-    bed = interpolate_all_boundary(bed, ice_mask)
     return bed
 
 
@@ -133,6 +132,10 @@ def compile_first_guess(gdir):
             inv_settings['fg_min_height'] is not None:
         first_guessed_bed = np.clip(first_guessed_bed,
                                     inv_settings['fg_min_height'], None)
+    if 'fg_interp_boundary' in inv_settings and \
+        inv_settings['fg_interp_boundary']:
+        first_guessed_bed = interpolate_all_boundary(first_guessed_bed,
+                                                     ice_mask)
 
     with rasterio.open(gdir.get_filepath('first_guessed_bed'),
                        'w', **profile) as dst:

@@ -19,7 +19,7 @@ np.seed = 0  # needs to be fixed for reproducible results with noise
 cfg.initialize()
 
 basedir = '/path/to/example'
-basedir = '/data/philipp/thesis_test2/Giluwe/identical_twin_int_bound'
+basedir = '/media/philipp/Daten/thesis_test2/Giluwe/identical_twin_int_bound'
 
 # TODO: think about IceThicknesses for case Giluwe
 # Choose a case
@@ -36,11 +36,10 @@ lambdas = np.zeros(4)
 # on inner domain?)
 # lambdas[2] = 2
 # lambdas[3] = 1e7
-lambdas[0] = 0.2
-lambdas[1] = 0.
-lambdas[2] = 2
-lambdas[3] = 1e5
-
+lambdas[0] = 0.568
+lambdas[1] = 0.55
+lambdas[2] = 1
+lambdas[3] = 1.42e5
 
 minimize_options = {
     'maxiter': 300,
@@ -58,8 +57,11 @@ gdir.write_inversion_settings(mb_spinup=None,
                               reg_parameters=lambdas,
                               solver='L-BFGS-B',
                               minimize_options=minimize_options,
-                              inversion_subdir='9',
+                              inversion_subdir='0',
                               fg_shape_factor=1.,
+                              fg_slope_cutoff_angle=2.5,
+                              # fg_min_height=-30,
+                              fg_interp_boundary=False,
                               bounds_min_max=(2, 600)
                               )
 

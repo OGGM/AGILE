@@ -21,10 +21,10 @@ np.seed = 0  # needs to be fixed for reproducible results with noise
 cfg.initialize()
 
 basedir = '/path/to/example'
-basedir = '/data/philipp/thesis_test2/Giluwe/plot_case'
+basedir = '/media/philipp/Daten/thesis_test2/Borden/plot_case'
 
 # Choose a case
-case = test_cases.Giluwe
+case = test_cases.Borden
 gdir = NonRGIGlacierDirectory(case, basedir)
 # only needed once:
 gis.define_nonrgi_glacier_region(gdir)
@@ -41,19 +41,20 @@ minimize_options = {
     #'maxls': 10,
     'disp': True
 }
-
 gdir.write_inversion_settings(mb_spinup=None,
                               yrs_spinup=2000,
                               yrs_forward_run=200,
                               reg_parameters=lambdas,
                               solver='L-BFGS-B',
                               minimize_options=minimize_options,
-                              inversion_subdir='0',
+                              inversion_subdir='7',
                               fg_shape_factor=1.,
                               fg_slope_cutoff_angle=2.5,
                               fg_min_height=-30,
+                              fg_interp_boundary=True,
                               bounds_min_max=(2, 1000)
                               )
+
 y_spinup = gdir.inversion_settings['yrs_spinup']
 y_end = gdir.inversion_settings['yrs_forward_run'] + y_spinup
 # Optional, if not reset=True and already ran once
