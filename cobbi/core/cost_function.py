@@ -122,7 +122,8 @@ def cost_function(b, reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask,
         dtype=torch.float)
     model_inner_mask = torch.zeros(model_ice_mask.shape)
     model_inner_mask[1:-1, 1:-1] = torch.conv2d(
-        model_ice_mask.unsqueeze(0).unsqueeze(0), conv_filter) == 5
+        model_ice_mask.unsqueeze(0).unsqueeze(0), conv_filter) == \
+                                   conv_filter.sum()
 
     # quantify costs (all terms)
     c_terms = get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask,
