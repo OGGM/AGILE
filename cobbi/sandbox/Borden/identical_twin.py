@@ -19,7 +19,7 @@ np.seed = 0  # needs to be fixed for reproducible results with noise
 cfg.initialize()
 
 basedir = '/path/to/example'
-basedir = '/data/philipp/thesis_test2/Borden/identical_twin'
+basedir = '/data/philipp/thesis_test2/Borden/identical_twin2'
 
 # Choose a case
 case = test_cases.Borden
@@ -29,10 +29,10 @@ gdir = NonRGIGlacierDirectory(case, basedir)
 
 # create settings for inversion
 lambdas = np.zeros(4)
-lambdas[0] = 0.1 * 4.175
-lambdas[1] = 0.5 * 0.599
-lambdas[2] = 1e2 * (1 / 2.)
-lambdas[3] = 1e5 * 2.088
+lambdas[0] = 0.2
+lambdas[1] = 0.25
+lambdas[2] = 100
+lambdas[3] = 1e5
 
 minimize_options = {
     'maxiter': 300,
@@ -50,7 +50,7 @@ gdir.write_inversion_settings(mb_spinup=None,
                               reg_parameters=lambdas,
                               solver='L-BFGS-B',
                               minimize_options=minimize_options,
-                              inversion_subdir='7',
+                              inversion_subdir='103',
                               fg_shape_factor=1.,
                               fg_slope_cutoff_angle=2.5,
                               fg_min_height=-30,
@@ -61,7 +61,7 @@ gdir.write_inversion_settings(mb_spinup=None,
 # Optional, if not reset=True and already ran once
 # only needed once:
 # create_glacier(gdir)
-# compile_first_guess(gdir)
+compile_first_guess(gdir)
 
 idir = InversionDirectory(gdir)
 
