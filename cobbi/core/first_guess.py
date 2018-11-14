@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import salem
 import rasterio
 from oggm import cfg, entity_task
 import logging
@@ -167,4 +168,53 @@ def interpolate_all_boundary(first_guessed_bed, ice_mask):
                                              mask=bound_vals)
         # TODO: replace by proper interpolation
         first_guessed_bed[ind[0], ind[1]] = np.mean(masked_bed_vals)
+    return first_guessed_bed
+
+
+def compile_biased_first_guess(gdir, desired_mean_bias):
+    ref_ice_thickness = np.load(gdir.get_filepath('ref_ice_thickness'))
+    ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
+    true_bed = salem.GeoTiff(gdir.get_filepath('dem')).get_vardata()
+
+    with rasterio.open(gdir.get_filepath('ref_dem')) as src:
+        surf = src.read(1)
+        profile = src.profile
+
+    gamma = desired_mean_bias / (ref_ice_thickness.sum() / ref_ice_mask.sum())
+
+    if gamma > 1:
+        raise AttributeError('Given desired mean bias not applicable;'
+                             'ice volume exceeded')
+
+    first_guessed_bed = true_bed + gamma * ref_ice_thickness
+
+    with rasterio.open(gdir.get_filepath('first_guessed_bed'),
+                       'w', **profile) as dst:
+        dst.write(first_guessed_bed, 1)
+
+    return first_guessed_bed
+
+
+def compile_rmsed_first_guess(gdir, desired_rmse):
+    ref_ice_thickness = np.load(gdir.get_filepath('ref_ice_thickness'))
+    ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
+    true_bed = salem.GeoTiff(gdir.get_filepath('dem')).get_vardata()
+
+    with rasterio.open(gdir.get_filepath('ref_dem')) as src:
+        surf = src.read(1)
+        profile = src.profile
+
+    std = desired_rmse
+    perturbation = std * np.random.randn(*ref_ice_mask.shape) * ref_ice_mask
+
+    if np.any(perturbation > ref_ice_thickness) > 1:
+        raise AttributeError('Perturbation peek through surface; Aborting')
+
+    first_guessed_bed = true_bed + perturbation
+    first_guessed_bed.dtype = np.float32
+
+    with rasterio.open(gdir.get_filepath('first_guessed_bed'),
+                       'w', **profile) as dst:
+        dst.write(first_guessed_bed, 1)
+
     return first_guessed_bed

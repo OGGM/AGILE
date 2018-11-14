@@ -31,6 +31,7 @@ def add_noise_to_first_guess(gdir, noise, cut_noise=True, min_ice_thick=5):
         profile = src.profile
 
     if cut_noise:
+        ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
         desired_rmse = np.sqrt(np.mean(noise ** 2))
         ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
         ref_surf = salem.GeoTiff(gdir.get_filepath('ref_dem')).get_vardata()
@@ -170,8 +171,11 @@ def create_perlin_noise(gdir, desired_rmse=5., octaves=1, base=1., freq=8.0,
 
     if glacier_only:
         noise = noise * ref_ice_mask
+        masked_noise = np.ma.masked_array(noise, mask=np.logical_not(ref_ice_mask))
+    else:
+        masked_noise = noise
 
-    rmse = np.sqrt(np.mean(noise**2))
+    rmse = np.sqrt(np.mean(masked_noise**2))
     noise *= desired_rmse / rmse
 
     return noise
