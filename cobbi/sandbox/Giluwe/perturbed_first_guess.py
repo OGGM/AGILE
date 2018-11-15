@@ -53,7 +53,7 @@ gdir.write_inversion_settings(mb_spinup=None,
                               reg_parameters=lambdas,
                               solver='L-BFGS-B',
                               minimize_options=minimize_options,
-                              inversion_subdir='first guess rmse 2',
+                              inversion_subdir='first guess bias 1',
                               fg_shape_factor=1.,
                               fg_slope_cutoff_angle=5,
                               #fg_min_height=-30,
@@ -64,16 +64,16 @@ gdir.write_inversion_settings(mb_spinup=None,
 # Optional, if not reset=True and already ran once
 # only needed once:
 # create_glacier(gdir)
-#desired_mean_bias = +20.
+desired_mean_bias = +20.
 #desired_mean_bias = -20.
-#compile_biased_first_guess(gdir, desired_mean_bias)
+compile_biased_first_guess(gdir, desired_mean_bias)
 
 #desired_rmse = 5
-desired_rmse = 20
-noise = create_perlin_noise(gdir, desired_rmse, octaves=4, base=2, freq=4,
-                            glacier_only=True)
-take_true_bed_as_first_guess(gdir)
-add_noise_to_first_guess(gdir, noise)
+#desired_rmse = 20.2038        # results in actual rmse of 20
+#noise = create_perlin_noise(gdir, desired_rmse, octaves=4, base=2, freq=4,
+#                            glacier_only=True)
+#take_true_bed_as_first_guess(gdir)
+#add_noise_to_first_guess(gdir, noise)
 #compile_rmsed_first_guess(gdir, desired_rmse)
 create_case_table(gdir)
 
@@ -87,7 +87,7 @@ if not os.path.exists(idir.get_current_basedir()):
     os.makedirs(idir.get_current_basedir(), exist_ok=True)
 shutil.copy(path_to_file, os.path.join(idir.get_current_basedir(), fname))
 
-#res = idir.run_minimize()
+res = idir.run_minimize()
 eval_identical_twin(idir)
 #dl = data_logging.load_pickle(idir.get_current_basedir() + '/data_logger.pkl')
 

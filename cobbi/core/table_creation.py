@@ -1,7 +1,7 @@
 import numpy as np
 import salem
 from cobbi.core.data_logging import load_pickle
-
+from cobbi.core.arithmetics import mean_BIAS, RMSE
 from cobbi.core.data_logging import DataLogger
 
 def create_case_table(gdir):
@@ -52,7 +52,7 @@ def eval_identical_twin(idir):
     dl = load_pickle(idir.get_subdir_filepath('data_logger'))
     vals = {}
     vals['case'] = dl.case.name
-    vals['run'] = idir.gdir.inversion_settings['inversion_subdir']
+    vals['run'] = idir.inv_settings['inversion_subdir']
     ref_it = np.load(idir.gdir.get_filepath('ref_ice_thickness'))
     mod_it = (dl.surfs[-1] - dl.beds[-1])
     ref_vol = ref_it.sum()
@@ -68,12 +68,13 @@ def eval_identical_twin(idir):
     vals['biasfg'] = mean_BIAS(dl.first_guessed_bed, dl.true_bed,
                                ref_ice_mask)
 
-    masked_true_bed = np.ma.masked_array(dl.true_bed,
+    masked_true_it = np.ma.masked_array(dl.ref_surf - dl.true_bed,
                                          mask=np.logical_not(ref_ice_mask))
-    masked_mod_bed = np.ma.masked_array(dl.beds[-1],
+    masked_mod_it = np.ma.masked_array(dl.surfs[-1] - dl.beds[-1],
                                          mask=np.logical_not(ref_ice_mask))
-    vals['corr'] = np.ma.corrcoef(masked_true_bed.flatten(),
-                                  masked_mod_bed.flatten())[0, 1]
+    # TODO: ice thickness
+    vals['corr'] = np.ma.corrcoef(masked_true_it.flatten(),
+                                  masked_mod_it.flatten())[0, 1]
     vals['iterations'] = len(dl.step_indices)
 
     data_row = row.format(**vals)
@@ -83,14 +84,6 @@ def eval_identical_twin(idir):
 
     return [header, data_row]
 
-
-def mean_BIAS(a1, a2, ice_mask):
-    dev = np.ma.masked_array(a1 - a2, mask=np.logical_not(ice_mask))
-    return dev.mean()
-
-def RMSE(a1, a2, ice_mask):
-    dev = np.ma.masked_array(a1 - a2, mask=np.logical_not(ice_mask))
-    return np.sqrt((dev**2).mean())
 
 
 

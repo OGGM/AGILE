@@ -3,7 +3,7 @@ import salem
 import numpy as np
 from cobbi.core.dynamics import run_forward_core
 
-def create_cost_func(gdir, data_logger=None):
+def create_cost_func(gdir, data_logger=None, surface_noise=None):
     """
     Creates a cost function based on the glacier directory.
 
@@ -29,9 +29,13 @@ def create_cost_func(gdir, data_logger=None):
     #conv_filter = torch.tensor([[[[0, 1, 0], [1, 1, 1], [0, 1, 0]]]],
     #                           dtype=torch.float, requires_grad=True)
     spinup_surf = salem.GeoTiff(gdir.get_filepath('spinup_dem')).get_vardata()
+    ref_surf = salem.GeoTiff(gdir.get_filepath('ref_dem')).get_vardata()
+    if surface_noise is not None:
+        spinup_surf += surface_noise
+        ref_surf += surface_noise
+        # TODO: allow for independent surface perturbations
     spinup_surf = torch.tensor(spinup_surf, dtype=torch.float,
                                requires_grad=False)
-    ref_surf = salem.GeoTiff(gdir.get_filepath('ref_dem')).get_vardata()
     ref_surf = torch.tensor(ref_surf, dtype=torch.float,
                             requires_grad=False)
     ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
@@ -175,19 +179,17 @@ def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_be
     n_ice_mask = ref_ice_mask.sum()
     n_grid = ref_surf.numel()
     margin = ref_ice_mask - ref_inner_mask
-    cost = torch.zeros(5)
-    # cost[-1] = (ref_surf - model_surf).pow(2).sum() / ref_ice_mask.sum()
+    cost = torch.zeros(len(reg_parameters) + 1)
+
     # TODO recheck all indices for reg_parameters and cost
-    cost[-1] = ((ref_surf - model_surf) * (1. - margin)).pow(2).sum() \
-               # / ref_inner_mask.sum()
+    cost[-1] = ((ref_surf - model_surf) * (1. - margin)).pow(2).sum()
     cost[0] = reg_parameters[0] *\
-              ((ref_surf - model_surf) * margin).pow(2).sum() #/ margin.sum()
+              ((ref_surf - model_surf) * margin).pow(2).sum()
 
     if reg_parameters[1] != 0:
         # penalizes ice thickness, where ice thickness should be 0
         cost[1] = reg_parameters[1] * (((model_surf - guessed_bed)
                                         * (1. - ref_ice_mask)).pow(2).sum())
-                                       # / (n_grid - n_ice_mask))
 
     if reg_parameters[2] != 0:
         # penalize large derivatives of bed under glacier
@@ -199,7 +201,6 @@ def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_be
         db_dx_sq = 0.5 * (db_dx1.pow(2) + db_dx2.pow(2)) * ref_ice_mask[:, 1:-1]
         db_dy_sq = 0.5 * (db_dy1.pow(2) + db_dy2.pow(2)) * ref_ice_mask[1:-1, :]
         cost[2] = reg_parameters[2] * 0.5 * ((db_dx_sq.sum() + db_dy_sq.sum()))
-                # / (2. * ref_ice_mask.sum()))
                 # TODO: think about first squaring forward and backward and then adding vs adding and then squaring
                 # then an additional .abs() is required for db_dx1, ...
 
@@ -214,8 +215,33 @@ def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_be
         ddb_dy = ddb_dy * (model_ice_mask - model_inner_mask)[1:-1, :]
         cost[3] = reg_parameters[3] \
                   * ((ddb_dx.pow(2).sum() + ddb_dy.pow(2).sum()))
-                  #   / (2 * (model_ice_mask - model_inner_mask)[1:-1,
-                  # 1:-1].sum()))
+
+    if len(reg_parameters) > 4 and reg_parameters[4] != 0:
+        # penalize high curvature of surface in glacier bounds
+        dds_dx = (model_surf[:, :-2] + model_surf[:, 2:]
+                  - 2 * model_surf[:, 1:-1]) / dx ** 2
+        dds_dy = (model_surf[:-2, :] + model_surf[2:, :]
+                  - 2 * model_surf[1:-1, :]) / dx ** 2
+        dds_dx = dds_dx * model_inner_mask[:, 1:-1]
+        dds_dy = dds_dy * model_inner_mask[1:-1, :]
+        cost[4] = reg_parameters[4] \
+                  * ((dds_dx.pow(2).sum() + dds_dy.pow(2).sum()))
+    
+    if len(reg_parameters) > 5 and reg_parameters[5] != 0:
+        # penalize large derivatives of surface
+        # -> avoids numerical instabilites
+        ds_dx1 = (model_surf[:, :-2] - model_surf[:, 1:-1]) / dx
+        ds_dx2 = (model_surf[:, 1:-1] - model_surf[:, 2:]) / dx
+        ds_dy1 = (model_surf[:-2, :] - model_surf[1:-1, :]) / dx
+        ds_dy2 = (model_surf[1:-1, :] - model_surf[2:, :]) / dx
+        ds_dx_sq = 0.5 * (ds_dx1.pow(2)
+                          + ds_dx2.pow(2)) * model_inner_mask[:, 1:-1]
+        ds_dy_sq = 0.5 * (ds_dy1.pow(2)
+                          + ds_dy2.pow(2)) * model_inner_mask[1:-1, :]
+        cost[5] = reg_parameters[5] * 0.5 * ((ds_dx_sq.sum() + ds_dy_sq.sum()))
+                # TODO: think about first squaring forward and backward and then adding vs adding and then squaring
+                # then an additional .abs() is required for db_dx1, ...
+    
     """
     if reg_parameters[3] != 0:
         # penalize large derivatives of ice thickness

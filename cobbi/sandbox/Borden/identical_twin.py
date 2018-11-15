@@ -30,8 +30,8 @@ gdir = NonRGIGlacierDirectory(case, basedir)
 lambdas = np.zeros(4)
 lambdas[0] = 0.2
 lambdas[1] = 0.25
-lambdas[2] = 500
-lambdas[3] = 1e6
+lambdas[2] = 100
+lambdas[3] = 1e5
 
 minimize_options = {
     'maxiter': 300,
@@ -49,7 +49,7 @@ gdir.write_inversion_settings(mb_spinup=None,
                               reg_parameters=lambdas,
                               solver='L-BFGS-B',
                               minimize_options=minimize_options,
-                              inversion_subdir='identical twin 3',
+                              inversion_subdir='identical twin',
                               fg_shape_factor=1.,
                               fg_slope_cutoff_angle=2.5,
                               fg_min_height=-30,

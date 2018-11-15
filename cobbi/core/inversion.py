@@ -9,10 +9,10 @@ from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 from cobbi.core import data_logging
 from cobbi.core.data_logging import DataLogger
-from cobbi.core.arithmetics import rmse
+from cobbi.core.arithmetics import RMSE, mean_BIAS
 from cobbi.core.utils import NonRGIGlacierDirectory
 from cobbi.core.cost_function import create_cost_func
-from cobbi.core.data_logging import write_pickle
+from cobbi.core.data_logging import write_pickle, load_pickle
 # -------------------------------
 # Further initialization / extended import tasks
 # Module logger
@@ -26,6 +26,7 @@ class InversionDirectory(object):
         self.inv_settings = gdir.inversion_settings
         self.true_bed = None
         self.first_guessed_bed = None
+        self.surf_noise = None
         self.ref_surf = None
         self.ice_mask = None
         self.minimize_log = ''
@@ -55,16 +56,16 @@ class InversionDirectory(object):
                 'func_call': i,
                 'iteration': len(dl.step_indices),
                 'cost': dl.costs[i],
-                'bed_rmse': rmse(dl.beds[i], b),
-                'bed_bias': np.sum(dl.beds[i] - b)/np.sum(self.ice_mask),
+                'bed_rmse': RMSE(dl.beds[i], b),
+                'bed_bias': mean_BIAS(dl.beds[i], b, np.sum(self.ice_mask)),
                 'bed_maxdiff': np.max(np.abs(dl.beds[i] - b)),
-                'surf_rmse': rmse(dl.surfs[i], self.ref_surf),
+                'surf_rmse': RMSE(dl.surfs[i], self.ref_surf),
                 'surf_maxdiff': np.max(np.abs(dl.surfs[i] - self.ref_surf))
             }
 
-            #if self.surface_noise is not None:
-            #    log_entry += 'Surface RMSE (from exact): {:g}\n'.format(
-            #        rmse(dl.surfs[i], self.exact_surf))
+            if self.surf_noise is not None:
+                log_entry += 'RMSE to perturbed surf: {:g}\n'.format(
+                    RMSE(dl.surfs[i], self.ref_surf + self.surf_noise))
             log_entry = log_entry.format(**myargs)
             print(log_entry)
             self.minimize_log += log_entry
@@ -101,6 +102,12 @@ class InversionDirectory(object):
         self.first_guessed_bed = salem.GeoTiff(
             self.get_subdir_filepath('first_guessed_bed')).get_vardata()
         self.ice_mask = np.load(self.gdir.get_filepath('ref_ice_mask'))
+        if os.path.exists(self.gdir.get_filepath('dem_noise')):
+            shutil.copy(self.gdir.get_filepath('dem_noise'),
+                        self.get_subdir_filepath('dem_noise'))
+            self.surf_noise = np.load(self.get_subdir_filepath('dem_noise'))
+        else:
+            self.surf_noise = None
 
     def get_subdir_filepath(self, filename, filesuffix=None):
         """
@@ -187,7 +194,8 @@ class InversionDirectory(object):
         # Write out reg_parameters to check easier later on
         self.write_string_to_file(self.get_subdir_filepath('reg_parameters'),
                                   str(self.inv_settings['reg_parameters']))
-
+        self.inv_settings = load_pickle(
+            self.get_subdir_filepath('inversion_settings'))
         self._read_all_data()
         self.minimize_log = ''
         self.data_logger = None
@@ -202,7 +210,8 @@ class InversionDirectory(object):
         # Core: things are happening here:
         bounds = self.get_bounds()
 
-        self.cost_func = create_cost_func(self.gdir, self.data_logger)
+        self.cost_func = create_cost_func(self.gdir, self.data_logger,
+                                          self.surf_noise)
         res = minimize(fun=self.cost_func,
                        x0=self.first_guessed_bed.astype(np.float64).flatten(),
                        method=self.inv_settings['solver'], jac=True,

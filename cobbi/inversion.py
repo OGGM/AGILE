@@ -61,28 +61,6 @@ def first_guess(surf, ice_mask, map_dx, slope_cutoff_angle=5.0, factor=1):
     return bed_h
 
 
-def moving_average(arr, n):
-    '''
-    Computes the moving average over the n elements starting with the current array element upwards
-
-    :param arr: array, for which the moving average should be computed
-    :param n: number of array elements considered for the average
-    :return: array of averages
-
-    TODO: replace by convolution
-    '''
-    ret = np.cumsum(arr[::-1], dtype=float)
-    ret[n:] = ret[n:] - ret[:-n]
-    return ret[::-1] / n
-
-def RMSE(arr1, arr2):
-    return np.sqrt(np.mean((arr1 - arr2)**2))
-
-
-# Initialize OGGM and set up the default run parameters
-cfg.initialize()
-
-
 def spin_up(case, y_spinup_end, y_end):
     entity = {'min_x': case.extent[0, 0],
               'max_x': case.extent[1, 0],

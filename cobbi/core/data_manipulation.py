@@ -4,6 +4,7 @@ import shutil
 import salem
 from noise import pnoise2
 from scipy.ndimage import interpolation
+from cobbi.core.arithmetics import RMSE
 
 
 def add_noise_to_first_guess(gdir, noise, cut_noise=True, min_ice_thick=5):
@@ -32,8 +33,7 @@ def add_noise_to_first_guess(gdir, noise, cut_noise=True, min_ice_thick=5):
 
     if cut_noise:
         ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
-        desired_rmse = np.sqrt(np.mean(noise ** 2))
-        ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
+        desired_rmse = RMSE(noise, 0, ref_ice_mask)
         ref_surf = salem.GeoTiff(gdir.get_filepath('ref_dem')).get_vardata()
 
         penetrating = (first_guessed_bed + noise - min_ice_thick > ref_surf)
@@ -42,11 +42,14 @@ def add_noise_to_first_guess(gdir, noise, cut_noise=True, min_ice_thick=5):
         noise = np.where(penetrating,
                          ref_surf - first_guessed_bed - min_ice_thick,
                          noise)
+        # TODO: will result in problems -> iteratively?
+        rmse = RMSE(noise, 0, ref_ice_mask)
         print('desired rmse: {:g}\\rmse after cutting: {:g}'.format(
-            desired_rmse, np.sqrt(np.mean(noise ** 2))))
-        # TODO: will result in problems
-        # rmse = np.sqrt(np.mean(noise ** 2))
+            desired_rmse, rmse))
         # noise *= desired_rmse / rmse  # rescale to desired RMSE
+        # if np.any(first_guessed_bed + noise > ref_surf):
+        #    raise ValueError('First guess is found to penetrate ice surface; '
+        #                     'Aborting')
 
     first_guessed_bed = first_guessed_bed + noise
 
@@ -75,12 +78,11 @@ def take_true_bed_as_first_guess(gdir):
                 gdir.get_filepath('first_guessed_bed'))
 
 
-def add_noise_to_glacier_surfaces(gdir, noise):
+def add_surface_noise(gdir, noise):
     """
-    Adds noise to the spinup surface and reference surface.
-    Saves the result to the corresponding files and also saves the
-    applied noise. The original surfaces are retained and moved to files
-    prefixed with 'true_'
+    Adds noise which is applied during inversion to the spinup surface and
+    reference surface.
+    Saves the applied noise.
 
     Parameters
     ----------
@@ -90,21 +92,6 @@ def add_noise_to_glacier_surfaces(gdir, noise):
         noise to apply to the surfaces
     """
     np.save(gdir.get_filepath('dem_noise'), noise)
-
-    for dem_name in ['ref_dem', 'spinup_dem']:
-        dem_path = gdir.get_filepath(dem_name)
-
-        with rasterio.open(dem_path) as src:
-            surf = src.read(1)
-            profile = src.profile
-
-        shutil.move(dem_path, gdir.get_filepath('true_' + dem_name))
-
-        surf = surf + noise
-
-        profile['dtype'] = 'float64'
-        with rasterio.open(dem_path, 'w', **profile) as dst:
-            dst.write(surf, 1)
 
 
 def create_noise(gdir, std=3, zoom=-1, glacier_only=True):
@@ -171,11 +158,10 @@ def create_perlin_noise(gdir, desired_rmse=5., octaves=1, base=1., freq=8.0,
 
     if glacier_only:
         noise = noise * ref_ice_mask
-        masked_noise = np.ma.masked_array(noise, mask=np.logical_not(ref_ice_mask))
+        rmse = RMSE(noise, 0, ref_ice_mask)
     else:
-        masked_noise = noise
+        rmse = RMSE(noise, 0)
 
-    rmse = np.sqrt(np.mean(masked_noise**2))
     noise *= desired_rmse / rmse
 
     return noise
