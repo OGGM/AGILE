@@ -26,12 +26,17 @@ gdir = NonRGIGlacierDirectory(case, basedir)
 # only needed once:
 # gis.define_nonrgi_glacier_region(gdir)
 
-# create settings for inversion
-lambdas = np.zeros(4)
+scaling = 200 #1
+desired_rmse = 2
+#desired_rmse = 6
+#desired_rmse = 10
+
+lambdas = np.zeros(6)
 lambdas[0] = 0.2
 lambdas[1] = 0.25
-lambdas[2] = 100
-lambdas[3] = 1e5
+lambdas[2] = 100 * scaling
+lambdas[3] = 1e5 * scaling
+lambdas[4] = 1e7
 
 minimize_options = {
     'maxiter': 300,
@@ -49,7 +54,8 @@ gdir.write_inversion_settings(mb_spinup=None,
                               reg_parameters=lambdas,
                               solver='L-BFGS-B',
                               minimize_options=minimize_options,
-                              inversion_subdir='identical twin',
+                              inversion_subdir='identical twin control '
+                                               'perturb surf 2',
                               fg_shape_factor=1.,
                               fg_slope_cutoff_angle=2.5,
                               fg_min_height=-30,

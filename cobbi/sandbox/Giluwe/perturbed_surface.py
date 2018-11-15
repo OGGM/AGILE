@@ -28,13 +28,18 @@ gdir = NonRGIGlacierDirectory(case, basedir)
 # gis.define_nonrgi_glacier_region(gdir)
 
 # create settings for inversion
+scaling = 10
+#desired_rmse = 2
+#desired_rmse = 6
+desired_rmse = 10
+
 lambdas = np.zeros(6)
 lambdas[0] = 0.2
 lambdas[1] = 0.25
-lambdas[2] = 100 * 10
-lambdas[3] = 1e5 * 10
-#lambdas[4] = 1e5
-lambdas[5] = 100
+lambdas[2] = 100 * scaling
+lambdas[3] = 1e5 * scaling
+lambdas[4] = 1e7
+#lambdas[5] = 5
 
 minimize_options = {
     'maxiter': 300,
@@ -45,14 +50,15 @@ minimize_options = {
     #'maxls': 10,
     'disp': True
 }
-
+inv_subdir = 'fin {:02d} scaling {:02d} {:1g}e7'.format(scaling, desired_rmse,
+                                                     lambdas[4]/1e7)
 gdir.write_inversion_settings(mb_spinup=None,
                               yrs_spinup=2000,
                               yrs_forward_run=200,
                               reg_parameters=lambdas,
                               solver='L-BFGS-B',
                               minimize_options=minimize_options,
-                              inversion_subdir='test8 scaling 10 100',
+                              inversion_subdir=inv_subdir,
                               fg_shape_factor=1.,
                               fg_slope_cutoff_angle=5,
                               #fg_min_height=-30,
@@ -65,9 +71,6 @@ gdir.write_inversion_settings(mb_spinup=None,
 # create_glacier(gdir)
 # compile_first_guess(gdir)
 
-#desired_rmse = 2
-#desired_rmse = 6
-desired_rmse = 10
 noise = create_perlin_noise(gdir, desired_rmse, octaves=4, base=2, freq=3,
                             glacier_only=True)
 add_surface_noise(gdir, noise)
