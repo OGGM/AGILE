@@ -32,6 +32,7 @@ class InversionDirectory(object):
         self.minimize_log = ''
         self.cost_func = None
         self.data_logger = None
+        self.bed_measurements = None
         if not 'minimize_bounds' in self.inv_settings:
             self.inv_settings['minimize_bounds'] = None
 
@@ -102,12 +103,21 @@ class InversionDirectory(object):
         self.first_guessed_bed = salem.GeoTiff(
             self.get_subdir_filepath('first_guessed_bed')).get_vardata()
         self.ice_mask = np.load(self.gdir.get_filepath('ref_ice_mask'))
-        if os.path.exists(self.gdir.get_filepath('dem_noise')):
+        if os.path.exists(self.gdir.get_filepath('dem_noise')): #TODO: once
+            # surface noise is present, it cant get rid off ...
             shutil.copy(self.gdir.get_filepath('dem_noise'),
                         self.get_subdir_filepath('dem_noise'))
             self.surf_noise = np.load(self.get_subdir_filepath('dem_noise'))
         else:
             self.surf_noise = None
+
+        if os.path.exists(self.gdir.get_filepath('bed_measurements')):
+            shutil.copy(self.gdir.get_filepath('bed_measurements'),
+                        self.get_subdir_filepath('bed_measurements'))
+            self.bed_measurements = np.load(self.get_subdir_filepath(
+                'bed_measurements'))
+        else:
+            self.bed_measurements = None
 
     def get_subdir_filepath(self, filename, filesuffix=None):
         """
@@ -211,7 +221,8 @@ class InversionDirectory(object):
         bounds = self.get_bounds()
 
         self.cost_func = create_cost_func(self.gdir, self.data_logger,
-                                          self.surf_noise)
+                                          self.surf_noise,
+                                          self.bed_measurements)
         res = minimize(fun=self.cost_func,
                        x0=self.first_guessed_bed.astype(np.float64).flatten(),
                        method=self.inv_settings['solver'], jac=True,

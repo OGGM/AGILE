@@ -3,7 +3,8 @@ import salem
 import numpy as np
 from cobbi.core.dynamics import run_forward_core
 
-def create_cost_func(gdir, data_logger=None, surface_noise=None):
+def create_cost_func(gdir, data_logger=None, surface_noise=None,
+                     bed_measurements=None):
     """
     Creates a cost function based on the glacier directory.
 
@@ -34,6 +35,18 @@ def create_cost_func(gdir, data_logger=None, surface_noise=None):
         spinup_surf += surface_noise
         ref_surf += surface_noise
         # TODO: allow for independent surface perturbations
+
+    gpr = None
+    if bed_measurements is not None:
+        # PyTorch is a bit messy with masks.
+        # Instead we use full tensors and multiply by a mask.
+        gpr_data = torch.tensor(np.ma.filled(bed_measurements, -9999),
+                                dtype=torch.float,
+                                requires_grad=False)
+        gpr_mask = torch.tensor(1 - bed_measurements.mask,
+                                dtype=torch.float, requires_grad=False)
+        gpr = (gpr_data, gpr_mask)
+
     spinup_surf = torch.tensor(spinup_surf, dtype=torch.float,
                                requires_grad=False)
     ref_surf = torch.tensor(ref_surf, dtype=torch.float,
@@ -71,14 +84,14 @@ def create_cost_func(gdir, data_logger=None, surface_noise=None):
         """
         return cost_function(b, reg_parameters, ref_surf, ref_ice_mask,
                              ref_inner_mask, spinup_surf, conv_filter,
-                             yrs_to_run, case.dx, mb, data_logger)
+                             yrs_to_run, case.dx, mb, gpr, data_logger)
 
     return c_fun
 
 
 def cost_function(b, reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask,
                   spinup_surf, conv_filter, yrs_to_run, dx, mb,
-                  data_logger=None):
+                  gpr=None, data_logger=None):
     """
     Calculates cost for a given bed and other given parameters.
 
@@ -132,7 +145,7 @@ def cost_function(b, reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask,
     # quantify costs (all terms)
     c_terms = get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask,
                         guessed_bed, model_surf, model_ice_mask,
-                        model_inner_mask, dx)
+                        model_inner_mask, dx, gpr)
 
     # Calculate costs and gradient w.r.t guessed_bed
     c = c_terms.sum()
@@ -155,7 +168,8 @@ def cost_function(b, reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask,
 
 
 def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_bed,
-              model_surf, model_ice_mask, model_inner_mask, dx):
+              model_surf, model_ice_mask, model_inner_mask, dx,
+              gpr=None):
     """
     TODO: Documentation
 
@@ -170,6 +184,7 @@ def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_be
     model_ice_mask
     model_inner_mask
     dx
+    bed_measurements
 
     Returns
     -------
@@ -227,21 +242,14 @@ def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_be
         cost[4] = reg_parameters[4] \
                   * ((dds_dx.pow(2).sum() + dds_dy.pow(2).sum()))
     
-    if len(reg_parameters) > 5 and reg_parameters[5] != 0:
-        # penalize large derivatives of surface
-        # -> avoids numerical instabilites
-        ds_dx1 = (model_surf[:, :-2] - model_surf[:, 1:-1]) / dx
-        ds_dx2 = (model_surf[:, 1:-1] - model_surf[:, 2:]) / dx
-        ds_dy1 = (model_surf[:-2, :] - model_surf[1:-1, :]) / dx
-        ds_dy2 = (model_surf[1:-1, :] - model_surf[2:, :]) / dx
-        ds_dx_sq = 0.5 * (ds_dx1.pow(2)
-                          + ds_dx2.pow(2)) * model_inner_mask[:, 1:-1]
-        ds_dy_sq = 0.5 * (ds_dy1.pow(2)
-                          + ds_dy2.pow(2)) * model_inner_mask[1:-1, :]
-        cost[5] = reg_parameters[5] * 0.5 * ((ds_dx_sq.sum() + ds_dy_sq.sum()))
-                # TODO: think about first squaring forward and backward and then adding vs adding and then squaring
-                # then an additional .abs() is required for db_dx1, ...
-    
+    if gpr is not None and reg_parameters[5] != 0:
+        # penalize large deviations from bed measurements
+        # bed measurements should be given as two tensors, one for the data
+        # and one for the mask
+        gpr_data, gpr_mask = gpr
+        cost[5] = reg_parameters[5] * ((guessed_bed - gpr_data)
+                                       * gpr_mask).pow(2).sum()
+
     """
     if reg_parameters[3] != 0:
         # penalize large derivatives of ice thickness
@@ -332,3 +340,4 @@ class LocalMeanSquaredDifference(torch.autograd.Function):
         modelled_surf, observed_surf, ice_region, ice_mask, bed = ctx.saved_tensors
         grad_modelled_surf = (modelled_surf - observed_surf) * ice_mask
         return None, None, None, None, grad_modelled_surf
+

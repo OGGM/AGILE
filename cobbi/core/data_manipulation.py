@@ -165,3 +165,23 @@ def create_perlin_noise(gdir, desired_rmse=5., octaves=1, base=1., freq=8.0,
     noise *= desired_rmse / rmse
 
     return noise
+
+
+def add_bed_measurements(gdir, bed_measurements):
+    # TODO: typecheck: if type(bed_measurements) is not np.ma.m
+    bed_measurements.dump(gdir.get_filepath('bed_measurements'))
+
+
+def generate_bed_measurements(gdir, bed_measurements_mask, std=0):
+    true_bed = salem.GeoTiff(gdir.get_filepath('dem')).get_vardata()
+    noise = std * np.random.randn(*true_bed.shape)
+    bed_measurements = (true_bed + noise) * bed_measurements_mask
+    bed_measurements[np.logical_not(bed_measurements_mask)] = -np.inf
+    bed_measurements = np.ma.masked_array(bed_measurements,
+                                          mask=np.logical_not(
+                                              bed_measurements_mask))
+    print('Actual RMSE of bed measurements: {:g}'.format(
+        RMSE(bed_measurements, true_bed)))
+    # TODO: apply std scaling after masking ...?
+    # TODO: investigate deviations of RMSE from numpys std
+    return bed_measurements

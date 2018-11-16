@@ -16,7 +16,7 @@ from cobbi.core.visualization import plot_gradient
 from oggm import cfg
 from scipy.optimize import approx_fprime
 
-np.seed = 0  # needs to be fixed for reproducible results with noise
+np.random.seed(0)  # needs to be fixed for reproducible results with noise
 
 cfg.initialize()
 

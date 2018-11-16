@@ -16,7 +16,7 @@ import salem
 from cobbi.core.dynamics import run_forward_core
 from oggm import cfg
 
-np.seed = 0  # needs to be fixed for reproducible results with noise
+np.random.seed(0)  # needs to be fixed for reproducible results with noise
 
 cfg.initialize()
 

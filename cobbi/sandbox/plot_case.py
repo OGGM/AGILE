@@ -17,7 +17,7 @@ import salem
 from oggm import cfg
 import matplotlib.colors as colors
 
-np.seed = 0  # needs to be fixed for reproducible results with noise
+np.random.seed(0)  # needs to be fixed for reproducible results with noise
 
 cfg.initialize()
 
