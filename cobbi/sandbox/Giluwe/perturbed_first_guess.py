@@ -68,6 +68,8 @@ desired_mean_bias = +20.
 #desired_mean_bias = -20.
 compile_biased_first_guess(gdir, desired_mean_bias)
 
+if os.path.exists(gdir.get_filepath('dem_noise')):
+    os.remove(gdir.get_filepath('dem_noise'))
 #desired_rmse = 5
 #desired_rmse = 20.2038        # results in actual rmse of 20
 #noise = create_perlin_noise(gdir, desired_rmse, octaves=4, base=2, freq=4,

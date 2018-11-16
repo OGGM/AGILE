@@ -71,6 +71,8 @@ gdir.write_inversion_settings(mb_spinup=None,
 # create_glacier(gdir)
 # compile_first_guess(gdir)
 
+if os.path.exists(gdir.get_filepath('dem_noise')):
+    os.remove(gdir.get_filepath('dem_noise'))
 noise = create_perlin_noise(gdir, desired_rmse, octaves=4, base=2, freq=3,
                             glacier_only=True)
 add_surface_noise(gdir, noise)

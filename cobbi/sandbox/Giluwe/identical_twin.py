@@ -67,6 +67,9 @@ gdir.write_inversion_settings(mb_spinup=None,
 # only needed once:
 # create_glacier(gdir)
 compile_first_guess(gdir)
+
+if os.path.exists(gdir.get_filepath('dem_noise')):
+    os.remove(gdir.get_filepath('dem_noise'))
 create_case_table(gdir)
 
 idir = InversionDirectory(gdir)
