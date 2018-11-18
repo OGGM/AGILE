@@ -6,36 +6,39 @@ import shutil
 
 from cobbi.core import gis, test_cases
 from cobbi.core.utils import NonRGIGlacierDirectory
-from cobbi.core.first_guess import compile_biased_first_guess
-from cobbi.core.first_guess import compile_rmsed_first_guess
+from cobbi.core.first_guess import compile_first_guess
 from cobbi.core.inversion import InversionDirectory
 from cobbi.core.dynamics import create_glacier
 from cobbi.core.cost_function import create_cost_func
 from cobbi.core.inversion import InversionDirectory
 from cobbi.core import data_logging
 from cobbi.core.table_creation import create_case_table, eval_identical_twin
-from cobbi.core.data_manipulation import create_perlin_noise
-from cobbi.core.data_manipulation import take_true_bed_as_first_guess
-from cobbi.core.data_manipulation import add_noise_to_first_guess
+from cobbi.core.data_manipulation import create_perlin_noise, add_surface_noise
 from oggm import cfg
 
 cfg.initialize()
 
 basedir = '/path/to/example'
-basedir = '/data/philipp/thesis/first_guess'
+basedir = '/data/philipp/thesis/bonus'
 
 # Choose a case
 case = test_cases.Borden
 gdir = NonRGIGlacierDirectory(case, basedir)
 # only needed once:
-gis.define_nonrgi_glacier_region(gdir)
+#gis.define_nonrgi_glacier_region(gdir)
 
 # create settings for inversion
-lambdas = np.zeros(4)
+scaling = 200
+desired_rmse = 2
+#desired_rmse = 6
+#desired_rmse = 10
+
+lambdas = np.zeros(6)
 lambdas[0] = 0.2
 lambdas[1] = 0.25
-lambdas[2] = 100
-lambdas[3] = 1e5
+lambdas[2] = 100 * scaling
+lambdas[3] = 1e5 * scaling * 1e3
+lambdas[4] = 1e7
 
 minimize_options = {
     'maxiter': 300,
@@ -46,43 +49,41 @@ minimize_options = {
     #'maxls': 10,
     'disp': True
 }
-
+inv_subdir = 'fin {:02d} scaling {:02d} {:1g}e7 extra scaling 1e3'.format(
+    scaling, int(desired_rmse), lambdas[4]/1e7)
 gdir.write_inversion_settings(mb_spinup=None,
                               yrs_spinup=2000,
                               yrs_forward_run=200,
                               reg_parameters=lambdas,
                               solver='L-BFGS-B',
                               minimize_options=minimize_options,
-                              inversion_subdir='first guess rmse 2',
+                              inversion_subdir=inv_subdir,
                               fg_shape_factor=1.,
-                              fg_slope_cutoff_angle=5,
-                              #fg_min_height=-30,
-                              fg_interp_boundary=False,
+                              fg_slope_cutoff_angle=2.5,
+                              fg_min_height=-30,
+                              fg_interp_boundary=True,
                               bounds_min_max=(2, 1000)
                               )
 
+
 # Optional, if not reset=True and already ran once
 # only needed once:
-# create_glacier(gdir)
-#desired_mean_bias = +20.
-#desired_mean_bias = -20.
-#compile_biased_first_guess(gdir, desired_mean_bias)
+#create_glacier(gdir)
+compile_first_guess(gdir)
 
 if os.path.exists(gdir.get_filepath('dem_noise')):
     os.remove(gdir.get_filepath('dem_noise'))
-#desired_rmse = 5
-desired_rmse = 20.1911  # results in actual rmse of 20
-noise = create_perlin_noise(gdir, desired_rmse, octaves=4, base=1, freq=4,
+noise = create_perlin_noise(gdir, desired_rmse, octaves=4, base=2, freq=3,
                             glacier_only=True)
-take_true_bed_as_first_guess(gdir)
-add_noise_to_first_guess(gdir, noise)
+add_surface_noise(gdir, noise)
+
 create_case_table(gdir)
 
 idir = InversionDirectory(gdir)
 
 # copy this script to inversion directory for reproducibility
-path_to_file = '/home/philipp/COBBI/cobbi/sandbox/Borden' \
-               '/perturbed_first_guess.py'
+path_to_file = '/home/philipp/COBBI/cobbi/sandbox/bonus_runs' \
+               '/perturbed_surface.py'
 fname = os.path.split(path_to_file)[-1]
 if not os.path.exists(idir.get_current_basedir()):
     os.makedirs(idir.get_current_basedir(), exist_ok=True)

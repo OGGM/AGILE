@@ -6,36 +6,50 @@ import shutil
 
 from cobbi.core import gis, test_cases
 from cobbi.core.utils import NonRGIGlacierDirectory
+from cobbi.core.first_guess import compile_first_guess
 from cobbi.core.first_guess import compile_biased_first_guess
-from cobbi.core.first_guess import compile_rmsed_first_guess
-from cobbi.core.inversion import InversionDirectory
 from cobbi.core.dynamics import create_glacier
-from cobbi.core.cost_function import create_cost_func
 from cobbi.core.inversion import InversionDirectory
-from cobbi.core import data_logging
 from cobbi.core.table_creation import create_case_table, eval_identical_twin
+from cobbi.sandbox import bed_measurement_masks
+from cobbi.core.data_manipulation import add_bed_measurements
+from cobbi.core.data_manipulation import generate_bed_measurements
 from cobbi.core.data_manipulation import create_perlin_noise
-from cobbi.core.data_manipulation import take_true_bed_as_first_guess
-from cobbi.core.data_manipulation import add_noise_to_first_guess
+from cobbi.core.data_manipulation import add_surface_noise
 from oggm import cfg
 
 cfg.initialize()
 
 basedir = '/path/to/example'
-basedir = '/data/philipp/thesis/first_guess'
+basedir = '/data/philipp/thesis/bonus'
 
 # Choose a case
 case = test_cases.Borden
 gdir = NonRGIGlacierDirectory(case, basedir)
 # only needed once:
-gis.define_nonrgi_glacier_region(gdir)
+#gis.define_nonrgi_glacier_region(gdir)
+np.random.seed(0)
+bed_measurements_mask = bed_measurement_masks.measurement_mask_Borden_horizontal
+bed_measurements = generate_bed_measurements(gdir, bed_measurements_mask,
+                                             std=30)
+# reproducibility
+add_bed_measurements(gdir, bed_measurements)
 
-# create settings for inversion
-lambdas = np.zeros(4)
+#remodel 1c
+scaling = 200
+desired_rmse = 2
+#desired_rmse = 6
+#desired_rmse = 10
+
+additional_scaling = 1
+
+lambdas = np.zeros(6)
 lambdas[0] = 0.2
 lambdas[1] = 0.25
-lambdas[2] = 100
-lambdas[3] = 1e5
+lambdas[2] = 100 * scaling * additional_scaling
+lambdas[3] = 1e5 * scaling * additional_scaling
+lambdas[4] = 1e7
+lambdas[5] = 1e-0
 
 minimize_options = {
     'maxiter': 300,
@@ -53,36 +67,33 @@ gdir.write_inversion_settings(mb_spinup=None,
                               reg_parameters=lambdas,
                               solver='L-BFGS-B',
                               minimize_options=minimize_options,
-                              inversion_subdir='first guess rmse 2',
+                              inversion_subdir='1c std 30 l5 1e-0',
                               fg_shape_factor=1.,
-                              fg_slope_cutoff_angle=5,
-                              #fg_min_height=-30,
-                              fg_interp_boundary=False,
+                              fg_slope_cutoff_angle=2.5,
+                              fg_min_height=-30,
+                              fg_interp_boundary=True,
                               bounds_min_max=(2, 1000)
                               )
 
 # Optional, if not reset=True and already ran once
 # only needed once:
-# create_glacier(gdir)
-#desired_mean_bias = +20.
-#desired_mean_bias = -20.
-#compile_biased_first_guess(gdir, desired_mean_bias)
+create_glacier(gdir)
+compile_first_guess(gdir)
 
 if os.path.exists(gdir.get_filepath('dem_noise')):
     os.remove(gdir.get_filepath('dem_noise'))
-#desired_rmse = 5
-desired_rmse = 20.1911  # results in actual rmse of 20
-noise = create_perlin_noise(gdir, desired_rmse, octaves=4, base=1, freq=4,
+noise = create_perlin_noise(gdir, desired_rmse, octaves=4, base=2, freq=3,
                             glacier_only=True)
-take_true_bed_as_first_guess(gdir)
-add_noise_to_first_guess(gdir, noise)
+add_surface_noise(gdir, noise)
+
+
 create_case_table(gdir)
 
 idir = InversionDirectory(gdir)
 
 # copy this script to inversion directory for reproducibility
-path_to_file = '/home/philipp/COBBI/cobbi/sandbox/Borden' \
-               '/perturbed_first_guess.py'
+path_to_file = '/home/philipp/COBBI/cobbi/sandbox/bonus_runs' \
+               '/bed_measurements.py'
 fname = os.path.split(path_to_file)[-1]
 if not os.path.exists(idir.get_current_basedir()):
     os.makedirs(idir.get_current_basedir(), exist_ok=True)

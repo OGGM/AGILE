@@ -27,21 +27,21 @@ gdir = NonRGIGlacierDirectory(case, basedir)
 # only needed once:
 #gis.define_nonrgi_glacier_region(gdir)
 
-bed_measurements_mask = bed_measurement_masks.measurement_mask_Giluwe_cross
+bed_measurements_mask = bed_measurement_masks.Giluwe_upper_tongue
 np.random.seed(0)  # for reproducibility
 bed_measurements = generate_bed_measurements(gdir, bed_measurements_mask,
                                              std=30)
 add_bed_measurements(gdir, bed_measurements)
 
-scaling = 10
-desired_rmse = 10
+scaling = 1
+#desired_rmse = 10
 
 lambdas = np.zeros(6)
 lambdas[0] = 0.2
-lambdas[1] = 0.25 #* 1e-2
+lambdas[1] = 0.25
 lambdas[2] = 100 * scaling
 lambdas[3] = 1e5 * scaling
-lambdas[4] = 1e7
+#lambdas[4] = 1e7
 lambdas[5] = 1e0
 
 minimize_options = {
@@ -60,8 +60,7 @@ gdir.write_inversion_settings(mb_spinup=None,
                               reg_parameters=lambdas,
                               solver='L-BFGS-B',
                               minimize_options=minimize_options,
-                              inversion_subdir='3c std 30 l5 '
-                                               '1e0',
+                              inversion_subdir='upper tongue std 30 l5 1e-0',
                               fg_shape_factor=1.,
                               fg_slope_cutoff_angle=5,
                               #fg_min_height=-30,
@@ -81,9 +80,9 @@ compile_first_guess(gdir)
 # directly added to idir
 if os.path.exists(gdir.get_filepath('dem_noise')):
     os.remove(gdir.get_filepath('dem_noise'))
-noise = create_perlin_noise(gdir, desired_rmse, octaves=4, base=2, freq=3,
-                            glacier_only=True)
-add_surface_noise(gdir, noise)
+#noise = create_perlin_noise(gdir, desired_rmse, octaves=4, base=2, freq=3,
+#                            glacier_only=True)
+#add_surface_noise(gdir, noise)
 
 create_case_table(gdir)
 
