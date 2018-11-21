@@ -59,7 +59,7 @@ gdir.write_inversion_settings(mb_spinup=None,
                               fg_slope_cutoff_angle=5,
                               #fg_min_height=-30,
                               fg_interp_boundary=False,
-                              bounds_min_max=(2, 1000)
+                              bounds_min_max=(100, 1000)
                               )
 
 # Optional, if not reset=True and already ran once

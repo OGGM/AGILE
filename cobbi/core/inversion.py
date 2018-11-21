@@ -157,10 +157,25 @@ class InversionDirectory(object):
         """
         bounds = None
         if self.inv_settings['bounds_min_max'] is not None:
+            surf = self.ref_surf
+            if self.surf_noise is not None:
+                surf += self.surf_noise
+
+            upper_bounds = surf.copy()
+            lower_bounds = surf.copy()
+
             min_ice_thickness = self.inv_settings['bounds_min_max'][0]
             max_ice_thickness = self.inv_settings['bounds_min_max'][1]
-            lower_bounds = self.ref_surf - max_ice_thickness * self.ice_mask
-            upper_bounds = self.ref_surf - min_ice_thickness * self.ice_mask
+            if min_ice_thickness is not None:
+                upper_bounds = upper_bounds - min_ice_thickness * self.ice_mask
+            else:
+                upper_bounds = np.where(self.ice_mask, None, upper_bounds)
+
+            if max_ice_thickness is not None:
+                lower_bounds = lower_bounds - max_ice_thickness * self.ice_mask
+            else:
+                lower_bounds = np.where(self.ice_mask, None, lower_bounds)
+
             bounds = np.c_[lower_bounds.flatten(), upper_bounds.flatten()]
         return bounds
 
