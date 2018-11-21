@@ -197,7 +197,7 @@ def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_be
     cost = torch.zeros(len(reg_parameters) + 1)
 
     # TODO recheck all indices for reg_parameters and cost
-    cost[-1] = ((ref_surf - model_surf) * (1. - margin)).pow(2).sum()
+    cost[-1] = ((ref_surf - model_surf) * ref_inner_mask).pow(2).sum()
     cost[0] = reg_parameters[0] *\
               ((ref_surf - model_surf) * margin).pow(2).sum()
 
