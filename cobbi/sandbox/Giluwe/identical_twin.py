@@ -18,8 +18,9 @@ from oggm import cfg
 cfg.initialize()
 
 basedir = '/path/to/example'
-basedir = '/data/philipp/thesis/identical_twin'
+basedir = '/media/philipp/Daten/thesis_test2/Giluwe/identical_twin_int_bound'
 
+# TODO: think about IceThicknesses for case Giluwe
 # Choose a case
 case = test_cases.Giluwe
 gdir = NonRGIGlacierDirectory(case, basedir)
@@ -75,7 +76,7 @@ create_case_table(gdir)
 idir = InversionDirectory(gdir)
 
 # copy this script to inversion directory for reproducibility
-path_to_file = '/home/philipp/COBBI/cobbi/sandbox/Borden' \
+path_to_file = '/home/philipp/COBBI/cobbi/sandbox/Giluwe' \
                '/identical_twin.py'
 fname = os.path.split(path_to_file)[-1]
 if not os.path.exists(idir.get_current_basedir()):

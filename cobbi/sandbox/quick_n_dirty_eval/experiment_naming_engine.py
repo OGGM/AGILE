@@ -24,6 +24,7 @@ def get_experiment_name(exp_folder_name):
         'fin 200 scaling 02 0e7': 'promised land 1b',
         'fin 200 scaling 02 1e7': 'promised land 1c',
         'fin 01 scaling 06 0e7': 'promised land 2a',
+        'fin 01 scaling 06 0e7 _ no early stop': 'promised land 2a\'',
         'fin 200 scaling 06 0e7': 'promised land 2b',
         'fin 200 scaling 06 1e7': 'promised land 2c',
         'fin 01 scaling 10 0e7': 'promised land 3a',
@@ -38,3 +39,14 @@ def get_experiment_name(exp_folder_name):
         return exp_dict[exp_folder_name]
     else:
         return None
+
+def get_no_bed_measure_folder(exp_name, case_name):
+    folder_dict = {
+        'Giluwe promised land 3c plus bed': 'perturbed_surface/Giluwe/fin 10 scaling 10 1e7',
+        'Borden Peninsula promised land 3c plus bed':
+            'perturbed_surface/Borden Peninsula/fin 200 scaling 10 1e7',
+        'Giluwe identical-twin a plus bed': 'identical_twin/Giluwe/identical twin'
+    }
+    if case_name + ' ' + exp_name in folder_dict:
+        return folder_dict[case_name + ' ' + exp_name]
+    return None

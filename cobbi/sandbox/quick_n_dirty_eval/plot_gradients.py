@@ -14,7 +14,7 @@ from cobbi.core.inversion import InversionDirectory
 from cobbi.core import data_logging
 from cobbi.core.visualization import plot_gradient
 from cobbi.core.visualization import MidpointNormalize, truncate_colormap,\
-    imshow_ic, plot_glacier_contours, add_colorbar
+    imshow_ic, plot_glacier_contours, add_colorbar, get_axes_coords
 
 
 output_dir = '/media/philipp/Daten/Dokumente/Studium/Master/Masterarbeit' \
@@ -23,8 +23,7 @@ basedir = '/home/philipp/thesis/gradient_verification'
 file_extension = 'pdf'
 
 case = test_cases.Giluwe
-figsize = (6, 4)
-axes_coords = [0., 0.02, 0.85, 0.96]  # left, bottom, width, height
+figsize = (4.5, 3)
 #for case in [test_cases.Giluwe, test_cases.Borden]:
 bdir = os.path.join(basedir, case.name)
 pytorch_grad = np.load(os.path.join(bdir, 'pytorch.npy'))
@@ -38,23 +37,26 @@ cbar_min_max = 0.75
 my_cmap = plt.get_cmap('BrBG')
 
 fig = plt.figure(figsize=figsize)
-ax = fig.add_axes(axes_coords)
+ax = fig.add_axes(get_axes_coords(case))
 norm = MidpointNormalize(midpoint=0., vmin=-cbar_min_max, vmax=cbar_min_max)
 im_p = imshow_ic(ax, pytorch_grad, case, cmap=my_cmap, ticks=False,
-                 norm=norm, cbar_min_max=cbar_min_max)
+                 norm=norm, vmin=-cbar_min_max, vmax=cbar_min_max)
+cbar = add_colorbar(fig, ax, im_p, norm=norm, extend='both')
+cbar.set_label('gradient of cost function (m$^{-1}$)')
+cbar.remove()
 plot_glacier_contours(ax, ice_mask, case)
 fname = '{:s}_pytorch_grad.{:s}'.format(case.name, file_extension)
 plt.savefig(os.path.join(output_dir, fname))
 plt.close(fig)
 
 fig = plt.figure(figsize=figsize)
-ax = fig.add_axes(axes_coords)
+ax = fig.add_axes(get_axes_coords(case))
 norm = MidpointNormalize(midpoint=0., vmin=-cbar_min_max, vmax=cbar_min_max)
 im_f = imshow_ic(ax, pytorch_grad, case, cmap=my_cmap, ticks=False,
-                 norm=norm, cbar_min_max=cbar_min_max)
+                 norm=norm, vmin=-cbar_min_max, vmax=cbar_min_max)
 cbar = add_colorbar(fig, ax, im_f, norm=norm, extend='both')
-plot_glacier_contours(ax, ice_mask, case)
 cbar.set_label('gradient of cost function (m$^{-1}$)')
+plot_glacier_contours(ax, ice_mask, case)
 fname = '{:s}_fin_diff_grad.{:s}'.format(case.name, file_extension)
 plt.savefig(os.path.join(output_dir, fname))
 plt.close(fig)
@@ -63,10 +65,10 @@ plt.close(fig)
 abs_diff = pytorch_grad - fin_diff_grad
 cbar_min_max = max(abs(abs_diff.min()), abs(abs_diff.max()))
 fig = plt.figure(figsize=figsize)
-ax = fig.add_axes(axes_coords)
+ax = fig.add_axes(get_axes_coords(case))
 norm = MidpointNormalize(midpoint=0., vmin=-cbar_min_max, vmax=cbar_min_max)
 im_f = imshow_ic(ax, abs_diff, case, cmap=my_cmap, ticks=False,
-                 norm=norm, cbar_min_max=cbar_min_max)
+                 norm=norm, vmin=-cbar_min_max, vmax=cbar_min_max)
 cbar = add_colorbar(fig, ax, im_f, norm=norm)#, extend='both')
 plot_glacier_contours(ax, ice_mask, case)
 cbar.set_label('$\Delta$ gradient of cost function (m$^{-1}$)')

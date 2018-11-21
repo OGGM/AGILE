@@ -17,7 +17,7 @@ import salem
 from oggm import cfg
 import matplotlib.colors as colors
 from cobbi.core.visualization import MidpointNormalize, truncate_colormap,\
-    imshow_ic, plot_glacier_contours, add_colorbar
+    imshow_ic, plot_glacier_contours, add_colorbar, get_axes_coords
 
 cfg.initialize()
 
@@ -27,7 +27,6 @@ output_dir = '/media/philipp/Daten/Dokumente/Studium/Master/Masterarbeit' \
 file_extension = 'pdf'
 
 case = test_cases.Giluwe
-axes_coords = [0., 0.02, 0.85, 0.96]  # left, bottom, width, height
 figsize = (4.5, 3)
 for case in [test_cases.Borden, test_cases.Giluwe]:
     gdir = NonRGIGlacierDirectory(case, basedir)
@@ -53,10 +52,10 @@ for case in [test_cases.Borden, test_cases.Giluwe]:
     # ---------------------------------------------------------------
     # plot true bed height
     fig = plt.figure(figsize=figsize)
-    ax = fig.add_axes(axes_coords)
+    ax = fig.add_axes(get_axes_coords(case))
     im_b = imshow_ic(ax, bed_2d, case, cmap=terrain_cmap, ticks='scalebar')
     cbar = add_colorbar(fig, ax, im_b)
-    cbar.set_label('bed  height A.S.L $(m)$')
+    cbar.set_label('bed elevation A.S.L (m)')
     #plt.title('Bed of case {:s}, dx={:d}m'.format(case.name, case.dx))
     fname = '{:s}_bed.{:s}'.format(case.name, file_extension)
     #plt.tight_layout()
@@ -67,14 +66,14 @@ for case in [test_cases.Borden, test_cases.Giluwe]:
     cut_gray_cmap = truncate_colormap(cmap, 0.3, 0.9)
 
     fig = plt.figure(figsize=figsize)
-    ax = fig.add_axes(axes_coords)
+    ax = fig.add_axes(get_axes_coords(case))
     im_b = imshow_ic(ax, bed_2d, case, cmap=terrain_cmap, ticks='scalebar')
     #plt.title('Ice surface height, {:s}, dx={:d}m, t={:d}a'.format(
     #    case.name, case.dx, y))
     im_i = imshow_ic(ax, masked_reference_surf, case, cmap=cut_gray_cmap,
                      ticks='scalebar')
     cbar = add_colorbar(fig, ax, im_i)
-    cbar.set_label('ice surface height A.S.L. $(m)$')
+    cbar.set_label('ice surface elevation A.S.L. (m)')
     plot_glacier_contours(ax, ref_ice_mask, case) #, linestyles='solid')
     fname = '{:s}_surf_height.{:s}'.format(case.name, file_extension)
     #plt.tight_layout()
@@ -86,10 +85,10 @@ for case in [test_cases.Borden, test_cases.Giluwe]:
     if not np.all(np.equal(ref_it, spinup_it)):
         print('not in equilibrium! consider also plotting spinup')
     fig = plt.figure(figsize=figsize)
-    ax = fig.add_axes(axes_coords)
+    ax = fig.add_axes(get_axes_coords(case))
     im_it = imshow_ic(ax, masked_ice_thick_end, case, cmap=it_cmap, ticks='scalebar')
     cbar = add_colorbar(fig, ax, im_it)
-    cbar.set_label('ice thickness $(m)$')
+    cbar.set_label('ice thickness (m)')
     fname = '{:s}_ice_thickness.{:s}'.format(case.name, file_extension)
     plot_glacier_contours(ax, ref_ice_mask, case)
     #plt.tight_layout()

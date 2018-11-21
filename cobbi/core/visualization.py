@@ -13,14 +13,17 @@ fontprops = fm.FontProperties(size=18)
 
 class MidpointNormalize(colors.Normalize):
     # see: https://matplotlib.org/users/colormapnorms.html#custom-normalization-two-linear-ranges
-    def __init__(self, vmin=None, vmax=None, midpoint=None, clip=False):
+    def __init__(self, vmin=None, vmax=None, midpoint=None, clip=False,
+                 mask=None):
         self.midpoint = midpoint
+        self.mask = mask
         colors.Normalize.__init__(self, vmin, vmax, clip)
 
     def __call__(self, value, clip=None):
         # I'm ignoring masked values and all kinds of edge cases to make a
         # simple example...
         x, y = [self.vmin, self.midpoint, self.vmax], [0, 0.5, 1]
+        #value[~np.isnan(value)] = np.nan # Allow masks
         return np.ma.masked_array(np.interp(value, x, y))
 
 
@@ -70,8 +73,8 @@ def plot_glacier_contours(ax, ice_mask, case, resolution_enhance=1e1,
            extent=[0-0.45, x[:-1].max()-0.5,
                    0-0.3, y[:-1].max()-0.4]
     elif case.name == 'Borden Peninsula':
-        extent = [0 - 0.45, x[:-1].max() - 0.575,
-                  0 - 0.36, y[:-1].max() - 0.51]
+        extent = [0 - 0.45, x[:-1].max() - 0.45,
+                  0 - 0.3, y[:-1].max() - 0.48]
 
     ax.contour(Z[::-1], [0.5], colors=colors, linewidths=linewidths,
                extent=extent, linestyles=linestyles)
@@ -89,14 +92,10 @@ def plot_first_guess():
     plt.clf()
 
 def imshow_ic(ax, arr, case, cmap=None, ice_mask=None, ticks=True,
-              norm=None, cbar_min_max=None):
+              norm=None, vmin=None, vmax=None):
     y, x = arr.shape
-    cbar_min = cbar_min_max
-    if cbar_min_max is not None:
-        cbar_min = -cbar_min
-    cbar_max = cbar_min_max
-    im = ax.imshow(arr[::-1, :], cmap=cmap, origin='lower', norm=norm)#,
-                   #vmin=cbar_min, vmax=cbar_max)
+    im = ax.imshow(arr[::-1, :], cmap=cmap, origin='lower', norm=norm,
+                   vmin=vmin, vmax=vmax)
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.spines['bottom'].set_visible(False)
@@ -161,3 +160,56 @@ def add_colorbar(fig, ax, mappable, norm=None, extend='neither'):
     cbar.update_ticks()
     #cbar.outline.set_linewidth(0.75)
     return cbar
+
+def get_axes_coords(case):
+    if case.name == 'Giluwe':
+        return [0., 0.05, 0.9, 0.9]  # left, bottom, width, height
+    elif case.name == 'Borden Peninsula':
+        return [0., 0.015, 0.85, 0.97]  # left, bottom, width,
+        # height
+
+
+def plot_bed_difference(bed_difference, filepath, case, cbar_min,
+                        cbar_max, title=None,
+                        ice_mask=None, bed_measurements=None,
+                        show_cbar=True, norm=None, cmap='bwr',
+                        figsize=(4.5, 3), cbar_label='bed elevation error (m)'):
+    plot_differences(bed_difference, filepath, case, cbar_min, cbar_max,
+                     title, ice_mask, bed_measurements, show_cbar, norm,
+                     cmap, figsize, cbar_label=cbar_label)
+
+def plot_differences(difference, filepath, case, cbar_min, cbar_max,
+                     title=None, ice_mask=None, bed_measurements=None,
+                     show_cbar=True, norm=None, cmap='bwr', figsize=(4.5, 3),
+                     cbar_label=None):
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_axes(get_axes_coords(case))
+    im_b = imshow_ic(ax, difference, case, cmap=cmap, ticks=False,
+                     norm=norm, vmin=cbar_min, vmax=cbar_max)
+    cbar = add_colorbar(fig, ax, im_b, norm=norm, extend='neither')
+    cbar.set_label(cbar_label)
+    cbar_min_max = max(abs(cbar_min), abs(cbar_max))
+    cbar.set_clim(-cbar_min_max, cbar_min_max)
+    if not show_cbar:
+        cbar.remove()
+    if title is not None:
+        ax.set_title(title)
+    if ice_mask is not None:
+        plot_glacier_contours(ax, ice_mask, case)
+    if bed_measurements is not None:
+        plot_glacier_contours(ax, ~bed_measurements.mask, case, colors='k',
+                              linestyles='solid', linewidths=[2.])
+    plt.savefig(filepath)
+    plt.close(fig)
+
+
+def plot_surf_difference(surf_difference, filepath, case, cbar_min,
+                         cbar_max, title=None,
+                         ice_mask=None, bed_measurements=None,
+                         show_cbar=True, norm=None, cmap='PuOr_r',
+                         figsize=(4.5, 3),
+                         cbar_label='surf elevation error (m)'):
+
+    plot_differences(surf_difference, filepath, case, cbar_min, cbar_max,
+                     title, ice_mask, bed_measurements, show_cbar, norm,
+                     cmap, figsize, cbar_label=cbar_label)
