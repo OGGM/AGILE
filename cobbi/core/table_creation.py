@@ -5,9 +5,9 @@ from cobbi.core.arithmetics import mean_BIAS, RMSE
 from cobbi.core.data_logging import DataLogger
 
 def create_case_table(gdir):
-    header = 'case,ela,mbgrad,zmax,sca,dx,V,A,h,coordinates\n'
-    row = '{case:s},${ela_h:d}$,${mb_grad:g}$,${mb_max_alt:d}$,${sca:g}°$,' \
-          '${dx:d}$,${vol:.2f}$,${area:.2f}$,${mean_it:.1f}$ (${max_it:.1f}$),' \
+    header = 'case,ela,mbgrad,zmax,sca,dx,V,A,hmean,hmax,coordinates\n'
+    row = '{case:s},{ela_h:d},{mb_grad:g},{mb_max_alt:d},{sca:g}°,' \
+          '{dx:d},{vol:.2f},{area:.2f},{mean_it:.1f},{max_it:.1f},' \
           '{{{coordinates}}}'
 
     vals = {}
@@ -31,7 +31,7 @@ def create_case_table(gdir):
     x = (gdir.case.extent[0, 0] + gdir.case.extent[1, 0])/2.
     y = (gdir.case.extent[0, 1] + gdir.case.extent[1, 1])/2.
 
-    vals['coordinates'] = '${:g}\\degree$W, ${:g}\\degree$N'.format(x, y)
+    vals['coordinates'] = '{:g}$\\degree$W, {:g}$\\degree$N'.format(x, y)
 
     data_row = row.format(**vals)
 
@@ -43,11 +43,16 @@ def create_case_table(gdir):
 
 def eval_identical_twin(idir):
     header = 'case,run,icevolerr,rmsebed,rmsesurf,biasbed,biassurf,' \
-             'corr,rmsefg,biasfg,' \
-             'iterations\n'
-    row = '{case:s},{run:s},${dV:.2f}$,${rmsebed:.1f}$,${rmsesurf:.1f}$,' \
-          '${biasbed:.1f}$,${biassurf:.1f}$,${corr:.3f}$,${rmsefg:.1f}$,' \
-          '${biasfg:.1f}$,${iterations:d}$'
+             'corr,rmsefg,biasfg,iterations,' \
+             'maxbeddiffglacier,maxbeddiffdomain,' \
+             'minbeddiffglacier,minbeddiffdomain,' \
+             'voloutsidebounds\n'
+    row = '{case:s},{run:s},{dV:.2f},{rmsebed:.1f},{rmsesurf:.1f},' \
+          '{biasbed:.1f},{biassurf:.1f},{corr:.3f},{rmsefg:.1f},' \
+          '{biasfg:.1f},{iterations:d},' \
+          '{maxbeddiffglacier:.1f},{maxbeddiffdomain:.1f},' \
+          '{minbeddiffglacier:.1f},{minbeddiffdomain:.1f},' \
+          '{voloutsidebounds:.9f}'
     # TODO: max_bed_diff?
     dl = load_pickle(idir.get_subdir_filepath('data_logger'))
     vals = {}
@@ -76,7 +81,16 @@ def eval_identical_twin(idir):
     vals['corr'] = np.ma.corrcoef(masked_true_it.flatten(),
                                   masked_mod_it.flatten())[0, 1]
     vals['iterations'] = len(dl.step_indices)
-
+    #vals['maxbeddiff'] = np.max((dl.beds[-1] - dl.true_bed) * ref_ice_mask)
+    vals['maxbeddiffglacier'] = np.max((dl.beds[-1] - dl.true_bed) *
+                                         ref_ice_mask)
+    vals['maxbeddiffdomain'] = np.max(dl.beds[-1] - dl.true_bed)
+    #vals['minbeddiff'] = np.min((dl.beds[-1] - dl.true_bed) * ref_ice_mask)
+    vals['minbeddiffglacier'] = np.min((dl.beds[-1] - dl.true_bed) *
+                                        ref_ice_mask)
+    vals['minbeddiffdomain'] = np.min(dl.beds[-1] - dl.true_bed)
+    vals['voloutsidebounds'] = np.sum((dl.surfs[-1] - dl.beds[-1])
+                                      * (1 - ref_ice_mask)) * 1e-9
     data_row = row.format(**vals)
 
     with open(idir.get_subdir_filepath('results'), 'w') as f:

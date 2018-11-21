@@ -5,6 +5,7 @@ import rasterio
 from oggm import cfg, entity_task
 import logging
 from scipy.signal import convolve2d
+from cobbi.core.arithmetics import compute_inner_mask
 
 # -------------------------------
 # Further initialization / extended import tasks
@@ -147,9 +148,8 @@ def compile_first_guess(gdir):
 def interpolate_all_boundary(first_guessed_bed, ice_mask):
     # TODO: ugly, documentation
     #conv_array = np.ones((3,3))
-    conv_array = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]])
-    boundary = convolve2d(ice_mask, conv_array, mode='same') * ice_mask
-    boundary = np.where(np.logical_and(boundary < 5, boundary > 0), True, False)
+    inner_mask = compute_inner_mask(ice_mask)
+    boundary = np.logical_xor(ice_mask, inner_mask)
     indices = np.argwhere(boundary)
     for ind in indices:
         bed_vals = first_guessed_bed[

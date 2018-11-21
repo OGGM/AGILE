@@ -29,7 +29,7 @@ gdir = NonRGIGlacierDirectory(case, basedir)
 # only needed once:
 #gis.define_nonrgi_glacier_region(gdir)
 np.random.seed(0)
-bed_measurements_mask = bed_measurement_masks.measurement_mask_Borden_horizontal
+bed_measurements_mask = bed_measurement_masks.Borden_horizontal
 bed_measurements = generate_bed_measurements(gdir, bed_measurements_mask,
                                              std=30)
 # reproducibility

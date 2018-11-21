@@ -33,11 +33,7 @@ dl = load_pickle(os.path.join(gdir.dir, 'identical twin', 'data_logger.pkl'))
 ref_surf = salem.GeoTiff(gdir.get_filepath('ref_dem')).get_vardata()
 ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
 #true_bed = salem.GeoTiff(gdir.get_filepath('dem')).get_vardata()
-conv_array = np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]])
-def compute_inner_mask(ice_mask):
-    boundary = convolve2d(ref_ice_mask, conv_array, mode='same') * ref_ice_mask
-    boundary = np.where(np.logical_and(boundary < 9, boundary > 0), True, False)
-    return np.logical_xor(ice_mask, boundary)
+
 ref_inner_mask = compute_inner_mask(ref_ice_mask)
 #plt.figure()
 #plt.imshow(ref_ice_mask)

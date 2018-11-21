@@ -128,7 +128,7 @@ def create_noise(gdir, std=3, zoom=-1, glacier_only=True):
 
 
 def create_perlin_noise(gdir, desired_rmse=5., octaves=1, base=1., freq=8.0,
-                        glacier_only=True):
+                        glacier_only=True, use=True):
     """
     TODO: Documentation
 

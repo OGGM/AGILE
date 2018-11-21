@@ -18,7 +18,7 @@ from oggm import cfg
 cfg.initialize()
 
 basedir = '/path/to/example'
-basedir = '/media/philipp/Daten/thesis_test2/Giluwe/identical_twin_int_bound'
+basedir = '/data/philipp/thesis/identical_twin'
 
 # TODO: think about IceThicknesses for case Giluwe
 # Choose a case

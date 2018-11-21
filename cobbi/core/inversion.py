@@ -85,8 +85,11 @@ class InversionDirectory(object):
     def clear_dir(self, dir):
         if os.path.exists(dir):
             for f in os.listdir(dir):
-                if not str.endswith(f, '.py'):
+                if (not str.endswith(f, '.py')) and (
+                        not os.path.isdir(os.path.join(dir, f))):
                     os.remove(os.path.join(dir, f))
+                elif os.path.isdir(os.path.join(dir, f)):
+                    shutil.rmtree(os.path.join(dir, f))
         else:
             if not os.path.exists(dir):
                 os.makedirs(dir, exist_ok=True)
@@ -238,20 +241,29 @@ class InversionDirectory(object):
         self.cost_func = create_cost_func(self.gdir, self.data_logger,
                                           self.surf_noise,
                                           self.bed_measurements)
-        res = minimize(fun=self.cost_func,
-                       x0=self.first_guessed_bed.astype(np.float64).flatten(),
-                       method=self.inv_settings['solver'], jac=True,
-                       bounds=bounds,
-                       options=self.inv_settings['minimize_options'],
-                       callback=callback)
+        res = None
+        try:
+            res = minimize(fun=self.cost_func,
+                           x0=self.first_guessed_bed.astype(np.float64).flatten(),
+                           method=self.inv_settings['solver'], jac=True,
+                           bounds=bounds,
+                           options=self.inv_settings['minimize_options'],
+                           callback=callback)
 
-        inverted_bed = res.x.reshape(self.first_guessed_bed.shape)
-        # ----------------------------------------------------------------------
 
-        profile['dtype'] = 'float64'
-        with rasterio.open(self.get_subdir_filepath('inverted_bed'),
-                           'w', **profile) as dst:
-            dst.write(inverted_bed, 1)
+            inverted_bed = res.x.reshape(self.first_guessed_bed.shape)
+            # ----------------------------------------------------------------------
+
+            profile['dtype'] = 'float64'
+            with rasterio.open(self.get_subdir_filepath('inverted_bed'),
+                               'w', **profile) as dst:
+                dst.write(inverted_bed, 1)
+
+        except MemoryError as me:
+            self.write_string_to_file(os.path.join(self.get_current_basedir(),
+                                                   'warning.txt'),
+                                      'Error during iteration: ' + str(me))
+
 
         if self.inv_settings['log_minimize_steps']:
             self.write_string_to_file('log.txt', self.minimize_log)
@@ -259,7 +271,7 @@ class InversionDirectory(object):
             dl.filter_data_from_optimization()  # Optional, if we want to
             data_logging.write_pickle(dl,
                                       self.get_subdir_filepath('data_logger'))
-            dl.plot_all(dir)
-            plt.close('all')
+            #dl.plot_all(dir)
+            #plt.close('all')
 
         return res

@@ -1,15 +1,18 @@
 import numpy as np
+import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import os
+import shutil
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.ticker as ticker
-
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 import matplotlib.font_manager as fm
-fontprops = fm.FontProperties(size=18)
-
-#from cobbi.utils.optimization import LCurveTest
+import salem
+#fontprops = fm.FontProperties(size=18)
+from cobbi.core.data_logging import load_pickle
+from cobbi.core.arithmetics import compute_inner_mask
+from cobbi.core.cost_function import get_costs_arr
 
 class MidpointNormalize(colors.Normalize):
     # see: https://matplotlib.org/users/colormapnorms.html#custom-normalization-two-linear-ranges
@@ -173,16 +176,22 @@ def plot_bed_difference(bed_difference, filepath, case, cbar_min,
                         cbar_max, title=None,
                         ice_mask=None, bed_measurements=None,
                         show_cbar=True, norm=None, cmap='bwr',
-                        figsize=(4.5, 3), cbar_label='bed elevation error (m)'):
+                        figsize=(4.5, 3), cbar_label='bed elevation error (m)',
+                        existing_fig=None):
     plot_differences(bed_difference, filepath, case, cbar_min, cbar_max,
                      title, ice_mask, bed_measurements, show_cbar, norm,
-                     cmap, figsize, cbar_label=cbar_label)
+                     cmap, figsize, cbar_label=cbar_label,
+                     existing_fig=existing_fig)
+
 
 def plot_differences(difference, filepath, case, cbar_min, cbar_max,
                      title=None, ice_mask=None, bed_measurements=None,
                      show_cbar=True, norm=None, cmap='bwr', figsize=(4.5, 3),
-                     cbar_label=None):
-    fig = plt.figure(figsize=figsize)
+                     cbar_label=None, existing_fig=None):
+    fig = existing_fig
+    if existing_fig is None:
+        fig = plt.figure(figsize=figsize)
+
     ax = fig.add_axes(get_axes_coords(case))
     im_b = imshow_ic(ax, difference, case, cmap=cmap, ticks=False,
                      norm=norm, vmin=cbar_min, vmax=cbar_max)
@@ -200,7 +209,8 @@ def plot_differences(difference, filepath, case, cbar_min, cbar_max,
         plot_glacier_contours(ax, ~bed_measurements.mask, case, colors='k',
                               linestyles='solid', linewidths=[2.])
     plt.savefig(filepath)
-    plt.close(fig)
+    if existing_fig is None:
+        plt.close(fig)
 
 
 def plot_surf_difference(surf_difference, filepath, case, cbar_min,
@@ -208,8 +218,164 @@ def plot_surf_difference(surf_difference, filepath, case, cbar_min,
                          ice_mask=None, bed_measurements=None,
                          show_cbar=True, norm=None, cmap='PuOr_r',
                          figsize=(4.5, 3),
-                         cbar_label='surf elevation error (m)'):
+                         cbar_label='surf elevation error (m)',
+                         existing_fig=None):
 
     plot_differences(surf_difference, filepath, case, cbar_min, cbar_max,
                      title, ice_mask, bed_measurements, show_cbar, norm,
-                     cmap, figsize, cbar_label=cbar_label)
+                     cmap, figsize, cbar_label=cbar_label,
+                     existing_fig=existing_fig)
+
+
+def plot_iterative_behaviour(idir, figsize=(4.5, 3), file_extension='png',
+                             reset=False):
+    fig = plt.figure(figsize=figsize)
+    case = idir.gdir.case
+    ref_surf = salem.GeoTiff(idir.gdir.get_filepath('ref_dem')).get_vardata()
+    inv_settings = load_pickle(idir.get_subdir_filepath('inversion_settings'))
+    noise = 0.
+    if os.path.exists(idir.get_subdir_filepath('dem_noise')):
+        noise = np.load(idir.get_subdir_filepath('dem_noise'))
+    noisy_ref_surf = ref_surf + noise
+    ref_ice_mask = np.load(idir.gdir.get_filepath('ref_ice_mask'))
+    ref_inner_mask = compute_inner_mask(ref_ice_mask)
+
+    dl = load_pickle(idir.get_subdir_filepath('data_logger'))
+
+    reg_parameters = inv_settings['reg_parameters']
+    interesting_costs = []
+    cost_names = []
+    for l, lamb in enumerate(reg_parameters):
+        if lamb != 0:
+            interesting_costs.append(l)
+            cost_names.append('J{:d}'.format(l))
+
+    interesting_costs.append(-1)
+    cost_names.append('surf_misfit')
+    # make sure all directories exist:
+    plot_dir = os.path.join(idir.get_current_basedir(), 'plot')
+    if reset:
+        if os.path.exists(plot_dir):
+            shutil.rmtree(plot_dir)
+    #if not os.path.exists(plot_dir):
+    os.makedirs(plot_dir)
+    os.makedirs(os.path.join(plot_dir, 'bed_error'))
+    os.makedirs(os.path.join(plot_dir, 'surf_error'))
+    os.makedirs(os.path.join(plot_dir, 'summed_cost'))
+    os.makedirs(os.path.join(plot_dir, 'gradient'))
+    for c_name in cost_names:
+        os.makedirs(os.path.join(plot_dir, c_name))
+    dl.plot_rmses(plot_dir)
+    dl.plot_c_terms(plot_dir)
+
+    for i in dl.step_indices:
+        plot_iterative_step(dl, i, interesting_costs, cost_names, plot_dir,
+                            case, ref_ice_mask, ref_inner_mask,
+                            noisy_ref_surf, reg_parameters, file_extension,
+                            existing_fig=fig)
+
+    plt.close(fig)
+def plot_iterative_step(dl, i, interesting_costs, cost_names, plot_dir, case,
+                        ref_ice_mask, ref_inner_mask,
+                        noisy_ref_surf, reg_parameters,
+                        file_extension='png', existing_fig=None):
+    base_plotpath = 'iteration{:03d}_{:s}.{:s}'.format(i, '{:s}',
+                                                       file_extension)
+    model_surf = dl.surfs[i]
+    guessed_bed = dl.beds[i]
+    surf_diff = model_surf - dl.ref_surf
+    bed_diff = guessed_bed - dl.true_bed
+    model_ice_mask = (model_surf - guessed_bed) > 0
+    model_inner_mask = compute_inner_mask(model_ice_mask)
+    costs_arr = get_costs_arr(reg_parameters, noisy_ref_surf, ref_ice_mask,
+                              ref_inner_mask, guessed_bed, model_surf,
+                              model_ice_mask, model_inner_mask, case.dx)
+
+    cmap_bed_diff = plt.get_cmap('seismic')
+    cmap_surf_diff = plt.get_cmap('PuOr_r')
+    cmap_gradient = plt.get_cmap('BrBG')
+    cmap_list = [sns.diverging_palette(240, 0, l=40, s=99, as_cmap=True),
+                 sns.diverging_palette(240, 42.5, l=40, s=99, as_cmap=True),
+                 sns.diverging_palette(240, 85, l=40, s=99, as_cmap=True),
+                 sns.diverging_palette(240, 127.5, l=40, s=99, as_cmap=True),
+                 sns.diverging_palette(240, 170, l=40, s=99, as_cmap=True),
+                 sns.diverging_palette(240, 212.5, l=40, s=99, as_cmap=True),
+                 sns.diverging_palette(240, 255, l=40, s=99, as_cmap=True)]
+
+    cbar_min = bed_diff.min()
+    cbar_max = bed_diff.max()
+    cbar_min_max = max(abs(cbar_min), abs(cbar_max))
+    norm = MidpointNormalize(midpoint=0., vmin=-cbar_min_max,
+                             vmax=cbar_min_max)
+    plotpath = os.path.join(plot_dir, 'bed_error',
+                            base_plotpath.format('bed_error'))
+    plot_bed_difference(bed_diff, plotpath, case,
+                        ice_mask=ref_ice_mask,
+                        bed_measurements=None,
+                        cbar_min=cbar_min, cbar_max=cbar_max,
+                        show_cbar=True, norm=norm, cmap=cmap_bed_diff,
+                        existing_fig=existing_fig)
+    existing_fig.clear()
+
+    cbar_min = surf_diff.min()
+    cbar_max = surf_diff.max()
+    cbar_min_max = max(abs(cbar_min), abs(cbar_max))
+    norm = MidpointNormalize(midpoint=0., vmin=-cbar_min_max,
+                             vmax=cbar_min_max)
+    plotpath = os.path.join(plot_dir, 'surf_error',
+                            base_plotpath.format('surf_error'))
+    plot_surf_difference(surf_diff, plotpath, case,
+                         ice_mask=ref_ice_mask,
+                         bed_measurements=None,
+                         cbar_min=cbar_min, cbar_max=cbar_max,
+                         show_cbar=True, norm=norm, cmap=cmap_surf_diff,
+                         existing_fig=existing_fig)
+    existing_fig.clear()
+
+    cbar_min = dl.grads[i].min()
+    cbar_max = dl.grads[i].max()
+    cbar_min_max = max(abs(cbar_min), abs(cbar_max))
+    norm = MidpointNormalize(midpoint=0., vmin=-cbar_min_max,
+                             vmax=cbar_min_max)
+    plotpath = os.path.join(plot_dir, 'gradient',
+                            base_plotpath.format('gradient'))
+    plot_differences(dl.grads[i].reshape(surf_diff.shape), plotpath, case,
+                     ice_mask=ref_ice_mask,
+                     bed_measurements=None, cbar_min=cbar_min,
+                     cbar_max=cbar_max, show_cbar=True, norm=norm,
+                     cmap=cmap_gradient,
+                     cbar_label='gradient of cost function (m$^{-1}$)',
+                     existing_fig=existing_fig)
+    existing_fig.clear()
+
+    for j in interesting_costs:
+        cbar_min = 0
+        cbar_max = costs_arr[j].max()
+        cbar_min_max = max(abs(cbar_min), abs(cbar_max))
+        norm = MidpointNormalize(midpoint=0., vmin=-cbar_min_max,
+                                 vmax=cbar_min_max)
+        plotpath = os.path.join(plot_dir, cost_names[j],
+                                base_plotpath.format(cost_names[j]))
+        plot_differences(costs_arr[j], plotpath, case, ice_mask=ref_ice_mask,
+                         bed_measurements=None, cbar_min=cbar_min,
+                         cbar_max=cbar_max, show_cbar=True, norm=norm,
+                         cmap=cmap_list[j],
+                         cbar_label='{:s} (m$^2$)'.format(cost_names[j]),
+                         existing_fig=existing_fig)
+        existing_fig.clear()
+
+    summed_costs = np.sum(costs_arr, axis=0)
+    cbar_min = 0
+    cbar_max = summed_costs.max()
+    cbar_min_max = max(abs(cbar_min), abs(cbar_max))
+    #norm = MidpointNormalize(midpoint=0., vmin=-cbar_min_max,
+    #                         vmax=cbar_min_max)
+    plotpath = os.path.join(plot_dir, 'summed_cost',
+                            base_plotpath.format('summed_cost'))
+    plot_differences(summed_costs, plotpath, case, ice_mask=ref_ice_mask,
+                     bed_measurements=None, cbar_min=cbar_min,
+                     cbar_max=cbar_max, show_cbar=True, norm=None,
+                     cmap='gist_heat_r',
+                     cbar_label='summed cost (m$^2$)')
+    existing_fig.clear()
+    # TODO: bed_measurements, ...

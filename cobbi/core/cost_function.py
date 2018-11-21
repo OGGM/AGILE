@@ -25,10 +25,10 @@ def create_cost_func(gdir, data_logger=None, surface_noise=None,
 
     # precompute known data to avoid recomputation during each call of
     # cost_fucntion
-    conv_filter = torch.ones((1, 1, 3, 3), requires_grad=False)
+    #conv_filter = torch.ones((1, 1, 3, 3), requires_grad=False)
     # TODO: think about whether cross is better suited (in forward model no diagonal transport
-    #conv_filter = torch.tensor([[[[0, 1, 0], [1, 1, 1], [0, 1, 0]]]],
-    #                           dtype=torch.float, requires_grad=True)
+    conv_filter = torch.tensor([[[[0, 1, 0], [1, 1, 1], [0, 1, 0]]]],
+                               dtype=torch.float, requires_grad=True)
     spinup_surf = salem.GeoTiff(gdir.get_filepath('spinup_dem')).get_vardata()
     ref_surf = salem.GeoTiff(gdir.get_filepath('ref_dem')).get_vardata()
     if surface_noise is not None:
@@ -226,8 +226,10 @@ def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_be
                   - 2 * guessed_bed[:, 1:-1]) / dx ** 2
         ddb_dy = (guessed_bed[:-2, :] + guessed_bed[2:, :]
                   - 2 * guessed_bed[1:-1, :]) / dx ** 2
-        ddb_dx = ddb_dx * (model_ice_mask - model_inner_mask)[:, 1:-1]
-        ddb_dy = ddb_dy * (model_ice_mask - model_inner_mask)[1:-1, :]
+        ddb_dx = ddb_dx * margin[:, 1:-1]
+        ddb_dy = ddb_dy * margin[1:-1, :]
+        #ddb_dx = ddb_dx * ref_ice_mask[:, 1:-1]
+        #ddb_dy = ddb_dy * ref_ice_mask[1:-1, :]
         cost[3] = reg_parameters[3] \
                   * ((ddb_dx.pow(2).sum() + ddb_dy.pow(2).sum()))
 
@@ -340,4 +342,93 @@ class LocalMeanSquaredDifference(torch.autograd.Function):
         modelled_surf, observed_surf, ice_region, ice_mask, bed = ctx.saved_tensors
         grad_modelled_surf = (modelled_surf - observed_surf) * ice_mask
         return None, None, None, None, grad_modelled_surf
+
+
+
+def get_costs_arr(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask,
+                  guessed_bed, model_surf, model_ice_mask, model_inner_mask,
+                  dx):
+
+    margin = np.logical_xor(ref_ice_mask, ref_inner_mask)
+    cost = np.zeros(len(reg_parameters) + 1).tolist()
+
+    # TODO recheck all indices for reg_parameters and cost
+    cost[-1] = ((ref_surf - model_surf) * ref_inner_mask)**2  # Big
+    #  TODO
+    cost[0] = reg_parameters[0] * \
+              ((ref_surf - model_surf) * margin)**2
+
+    if reg_parameters[1] != 0:
+        # penalizes ice thickness, where ice thickness should be 0
+        cost[1] = reg_parameters[1] * (((model_surf - guessed_bed)
+                                        * np.logical_not(ref_ice_mask))**2)
+
+    if reg_parameters[2] != 0:
+        # penalize large derivatives of bed under glacier
+        # -> avoids numerical instabilites
+        db_dx1 = (guessed_bed[:, :-2] - guessed_bed[:, 1:-1]) / dx
+        db_dx2 = (guessed_bed[:, 1:-1] - guessed_bed[:, 2:]) / dx
+        db_dy1 = (guessed_bed[:-2, :] - guessed_bed[1:-1, :]) / dx
+        db_dy2 = (guessed_bed[1:-1, :] - guessed_bed[2:, :]) / dx
+        db_dx_sq = 0.5 * (db_dx1**2 + db_dx2**2) * ref_ice_mask[:,                                                   1:-1]
+        db_dx_sq_full = np.zeros(guessed_bed.shape)
+        db_dx_sq_full[:, 1:-1] = db_dx_sq
+        db_dy_sq = 0.5 * (db_dy1**2 + db_dy2**2) * ref_ice_mask[1:-1,                                 :]
+        db_dy_sq_full = np.zeros(guessed_bed.shape)
+        db_dy_sq_full[1:-1, :] = db_dy_sq
+        cost[2] = reg_parameters[2] * 0.5 * (db_dx_sq_full + db_dy_sq_full)
+        # TODO: think about first squaring forward and backward and then adding vs adding and then squaring
+        # then an additional .abs() is required for db_dx1, ...
+
+    if reg_parameters[3] != 0:
+        # penalize high curvature of bed exactly at boundary pixels of
+        # glacier for a smooth transition from glacier-free to glacier
+        ddb_dx = (guessed_bed[:, :-2] + guessed_bed[:, 2:]
+                  - 2 * guessed_bed[:, 1:-1]) / dx ** 2
+        ddb_dy = (guessed_bed[:-2, :] + guessed_bed[2:, :]
+                  - 2 * guessed_bed[1:-1, :]) / dx ** 2
+
+        ddb_dx = ddb_dx * margin[:, 1:-1]
+        ddb_dy = ddb_dy * margin[1:-1, :]
+        #ddb_dy = ddb_dy * ref_ice_mask[1:-1, :]
+        #ddb_dx = ddb_dx * ref_ice_mask[:, 1:-1]
+        ddb_dx_full = np.zeros(guessed_bed.shape)
+        ddb_dx_full[:, 1:-1] = ddb_dx
+        ddb_dy_full = np.zeros(guessed_bed.shape)
+        ddb_dy_full[1:-1, :] = ddb_dy
+        cost[3] = reg_parameters[3] * (ddb_dx_full**2 + ddb_dy_full**2)
+
+    if len(reg_parameters) > 4 and reg_parameters[4] != 0:
+        # penalize high curvature of surface in glacier bounds
+        dds_dx = (model_surf[:, :-2] + model_surf[:, 2:]
+                  - 2 * model_surf[:, 1:-1]) / dx ** 2
+        dds_dy = (model_surf[:-2, :] + model_surf[2:, :]
+                  - 2 * model_surf[1:-1, :]) / dx ** 2
+        dds_dx_full = np.zeros(guessed_bed.shape)
+        dds_dx_full[:, 1:-1] = dds_dx * model_inner_mask[:, 1:-1]
+        #dds_dy = dds_dy * model_inner_mask[1:-1, :]
+        dds_dy_full = np.zeros(guessed_bed.shape)
+        dds_dy_full[1:-1, :] = dds_dy * model_inner_mask[1:-1, :]
+        cost[4] = reg_parameters[4] \
+                  * (dds_dx_full**2 + dds_dy_full**2)
+
+    if len(reg_parameters) > 5 and reg_parameters[5] != 0:
+        # penalize large derivatives of surface
+        # -> avoids numerical instabilites
+        ds_dx1 = (model_surf[:, :-2] - model_surf[:, 1:-1]) / dx
+        ds_dx2 = (model_surf[:, 1:-1] - model_surf[:, 2:]) / dx
+        ds_dy1 = (model_surf[:-2, :] - model_surf[1:-1, :]) / dx
+        ds_dy2 = (model_surf[1:-1, :] - model_surf[2:, :]) / dx
+        ds_dx_sq = 0.5 * (ds_dx1**2
+                          + ds_dx2**2) * model_inner_mask[:, 1:-1]
+        ds_dy_sq = 0.5 * (ds_dy1**2
+                          + ds_dy2**2) * model_inner_mask[1:-1, :]
+        ds_dx_sq_full = np.zeros(guessed_bed.shape)
+        ds_dx_sq_full[:, 1:-1] = ds_dx_sq
+        ds_dy_sq_full = np.zeros(guessed_bed.shape)
+        ds_dy_sq_full[1:-1, :] = ds_dy_sq
+        cost[5] = reg_parameters[5] * 0.5 * ((ds_dx_sq_full + ds_dy_sq_full))
+        # TODO: think about first squaring forward and backward and then adding vs adding and then squaring
+        # then an additional .abs() is required for db_dx1, ...
+    return cost
 
