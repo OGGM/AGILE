@@ -1,3 +1,4 @@
+from copy import deepcopy
 import numpy as np
 #import matplotlib
 #matplotlib.use('GTK3Agg')
@@ -7,6 +8,7 @@ from cobbi.sandbox.perform_run import get_borden_inversion_settings
 from cobbi.sandbox.perform_run import default_bed_measurement_dict
 from cobbi.sandbox.perform_run import default_biased_fg_dict
 from cobbi.sandbox.perform_run import default_rmsed_fg_dict
+from cobbi.sandbox.perform_run import default_surface_noise_dict
 # from cobbi.sandbox.perform_run import reg_parameters_set_A
 # from cobbi.sandbox.perform_run import reg_parameters_set_B
 # from cobbi.sandbox.perform_run import reg_parameters_set_C
@@ -19,14 +21,14 @@ reg_parameters_set_A = np.array([0.2, 1.25, 1e2, 1e5, 0, 0])
 reg_parameters_set_B = np.array([0.2, 1.25, 2e4, 2e7, 0, 0])
 reg_parameters_set_C = np.array([0.2, 1.25, 2e4, 2e7, 1e7, 0])
 
-basedir = '/media/philipp/Daten/erstabgabe'
+basedir = '/home/philipp/erstabgabe'
 case = Borden
 get_my_inversion_settings = get_borden_inversion_settings
 
 run_identical_twin = False
 run_first_guess = False
-run_promised_land = False
-run_bed_measurements = True
+run_promised_land = True
+run_bed_measurements = False
 
 # ======= identical twin ===================================
 if run_identical_twin:
@@ -54,7 +56,6 @@ if run_first_guess:
         idir = perform_run(case, basedir, identical_twin_inversion_settings,
                            biased_fg_dict=bias_dict,
                            rmsed_fg_dict=rmse_dict,
-        #create_synthetic_glacier=True)
                            create_synthetic_glacier=False)
         plot_iterative_behaviour(idir)
 
@@ -63,26 +64,16 @@ if run_promised_land:
     set_A = reg_parameters_set_A.copy()
     set_B = reg_parameters_set_B.copy()
     set_C = reg_parameters_set_C.copy()
-    #    set_C_custom = reg_parameters_set_C.copy()
-    #    set_C_custom[4] = 1e7
-    #    set_C_custom2 = reg_parameters_set_C.copy()
-    #    set_C_custom2[4] = 1e8
     promised_land_experiments = [
-        #       ('promised land 1a', promised_land_1_dict, set_A),
-        #       ('promised land 1b', promised_land_1_dict, set_B),
-        #       ('promised land 1c', promised_land_1_dict, set_C),
-#        ('promised land 1c custom', promised_land_1_dict, set_C_custom),
-#        ('promised land 1c custom2', promised_land_1_dict, set_C_custom2),
-        ('promised land 2a', promised_land_2_dict, set_A),
-        ('promised land 2b', promised_land_2_dict, set_B),
-#        ('promised land 2c', promised_land_2_dict, set_C),
-#        ('promised land 2c custom', promised_land_2_dict, set_C_custom),
-#        ('promised land 2c custom2', promised_land_2_dict, set_C_custom2),
-        ('promised land 3a', promised_land_3_dict, set_A),
-#        ('promised land 3b', promised_land_3_dict, set_B),
-#        ('promised land 3c', promised_land_3_dict, set_C)
-        #        ('promised land 3c custom', promised_land_3_dict, set_C_custom),
-        #        ('promised land 3c custom2', promised_land_3_dict, set_C_custom2)
+        #('promised land 1a', promised_land_1_dict, set_A),
+        #('promised land 1b', promised_land_1_dict, set_B),
+        #('promised land 1c', promised_land_1_dict, set_C),
+        #('promised land 2a', promised_land_2_dict, set_A),
+        #('promised land 2b', promised_land_2_dict, set_B),
+        #('promised land 2c', promised_land_2_dict, set_C),
+        #('promised land 3a', promised_land_3_dict, set_A),
+        ('promised land 3b', promised_land_3_dict, set_B),
+        #('promised land 3c', promised_land_3_dict, set_C)
         ]
 
     for exp_name, surf_noise_dict, reg_parameters_set in \
@@ -91,7 +82,6 @@ if run_promised_land:
             exp_name, reg_parameters_set)
         idir = perform_run(case, basedir, identical_twin_inversion_settings,
                            surface_noise_dict=surf_noise_dict,
-        #create_synthetic_glacier=True)
                            create_synthetic_glacier=False)
         plot_iterative_behaviour(idir)
 
@@ -103,19 +93,15 @@ if run_bed_measurements:
     set_B[5] = 1
     set_C = reg_parameters_set_C.copy()
     set_C[5] = 1
-    #    set_C_custom = set_C.copy()
-    #    set_C_custom[4] = 1e7
-    #    set_C_custom2 = set_C.copy()
-    #    set_C_custom2[4] = 1e8
     bed_measurement_experiments = [
-        ('promised land 3c star ', promised_land_3_dict, set_C,
-         bed_measurement_masks.Borden_horizontal),
-        #        ('promised land 3c custom star ', promised_land_3_dict, set_C_custom,
-        #         bed_measurement_masks.Borden_horizontal),
-#        ('promised land 3c custom2 star ', promised_land_3_dict, set_C_custom2,
+#        ('promised land 3c star ', promised_land_3_dict, set_C,
 #         bed_measurement_masks.Borden_horizontal),
 #        ('identical-twin star', default_surface_noise_dict, set_A,
-#         bed_measurement_masks.Borden_horizontal)
+#         bed_measurement_masks.Borden_horizontal),
+        #('promised land 3c star 2', promised_land_3_dict, set_C,
+         #bed_measurement_masks.Borden_horizontal2),
+        ('identical-twin star 2', default_surface_noise_dict, set_A,
+         bed_measurement_masks.Borden_horizontal2)
         ]
 
     for exp_name, surf_noise_dict, reg_parameters_set, measurement_mask in \

@@ -24,35 +24,33 @@ reg_parameters_set_A = np.array([0.2, 1.25, 1e2, 1e5, 0, 0])
 reg_parameters_set_B = np.array([0.2, 1.25, 1e3, 1e6, 0, 0])
 reg_parameters_set_C = np.array([0.2, 1.25, 1e3, 1e6, 1e7, 0])
 
-basedir = '/media/philipp/Daten/erstabgabe'
+basedir = '/home/philipp/erstabgabe'
 case = Giluwe
 get_my_inversion_settings = get_giluwe_inversion_settings
 
-run_identical_twin = False
+run_identical_twin = True
 run_first_guess = False
-run_promised_land = True
+run_promised_land = False
 run_bed_measurements = False
 
 # ======= identical twin ===================================
 if run_identical_twin:
     identical_twin_inversion_settings = get_my_inversion_settings(
         'identical-twin', reg_parameters_set_A)
-    idir = perform_run(case, basedir, identical_twin_inversion_settings,
+    #idir = perform_run(case, basedir, identical_twin_inversion_settings,
                        #create_synthetic_glacier=True)
-                       create_synthetic_glacier=False)
-    plot_iterative_behaviour(idir)
+    #                   create_synthetic_glacier=False)
+    #plot_iterative_behaviour(idir)
     identical_twin_inversion_settings = get_my_inversion_settings(
         'identical-twin b', reg_parameters_set_B)
     idir = perform_run(case, basedir, identical_twin_inversion_settings,
-                       # create_synthetic_glacier=True)
                        create_synthetic_glacier=False)
     plot_iterative_behaviour(idir)
-    identical_twin_inversion_settings = get_my_inversion_settings(
-        'identical-twin c', reg_parameters_set_C)
-    idir = perform_run(case, basedir, identical_twin_inversion_settings,
-                       # create_synthetic_glacier=True)
-                       create_synthetic_glacier=False)
-    plot_iterative_behaviour(idir)
+    #identical_twin_inversion_settings = get_my_inversion_settings(
+    #    'identical-twin c', reg_parameters_set_C)
+    #idir = perform_run(case, basedir, identical_twin_inversion_settings,
+    #                   create_synthetic_glacier=False)
+    #plot_iterative_behaviour(idir)
 
 
 # ======= first guess ======================================
@@ -70,7 +68,6 @@ if run_first_guess:
         idir = perform_run(case, basedir, identical_twin_inversion_settings,
                            biased_fg_dict=bias_dict,
                            rmsed_fg_dict=rmse_dict,
-        #create_synthetic_glacier=True)
                            create_synthetic_glacier=False)
         plot_iterative_behaviour(idir)
 
@@ -82,16 +79,16 @@ if run_promised_land:
     promised_land_3_custom_dict = deepcopy(promised_land_3_dict)
     promised_land_3_custom_dict['desired_rmse'] = 10.001
     promised_land_experiments = [
-#        ('promised land 1a', promised_land_1_dict, set_A),
-#        ('promised land 1b', promised_land_1_dict, set_B),
-        #        ('promised land 1c', promised_land_1_dict, set_C),
-        # ('promised land 2a', promised_land_2_dict, set_A),
-        # ('promised land 2b', promised_land_2_dict, set_B),
-        # ('promised land 2c', promised_land_2_dict, set_C),
-        # ('promised land 3a', promised_land_3_dict, set_A),
-        ('promised land 3a prime', promised_land_3_custom_dict, set_A),
-#        ('promised land 3b', promised_land_3_dict, set_B),
-        #        ('promised land 3c', promised_land_3_dict, set_C)
+        #('promised land 1a', promised_land_1_dict, set_A),
+        #('promised land 1b', promised_land_1_dict, set_B),
+        #('promised land 1c', promised_land_1_dict, set_C),
+        #('promised land 2a', promised_land_2_dict, set_A),
+        ('promised land 2b', promised_land_2_dict, set_B),
+        #('promised land 2c', promised_land_2_dict, set_C),
+        #('promised land 3a', promised_land_3_dict, set_A),
+        #('promised land 3a prime', promised_land_3_custom_dict, set_A),
+        #('promised land 3b', promised_land_3_dict, set_B),
+        #('promised land 3c', promised_land_3_dict, set_C)
         ]
 
     for exp_name, surf_noise_dict, reg_parameters_set in \
@@ -100,7 +97,6 @@ if run_promised_land:
             exp_name, reg_parameters_set)
         idir = perform_run(case, basedir, identical_twin_inversion_settings,
                            surface_noise_dict=surf_noise_dict,
-        #create_synthetic_glacier=True)
                            create_synthetic_glacier=False)
         plot_iterative_behaviour(idir)
 
@@ -136,6 +132,5 @@ if run_bed_measurements:
         idir = perform_run(case, basedir, identical_twin_inversion_settings,
                            surface_noise_dict=surf_noise_dict,
                            bed_measurements_dict=measurement_dict,
-        #create_synthetic_glacier=True)
                            create_synthetic_glacier=False)
         plot_iterative_behaviour(idir)
