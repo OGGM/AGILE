@@ -1,18 +1,20 @@
-import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
-import matplotlib.colors as colors
 import os
 import shutil
-from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+import matplotlib.colors as colors
+import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
-import matplotlib.font_manager as fm
+import numpy as np
 import salem
-#fontprops = fm.FontProperties(size=18)
-from cobbi.core.data_logging import load_pickle
+import seaborn as sns
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
+
 from cobbi.core.arithmetics import compute_inner_mask
 from cobbi.core.cost_function import get_costs_arr
+# fontprops = fm.FontProperties(size=18)
+from cobbi.core.data_logging import load_pickle
+
 
 class MidpointNormalize(colors.Normalize):
     # see: https://matplotlib.org/users/colormapnorms.html#custom-normalization-two-linear-ranges
@@ -238,7 +240,7 @@ def plot_iterative_behaviour(idir, figsize=(4.5, 3), file_extension='png',
         noise = np.load(idir.get_subdir_filepath('dem_noise'))
     noisy_ref_surf = ref_surf + noise
     ref_ice_mask = np.load(idir.gdir.get_filepath('ref_ice_mask'))
-    ref_inner_mask = compute_inner_mask(ref_ice_mask)
+    ref_inner_mask = compute_inner_mask(ref_ice_mask, full_array=True)
 
     dl = load_pickle(idir.get_subdir_filepath('data_logger'))
 
@@ -286,7 +288,7 @@ def plot_iterative_step(dl, i, interesting_costs, cost_names, plot_dir, case,
     surf_diff = model_surf - dl.ref_surf
     bed_diff = guessed_bed - dl.true_bed
     model_ice_mask = (model_surf - guessed_bed) > 0
-    model_inner_mask = compute_inner_mask(model_ice_mask)
+    model_inner_mask = compute_inner_mask(model_ice_mask, full_array=True)
     costs_arr = get_costs_arr(reg_parameters, noisy_ref_surf, ref_ice_mask,
                               ref_inner_mask, guessed_bed, model_surf,
                               model_ice_mask, model_inner_mask, case.dx)

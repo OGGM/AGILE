@@ -1,38 +1,56 @@
 from copy import deepcopy
+
 import numpy as np
-#import matplotlib
-#matplotlib.use('GTKAgg')
-import oggm.cfg; oggm.cfg.initialize()
+# import matplotlib
+# matplotlib.use('GTKAgg')
+import oggm.cfg;
+
+oggm.cfg.initialize()
 from cobbi.sandbox.perform_run import perform_run
 from cobbi.sandbox.perform_run import get_giluwe_inversion_settings
 from cobbi.sandbox.perform_run import default_bed_measurement_dict
 from cobbi.sandbox.perform_run import default_surface_noise_dict
-from cobbi.sandbox.perform_run import default_minimize_options
 from cobbi.sandbox.perform_run import default_biased_fg_dict
 from cobbi.sandbox.perform_run import default_rmsed_fg_dict
-from cobbi.sandbox.perform_run import reg_parameters_set_A
-from cobbi.sandbox.perform_run import reg_parameters_set_B
-from cobbi.sandbox.perform_run import reg_parameters_set_C
+# from cobbi.sandbox.perform_run import reg_parameters_set_A
+# from cobbi.sandbox.perform_run import reg_parameters_set_B
+# from cobbi.sandbox.perform_run import reg_parameters_set_C
 from cobbi.sandbox.run_additional_setting_dicts import *
 
 from cobbi.core.test_cases import Giluwe
 from cobbi.core.visualization import plot_iterative_behaviour
 
-basedir = '/data/philipp/erstabgabe'
+reg_parameters_set_A = np.array([0.2, 1.25, 1e2, 1e5, 0, 0])
+reg_parameters_set_B = np.array([0.2, 1.25, 1e3, 1e6, 0, 0])
+reg_parameters_set_C = np.array([0.2, 1.25, 1e3, 1e6, 1e7, 0])
+
+basedir = '/media/philipp/Daten/erstabgabe'
 case = Giluwe
 get_my_inversion_settings = get_giluwe_inversion_settings
 
 run_identical_twin = False
 run_first_guess = False
-run_promised_land = False
-run_bed_measurements = True
+run_promised_land = True
+run_bed_measurements = False
 
 # ======= identical twin ===================================
 if run_identical_twin:
-    identical_twin_inversion_settings = get_my_inversion_settings('identical-twin',
-                                                                  reg_parameters_set_A)
+    identical_twin_inversion_settings = get_my_inversion_settings(
+        'identical-twin', reg_parameters_set_A)
     idir = perform_run(case, basedir, identical_twin_inversion_settings,
                        #create_synthetic_glacier=True)
+                       create_synthetic_glacier=False)
+    plot_iterative_behaviour(idir)
+    identical_twin_inversion_settings = get_my_inversion_settings(
+        'identical-twin b', reg_parameters_set_B)
+    idir = perform_run(case, basedir, identical_twin_inversion_settings,
+                       # create_synthetic_glacier=True)
+                       create_synthetic_glacier=False)
+    plot_iterative_behaviour(idir)
+    identical_twin_inversion_settings = get_my_inversion_settings(
+        'identical-twin c', reg_parameters_set_C)
+    idir = perform_run(case, basedir, identical_twin_inversion_settings,
+                       # create_synthetic_glacier=True)
                        create_synthetic_glacier=False)
     plot_iterative_behaviour(idir)
 
@@ -61,16 +79,19 @@ if run_promised_land:
     set_A = reg_parameters_set_A.copy()
     set_B = reg_parameters_set_B.copy()
     set_C = reg_parameters_set_C.copy()
+    promised_land_3_custom_dict = deepcopy(promised_land_3_dict)
+    promised_land_3_custom_dict['desired_rmse'] = 10.001
     promised_land_experiments = [
 #        ('promised land 1a', promised_land_1_dict, set_A),
 #        ('promised land 1b', promised_land_1_dict, set_B),
-        ('promised land 1c', promised_land_1_dict, set_C),
-#        ('promised land 2a', promised_land_2_dict, set_A),
-#        ('promised land 2b', promised_land_2_dict, set_B),
-        ('promised land 2c', promised_land_2_dict, set_C),
-#        ('promised land 3a', promised_land_3_dict, set_A),
+        #        ('promised land 1c', promised_land_1_dict, set_C),
+        # ('promised land 2a', promised_land_2_dict, set_A),
+        # ('promised land 2b', promised_land_2_dict, set_B),
+        # ('promised land 2c', promised_land_2_dict, set_C),
+        # ('promised land 3a', promised_land_3_dict, set_A),
+        ('promised land 3a prime', promised_land_3_custom_dict, set_A),
 #        ('promised land 3b', promised_land_3_dict, set_B),
-        ('promised land 3c', promised_land_3_dict, set_C)
+        #        ('promised land 3c', promised_land_3_dict, set_C)
         ]
 
     for exp_name, surf_noise_dict, reg_parameters_set in \

@@ -1,26 +1,20 @@
-import torch
-import matplotlib.pyplot as plt
-import numpy as np
 import os
-import shutil
 from copy import deepcopy
 
-from pysal.contrib.glm.links import inverse_power
+import numpy as np
 
-from cobbi.core import gis, test_cases
-from cobbi.core.utils import NonRGIGlacierDirectory
-from cobbi.core.first_guess import compile_first_guess
-from cobbi.core.first_guess import compile_biased_first_guess
+from cobbi.core import gis
+from cobbi.core.data_manipulation import add_bed_measurements
+from cobbi.core.data_manipulation import add_noise_to_first_guess
+from cobbi.core.data_manipulation import create_perlin_noise, add_surface_noise
+from cobbi.core.data_manipulation import generate_bed_measurements
+from cobbi.core.data_manipulation import take_true_bed_as_first_guess
 from cobbi.core.dynamics import create_glacier
+from cobbi.core.first_guess import compile_biased_first_guess
+from cobbi.core.first_guess import compile_first_guess
 from cobbi.core.inversion import InversionDirectory
 from cobbi.core.table_creation import create_case_table, eval_identical_twin
-from cobbi.sandbox import bed_measurement_masks
-from cobbi.core.data_manipulation import add_bed_measurements
-from cobbi.core.data_manipulation import generate_bed_measurements
-from cobbi.core.data_manipulation import create_perlin_noise, add_surface_noise
-from cobbi.core.data_manipulation import take_true_bed_as_first_guess
-from cobbi.core.data_manipulation import add_noise_to_first_guess
-from oggm import cfg
+from cobbi.core.utils import NonRGIGlacierDirectory
 
 default_minimize_options = {'maxiter': 300, 'ftol': 0.5e-3, 'gtol': 1e-4,
                             'disp': True}

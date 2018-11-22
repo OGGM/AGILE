@@ -1,21 +1,15 @@
-import torch
+# import matplotlib
+# matplotlib.use('Qt5Agg')
+# import seaborn as sns
+# sns.set_style('ticks')
+import os
+
 import matplotlib.pyplot as plt
 import numpy as np
-import os
-import shutil
 
-from cobbi.core import gis, test_cases
-from cobbi.core.utils import NonRGIGlacierDirectory
-from cobbi.core.first_guess import compile_first_guess
-from cobbi.core.inversion import InversionDirectory
-from cobbi.core.dynamics import create_glacier
-from cobbi.sandbox.gradver.cost_function import create_cost_func
-from cobbi.core.inversion import InversionDirectory
-from cobbi.core import data_logging
-from cobbi.core.visualization import plot_gradient
-from cobbi.core.visualization import MidpointNormalize, truncate_colormap,\
-    imshow_ic, plot_glacier_contours, add_colorbar, get_axes_coords
-
+from cobbi.core import test_cases
+from cobbi.core.visualization import MidpointNormalize, imshow_ic, \
+    plot_glacier_contours, add_colorbar, get_axes_coords
 
 output_dir = '/media/philipp/Daten/Dokumente/Studium/Master/Masterarbeit' \
            '/Thesis/figs/gradient_verification'
@@ -75,3 +69,30 @@ cbar.set_label('$\Delta$ gradient of cost function (m$^{-1}$)')
 fname = '{:s}_abs_diff_grad.{:s}'.format(case.name, file_extension)
 plt.savefig(os.path.join(output_dir, fname))
 plt.close(fig)
+
+x_data = fin_diff_grad.flatten()
+y_data = pytorch_grad.flatten()
+lin_fit = np.polyfit(x=x_data, y=y_data, deg=1)
+poly = np.poly1d(lin_fit)
+
+fig, ax = plt.subplots(figsize=figsize)
+ax.axvline(0, color='gray', linewidth=0.5, linestyle='--')
+ax.axhline(0, color='gray', linewidth=0.5, linestyle='--')
+ax.scatter(x_data, y_data, alpha=0.8, s=7)
+ax.plot(x_data, poly(x_data), color='r', linestyle='dashdot',
+        label='$y = {:.3f} x - {:.3f}$\n(fitted)'.format(poly[1], -poly[0]))
+min = np.min([pytorch_grad, fin_diff_grad])
+max = np.max([pytorch_grad, fin_diff_grad])
+ax.plot([min, max], [min, max], color='k', linestyle='dashdot',
+        label='$y = x$')
+ax.legend()
+ax.set_xlabel('Finite difference derivative (m$^{-1}$)')
+ax.set_ylabel('PyTorch derivative (m$^{-1}$)')
+# plt.axis('equal')
+plt.tight_layout()
+# plt.show()
+fname = '{:s}_scatter_plot_grad.{:s}'.format(case.name, file_extension)
+plt.savefig(os.path.join(output_dir, fname))
+plt.close(fig)
+
+print('end')

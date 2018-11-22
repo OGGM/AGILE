@@ -1,11 +1,9 @@
-import numpy as np
-from numpy import ix_
 import xarray as xr
-import torch
+
 torch.utils.backcompat.broadcast_warning.enabled = True
 import os
 
-from oggm import cfg, utils
+from oggm import cfg
 from oggm.cfg import G, SEC_IN_YEAR, SEC_IN_DAY, SEC_IN_MONTH
 
 # BIG TODO: re-check entire model
@@ -395,9 +393,9 @@ class Upstream2D(Model2D):
         # TODO: track for memory leak
         # do not allow for less than a tenth of 'usual' time stepping to avoid
         # memory overflow (restrict it to 1000 times minimal ...
-        if dt_cfl != dt and dt_cfl / self.max_dt < 0.001:
+        if dt_cfl != dt and dt_cfl / self.max_dt < 0.05:
             print('problem ahead')
-        if dt_cfl != dt and dt_cfl / self.max_dt < 0.001:
+        if dt_cfl != dt and dt_cfl / self.max_dt < 0.05:
             raise MemoryError('Stopping dynamics run to avoid memory overflow')
 
         self.ice_thick[1:-1, 1:-1] = torch.clamp(

@@ -1,7 +1,9 @@
-import torch
-import salem
 import numpy as np
+import salem
+import torch
+
 from cobbi.core.dynamics import run_forward_core
+
 
 def create_cost_func(gdir, data_logger=None, surface_noise=None,
                      bed_measurements=None):
@@ -25,10 +27,10 @@ def create_cost_func(gdir, data_logger=None, surface_noise=None,
 
     # precompute known data to avoid recomputation during each call of
     # cost_fucntion
-    #conv_filter = torch.ones((1, 1, 3, 3), requires_grad=False)
+    conv_filter = torch.ones((1, 1, 3, 3), requires_grad=False)
     # TODO: think about whether cross is better suited (in forward model no diagonal transport
-    conv_filter = torch.tensor([[[[0, 1, 0], [1, 1, 1], [0, 1, 0]]]],
-                               dtype=torch.float, requires_grad=True)
+    # conv_filter = torch.tensor([[[[0, 1, 0], [1, 1, 1], [0, 1, 0]]]],
+    #                           dtype=torch.float, requires_grad=True)
     spinup_surf = salem.GeoTiff(gdir.get_filepath('spinup_dem')).get_vardata()
     ref_surf = salem.GeoTiff(gdir.get_filepath('ref_dem')).get_vardata()
     if surface_noise is not None:

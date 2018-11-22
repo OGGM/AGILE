@@ -17,8 +17,10 @@ def RMSE(a1, a2, ice_mask=None):
     return np.sqrt((dev**2).mean())
 
 
-def compute_inner_mask(ice_mask):
+def compute_inner_mask(ice_mask, full_array=False):
     conv_array = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]])  # TODO
+    if full_array:
+        conv_array = np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]])  # TODO
     inner_mask = convolve2d(ice_mask, conv_array, mode='same') == \
                  conv_array.sum()
     return inner_mask
