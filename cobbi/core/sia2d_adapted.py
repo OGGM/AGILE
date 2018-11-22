@@ -1,10 +1,10 @@
-import xarray as xr
-
-torch.utils.backcompat.broadcast_warning.enabled = True
 import os
 
+import torch
+import xarray as xr
 from oggm import cfg
 from oggm.cfg import G, SEC_IN_YEAR, SEC_IN_DAY, SEC_IN_MONTH
+
 
 # BIG TODO: re-check entire model
 

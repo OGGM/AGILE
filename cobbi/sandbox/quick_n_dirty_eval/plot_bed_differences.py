@@ -1,25 +1,22 @@
-import seaborn as sns
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from matplotlib.colors import ListedColormap
-import numpy as np
 import glob
 import os
-from cobbi.core.data_logging import load_pickle
-from cobbi.sandbox.quick_n_dirty_eval import experiment_naming_engine
-from cobbi.core.visualization import MidpointNormalize, truncate_colormap,\
-    imshow_ic, plot_glacier_contours, add_colorbar, get_axes_coords,\
-    plot_bed_difference
-from cobbi.core import test_cases
+
+import matplotlib.pyplot as plt
+import numpy as np
 from oggm import cfg
 
+from cobbi.core import test_cases
+from cobbi.core.data_logging import load_pickle
+from cobbi.core.visualization import MidpointNormalize, plot_bed_difference
+from cobbi.sandbox.quick_n_dirty_eval import experiment_naming_engine
 
 cfg.initialize()
 
 output_dir = '/media/philipp/Daten/Dokumente/Studium/Master/Masterarbeit' \
            '/Thesis/figs/bed_diff'
-basedir = '/home/philipp/thesis/'
-file_extension = 'pdf'
+basedir = '/media/philipp/Daten/erstabgabe/'
+file_extension = 'png'
 
 
 figsize = (4.5, 3)
@@ -27,20 +24,20 @@ figsize = (4.5, 3)
 
 for case in [test_cases.Giluwe, test_cases.Borden]:
     filepaths = glob.glob(os.path.join(basedir,
-                                       '*/{:s}/*/data_logger.pkl'.format(
+                                       '{:s}/*/data_logger.pkl'.format(
                                            case.name)))
     filepaths = sorted(filepaths)
     for path in filepaths:
         idir, temp = os.path.split(path)
         gdir, exp = os.path.split(idir)
         dl = load_pickle(path)
-        exp_name = experiment_naming_engine.get_experiment_name(exp)
+        exp_name = experiment_naming_engine.get_experiment_name2(exp)
         if exp_name is not None:
             ice_mask = np.load(os.path.join(gdir, 'ref_ice_mask.npy'))
             bed_measurements = None
-            if exp_name.endswith('plus bed'):
+            if '*' in exp_name:
                 bed_measurements = np.load(os.path.join(idir,
-                                                       'bed_measurements.pkl'))
+                                                        'bed_measurements.pkl'))
 
             diff_first_guess = dl.first_guessed_bed - dl.true_bed
             diff_optimized = dl.beds[-1] - dl.true_bed
@@ -54,7 +51,9 @@ for case in [test_cases.Giluwe, test_cases.Borden]:
             plotpath = os.path.join(output_dir,
                                     '{:s}_{:s}_first_guess_bed_error.{'
                                     ':s}'.format(
-                                        case.name, exp_name, file_extension))
+                                        case.name,
+                                        exp_name.replace('*', ' plus bed'),
+                                        file_extension))
             plot_bed_difference(diff_first_guess, plotpath, case,
                                 ice_mask=ice_mask,
                                 bed_measurements=bed_measurements,
@@ -64,7 +63,9 @@ for case in [test_cases.Giluwe, test_cases.Borden]:
 
             plotpath = os.path.join(output_dir,
                                     '{:s}_{:s}_bed_error.{:s}'.format(
-                                        case.name, exp_name, file_extension))
+                                        case.name,
+                                        exp_name.replace('*', ' plus bed'),
+                                        file_extension))
             plot_bed_difference(diff_optimized, plotpath, case,
                                 ice_mask=ice_mask,
                                 bed_measurements=bed_measurements,
@@ -76,10 +77,12 @@ for case in [test_cases.Giluwe, test_cases.Borden]:
 
             # Some more for bed measurements
             if bed_measurements is not None:
-                no_meas_name = exp_name.replace('plus bed', 'without bed')
-                meas_name = exp_name.replace('plus bed', 'with bed')
-                dl_no_meas = load_pickle(os.path.join(basedir,
-                                                      experiment_naming_engine.get_no_bed_measure_folder(exp_name, case.name), 'data_logger.pkl'))
+                no_meas_name = exp_name.replace('*', ' without bed')
+                meas_name = exp_name.replace('*', ' with bed')
+                no_meas_folder_name = exp_name[:str.find(exp_name, '*')]
+                dl_no_meas = load_pickle(os.path.join(basedir, case.name,
+                                                      no_meas_folder_name,
+                                                      'data_logger.pkl'))
                 diff_no_meas = dl_no_meas.beds[-1] - dl_no_meas.true_bed
                 cbar_min = min(diff_no_meas.min(), diff_optimized.min())
                 cbar_max = max(diff_no_meas.max(), diff_optimized.max())

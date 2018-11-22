@@ -40,12 +40,20 @@ def get_experiment_name(exp_folder_name):
     else:
         return None
 
+
+def get_experiment_name2(exp_folder_name):
+    exp_name = exp_folder_name.replace(' star', '*')
+    exp_name = exp_name.replace(' prime', '')
+    return exp_name
+
+
 def get_no_bed_measure_folder(exp_name, case_name):
     folder_dict = {
-        'Giluwe promised land 3c plus bed': 'perturbed_surface/Giluwe/fin 10 scaling 10 1e7',
+        'Giluwe promised land 3c ': 'perturbed_surface/Giluwe/fin 10 scaling 10 1e7',
         'Borden Peninsula promised land 3c plus bed':
             'perturbed_surface/Borden Peninsula/fin 200 scaling 10 1e7',
         'Giluwe identical-twin a plus bed': 'identical_twin/Giluwe/identical twin'
+                                            'identical-twin'
     }
     if case_name + ' ' + exp_name in folder_dict:
         return folder_dict[case_name + ' ' + exp_name]
