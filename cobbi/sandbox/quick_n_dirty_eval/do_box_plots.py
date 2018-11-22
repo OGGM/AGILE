@@ -1,5 +1,4 @@
-mport
-numpy as np
+import numpy as np
 # matplotlib.rcParams['text.usetex'] = True
 # matplotlib.rcParams['text.latex.unicode'] = True
 import matplotlib.pyplot as plt
