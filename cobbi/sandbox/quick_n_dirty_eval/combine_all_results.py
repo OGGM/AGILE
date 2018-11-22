@@ -10,6 +10,7 @@ with open(filepaths[0], 'r') as f:
 filepaths = sorted(filepaths)
 
 for path in filepaths:
+    print('\'' + os.path.split(os.path.split(path)[0])[1] + '\'')
     with open(path, 'r') as f:
         f.readline()
         line = f.readline()
