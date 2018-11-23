@@ -17,7 +17,8 @@ cfg.initialize()
 
 output_dir = '/media/philipp/Daten/Dokumente/Studium/Master/Masterarbeit' \
            '/Thesis/figs/bed_measurements'
-basedir = '/home/philipp/thesis/'
+basedir = '/media/philipp/Daten/Dokumente/Studium/Master/Masterarbeit' \
+          '/Ergebnisse'
 file_extension = 'pdf'
 
 
@@ -50,17 +51,17 @@ def plot_bed_measurement(measurement_noise, filepath, case, cbar_min,
 
 for case in [test_cases.Giluwe, test_cases.Borden]:
     filepaths = glob.glob(os.path.join(basedir,
-                                       '*/{:s}/*/data_logger.pkl'.format(
+                                       '{:s}/*/data_logger.pkl'.format(
                                            case.name)))
     filepaths = sorted(filepaths)
     for path in filepaths:
         idir, temp = os.path.split(path)
         gdir, exp = os.path.split(idir)
         dl = load_pickle(path)
-        exp_name = experiment_naming_engine.get_experiment_name(exp)
+        exp_name = experiment_naming_engine.get_experiment_name2(exp)
         if exp_name is not None:
 
-            if exp_name.endswith('plus bed'):
+            if '*' in exp_name:
                 ice_mask = np.load(os.path.join(gdir, 'ref_ice_mask.npy'))
                 bed_measurements = np.load(os.path.join(idir,
                                                        'bed_measurements.pkl'))
@@ -78,7 +79,9 @@ for case in [test_cases.Giluwe, test_cases.Borden]:
 
                 plotpath = os.path.join(output_dir,
                                         '{:s}_{:s}_measurement_noise.{:s}'.format(
-                                            case.name, exp_name, file_extension))
+                                            case.name,
+                                            exp_name.replace('*', ' plus bed'),
+                                            file_extension))
                 plot_bed_measurement(measurement_noise, plotpath, case,
                                     ice_mask=ice_mask,
                                     cbar_min=cbar_min, cbar_max=cbar_max,

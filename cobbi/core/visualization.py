@@ -168,9 +168,9 @@ def add_colorbar(fig, ax, mappable, norm=None, extend='neither'):
 
 def get_axes_coords(case):
     if case.name == 'Giluwe':
-        return [0., 0.05, 0.9, 0.9]  # left, bottom, width, height
+        return [0., 0.015, 0.75, 0.97]  # left, bottom, width, height
     elif case.name == 'Borden Peninsula':
-        return [0., 0.015, 0.85, 0.97]  # left, bottom, width,
+        return [0., 0.015, 0.75, 0.97]  # left, bottom, width,
         # height
 
 

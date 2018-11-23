@@ -7,6 +7,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
+from cobbi.core.arithmetics import RMSE, mean_BIAS
 from cobbi.core import test_cases
 from cobbi.core.visualization import MidpointNormalize, imshow_ic, \
     plot_glacier_contours, add_colorbar, get_axes_coords
@@ -73,26 +74,45 @@ plt.close(fig)
 x_data = fin_diff_grad.flatten()
 y_data = pytorch_grad.flatten()
 lin_fit = np.polyfit(x=x_data, y=y_data, deg=1)
+print(lin_fit)
 poly = np.poly1d(lin_fit)
 
-fig, ax = plt.subplots(figsize=figsize)
+fig, ax = plt.subplots(figsize=(4.5, 3.5))
 ax.axvline(0, color='gray', linewidth=0.5, linestyle='--')
 ax.axhline(0, color='gray', linewidth=0.5, linestyle='--')
 ax.scatter(x_data, y_data, alpha=0.8, s=7)
-ax.plot(x_data, poly(x_data), color='r', linestyle='dashdot',
-        label='$y = {:.3f} x - {:.3f}$\n(fitted)'.format(poly[1], -poly[0]))
+ax.plot(x_data, poly(x_data), color='r', linestyle='dotted',
+        label='$y \\approx {:.3f} x - {:.3f}$\n(fitted)'.format(poly[1],
+                                                                -poly[0]))
 min = np.min([pytorch_grad, fin_diff_grad])
 max = np.max([pytorch_grad, fin_diff_grad])
-ax.plot([min, max], [min, max], color='k', linestyle='dashdot',
+ax.plot([min, max], [min, max], color='k', linestyle='dotted',
         label='$y = x$')
 ax.legend()
 ax.set_xlabel('Finite difference derivative (m$^{-1}$)')
 ax.set_ylabel('PyTorch derivative (m$^{-1}$)')
 # plt.axis('equal')
+ax.yaxis.set_ticks_position('right')
+ax.yaxis.set_label_position('right')
 plt.tight_layout()
 # plt.show()
 fname = '{:s}_scatter_plot_grad.{:s}'.format(case.name, file_extension)
 plt.savefig(os.path.join(output_dir, fname))
 plt.close(fig)
+
+print('Correlation coefficient:')
+print(np.corrcoef(x_data, y_data))
+print('Bias:')
+print(mean_BIAS(x_data, y_data))
+print('RMSE:')
+print(RMSE(x_data, y_data))
+print('Abs mean:')
+print(np.abs(x_data).mean())
+print(np.abs(y_data).mean())
+y_data2 = 1 / poly[1] * y_data
+print('Bias2:')
+print(mean_BIAS(x_data, y_data2))
+print('RMSE2:')
+print(RMSE(x_data, y_data2))
 
 print('end')

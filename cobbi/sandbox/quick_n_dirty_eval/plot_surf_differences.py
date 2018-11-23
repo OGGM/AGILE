@@ -19,7 +19,8 @@ cfg.initialize()
 
 output_dir = '/media/philipp/Daten/Dokumente/Studium/Master/Masterarbeit' \
            '/Thesis/figs/surf_diff'
-basedir = '/home/philipp/thesis/'
+basedir = '/media/philipp/Daten/Dokumente/Studium/Master/Masterarbeit' \
+          '/Ergebnisse'
 file_extension = 'pdf'
 
 
@@ -28,14 +29,14 @@ figsize = (4.5, 3)
 
 for case in [test_cases.Giluwe, test_cases.Borden]:
     filepaths = glob.glob(os.path.join(basedir,
-                                       '*/{:s}/*/data_logger.pkl'.format(
+                                       '{:s}/*/data_logger.pkl'.format(
                                            case.name)))
     filepaths = sorted(filepaths)
     for path in filepaths:
         idir, temp = os.path.split(path)
         gdir, exp = os.path.split(idir)
         dl = load_pickle(path)
-        exp_name = experiment_naming_engine.get_experiment_name(exp)
+        exp_name = experiment_naming_engine.get_experiment_name2(exp)
         if exp_name is not None:
             print(exp_name + ' ' + case.name)
             ice_mask = np.load(os.path.join(gdir, 'ref_ice_mask.npy'))
@@ -59,15 +60,28 @@ for case in [test_cases.Giluwe, test_cases.Borden]:
                 plotpath = os.path.join(output_dir,
                                         '{:s}_{:s}_surf_noise.{'
                                         ':s}'.format(
-                                            case.name, exp_name, file_extension))
+                                            case.name,
+                                            exp_name.replace('*', ' plus bed'),
+                                            file_extension))
                 plot_surf_difference(surf_noise, plotpath, case,
                                      ice_mask=ice_mask, cbar_min=cbar_min,
                                      cbar_max=cbar_max, show_cbar=False,
                                      norm=norm, cmap=my_cmap, figsize=figsize)
+                print(np.corrcoef(surf_noise.flatten(),
+                                  diff_optimized_surf.flatten())[0, 1])
+                if False:  # exp_name == "promised land 3b":
+                    plt.figure()
+                    plt.scatter(surf_noise.flatten(),
+                                diff_optimized_surf.flatten())
+                    plt.xlim([-50, 50])
+                    plt.ylim([-50, 50])
+                    plt.show()
 
             plotpath = os.path.join(output_dir,
                                     '{:s}_{:s}_surf_error.{:s}'.format(
-                                        case.name, exp_name, file_extension))
+                                        case.name,
+                                        exp_name.replace('*', ' plus bed'),
+                                        file_extension))
             plot_surf_difference(diff_optimized_surf, plotpath, case,
                                  ice_mask=ice_mask, cbar_min=cbar_min,
                                  cbar_max=cbar_max, show_cbar=True,

@@ -15,8 +15,9 @@ cfg.initialize()
 
 output_dir = '/media/philipp/Daten/Dokumente/Studium/Master/Masterarbeit' \
            '/Thesis/figs/bed_diff'
-basedir = '/media/philipp/Daten/erstabgabe/'
-file_extension = 'png'
+basedir = '/media/philipp/Daten/Dokumente/Studium/Master/Masterarbeit' \
+          '/Ergebnisse'
+file_extension = 'pdf'
 
 
 figsize = (4.5, 3)
