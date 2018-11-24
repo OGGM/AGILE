@@ -228,21 +228,25 @@ def plot_surf_difference(surf_difference, filepath, case, cbar_min,
                      cmap, figsize, cbar_label=cbar_label,
                      existing_fig=existing_fig)
 
+def get_subdir_filepath(gdir, subdir, filepath):
+    my_dir, my_file = os.path.split(gdir.get_filepath(filepath))
+    return os.path.join(my_dir, subdir, my_file)
 
-def plot_iterative_behaviour(idir, figsize=(4.5, 3), file_extension='png',
-                             reset=False):
+def plot_iterative_behaviour(gdir, subdir, figsize=(4.5, 3),
+                             file_extension='png', reset=False):
     fig = plt.figure(figsize=figsize)
-    case = idir.gdir.case
-    ref_surf = salem.GeoTiff(idir.gdir.get_filepath('ref_dem')).get_vardata()
-    inv_settings = load_pickle(idir.get_subdir_filepath('inversion_settings'))
+    case = gdir.case
+    ref_surf = salem.GeoTiff(gdir.get_filepath('ref_dem')).get_vardata()
+    inv_settings = load_pickle(get_subdir_filepath(gdir, subdir,
+                               'inversion_settings'))
     noise = 0.
-    if os.path.exists(idir.get_subdir_filepath('dem_noise')):
-        noise = np.load(idir.get_subdir_filepath('dem_noise'))
+    if os.path.exists(get_subdir_filepath(gdir, subdir, 'dem_noise')):
+        noise = np.load(get_subdir_filepath(gdir, subdir,'dem_noise'))
     noisy_ref_surf = ref_surf + noise
-    ref_ice_mask = np.load(idir.gdir.get_filepath('ref_ice_mask'))
+    ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
     ref_inner_mask = compute_inner_mask(ref_ice_mask, full_array=True)
 
-    dl = load_pickle(idir.get_subdir_filepath('data_logger'))
+    dl = load_pickle(get_subdir_filepath(gdir, subdir, 'data_logger'))
 
     reg_parameters = inv_settings['reg_parameters']
     interesting_costs = []
@@ -255,7 +259,7 @@ def plot_iterative_behaviour(idir, figsize=(4.5, 3), file_extension='png',
     interesting_costs.append(-1)
     cost_names.append('surf_misfit')
     # make sure all directories exist:
-    plot_dir = os.path.join(idir.get_current_basedir(), 'plot')
+    plot_dir = os.path.join(gdir.dir, subdir, 'plot')
     if reset:
         if os.path.exists(plot_dir):
             shutil.rmtree(plot_dir)

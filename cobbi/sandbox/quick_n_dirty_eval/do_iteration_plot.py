@@ -9,6 +9,7 @@ from cobbi.core.data_logging import load_pickle
 from cobbi.core.test_cases import Giluwe, Borden
 from cobbi.core.utils import NonRGIGlacierDirectory
 from cobbi.core.inversion import InversionDirectory
+from cobbi.core.visualization import plot_iterative_behaviour
 from cobbi.core.arithmetics import *
 from oggm import cfg;
 
@@ -20,16 +21,17 @@ sns.set_palette(sns.color_palette('Set1'))
 # import seaborn as sns
 # sns.set_style('ticks')
 
-basedir = '/media/philipp/Daten/Dokumente/Studium/Master/Masterarbeit' \
-          '/Ergebnisse'
+basedir = '/home/philipp/zweitversuch2'
+    #'/media/philipp/Daten/Dokumente/Studium/Master/Masterarbeit/Ergebnisse'
 
 output_dir = '/media/philipp/Daten/Dokumente/Studium/Master/Masterarbeit' \
              '/Thesis/figs/iteration'
 
 experiment = 'identical-twin'
-case = Giluwe
+case = Borden
 
 gdir = NonRGIGlacierDirectory(case, basedir)
+#plot_iterative_behaviour(gdir, experiment)
 
 spinup_surf = salem.GeoTiff(gdir.get_filepath('spinup_dem')).get_vardata()
 reference_surf = salem.GeoTiff(gdir.get_filepath('ref_dem')).get_vardata()

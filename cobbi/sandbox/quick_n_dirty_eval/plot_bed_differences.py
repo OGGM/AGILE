@@ -13,11 +13,9 @@ from cobbi.sandbox.quick_n_dirty_eval import experiment_naming_engine
 
 cfg.initialize()
 
-output_dir = '/media/philipp/Daten/Dokumente/Studium/Master/Masterarbeit' \
-           '/Thesis/figs/bed_diff'
-basedir = '/media/philipp/Daten/Dokumente/Studium/Master/Masterarbeit' \
-          '/Ergebnisse'
-file_extension = 'pdf'
+output_dir = '/home/philipp/plots'
+basedir = '/home/philipp/erstabgabe/'
+file_extension = 'png'
 
 
 figsize = (4.5, 3)

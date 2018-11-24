@@ -28,5 +28,5 @@ Borden_horizontal[14, 10:27] = 1
 Borden_horizontal[20, 10:27] = 1
 
 Borden_horizontal2 = np.zeros(shape_Borden)
-Borden_horizontal2[15, 10:27] = 1
-Borden_horizontal2[20, 10:27] = 1
+Borden_horizontal2[14, 10:27] = 1
+Borden_horizontal2[19, 10:27] = 1

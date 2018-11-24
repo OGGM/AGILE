@@ -15,8 +15,9 @@ from cobbi.core.first_guess import compile_first_guess
 from cobbi.core.inversion import InversionDirectory
 from cobbi.core.table_creation import create_case_table, eval_identical_twin
 from cobbi.core.utils import NonRGIGlacierDirectory
-
-default_minimize_options = {'maxiter': 300, 'ftol': 0.5e-3, 'gtol': 1e-4,
+default_minimize_options = {'maxiter': 1000, 'ftol': 1e-7, 'gtol': 1e-8,
+                            'disp': True, 'maxcor': 100, 'maxls': 50}
+default_minimize_options1 = {'maxiter': 300, 'ftol': 0.5e-3, 'gtol': 1e-4,
                             'disp': True}
 default_biased_fg_dict={'use': False, 'desired_mean_bias':None}
 default_rmsed_fg_dict={'use': False, 'desired_rmse': None, 'octaves': 4,
@@ -36,6 +37,19 @@ default_Giluwe_inversion_settings = {
     'fg_shape_factor': 1,
     'fg_slope_cutoff_angle': 5,
     'fg_interp_boundary': False,
+    'bounds_min_max': (None, 600)
+    }
+default_Giluwe_inversion_settings2 = {
+    'mb_spinup': None,
+    'yrs_spinup': 2000,
+    'yrs_forward_run': 200,
+    'reg_parameters': None,
+    'solver': 'L-BFGS-B',
+    'minimize_options': deepcopy(default_minimize_options),
+    'inversion_subdir': None,
+    'fg_shape_factor': 1,
+    'fg_slope_cutoff_angle': 5,
+    'fg_interp_boundary': True,
     'bounds_min_max': (None, 600)
     }
 default_Borden_inversion_settings = {
@@ -72,6 +86,16 @@ def get_inversion_settings(inversion_subdir, reg_parameters, base_inv_settings):
     base_inv_settings['reg_parameters'] = reg_parameters
     return base_inv_settings
 
+def get_fg_bias_dict(bias=0):
+   return {'use': True, 'desired_mean_bias': bias}
+
+def get_fg_rmse_dict(rmse=0, base=2):
+   return {'use': True, 'desired_rmse': rmse, 'octaves': 4,
+                            'base': base, 'freq': 3, 'glacier_only': True}
+
+def get_surf_rmse_dict(rmse=0, base=2):
+   return {'use': True, 'desired_rmse': rmse, 'octaves': 4,
+                            'base': base, 'freq': 3, 'glacier_only': True}
 
 def perform_run(case, basedir, inversion_settings,
                 create_synthetic_glacier=True,
