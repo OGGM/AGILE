@@ -37,6 +37,8 @@ columns = [
     'surfs',
     'costs',
     'cterms',
+    'optimizedbederror',
+    'optimizedsurferror',
     'optimizedbedrmse',
     'optimizedsurfrmse',
     'optimizedbedbias',
@@ -52,7 +54,8 @@ columns = [
     'iterations',
     'R',
     'dV',
-    'warning'
+    'warning',
+    'dir_path'
 ]
 df = pd.DataFrame(columns=columns)
 for path in filepaths:
@@ -81,16 +84,20 @@ for path in filepaths:
         final_it = dl.surfs[-1] - dl.beds[-1]
         bed_rmse = RMSE(dl.beds[-1], true_bed, ref_ice_mask)
         bed_bias = mean_BIAS(dl.beds[-1], true_bed, ref_ice_mask)
+        bed_error = final_bed - true_bed
         surf_rmse = RMSE(dl.surfs[-1], true_surf, ref_ice_mask)
         surf_bias = mean_BIAS(dl.surfs[-1], true_surf, ref_ice_mask)
+        surf_error = final_surf - true_surf
         dV = (((dl.surfs[-1] - dl.beds[-1]).sum())
               - (true_surf - true_bed).sum()) / (true_surf - true_bed).sum()
     else:
         final_bed = np.ma.masked_all(true_bed.shape)
         final_surf = np.ma.masked_all(true_bed.shape)
         final_it = np.ma.masked_all(true_bed.shape)
+        bed_error = np.ma.masked_all(true_bed.shape)
         bed_rmse = np.nan
         bed_bias = np.nan
+        surf_error = np.ma.masked_all(true_bed.shape)
         surf_rmse = np.nan
         surf_bias = np.nan
         dV = np.nan
@@ -100,32 +107,34 @@ for path in filepaths:
         'experimentgroup': get_experiment_group(experiment),
         'experimentsubgroup': get_experiment_subgroup(experiment),
         'subgroupindex': '',
-        # 'optimizedbed': final_bed,
-        # 'optimizedsurf': final_surf,
-        # 'optimizedicethick': final_it,
-        # 'firstguess': dl.first_guessed_bed,
+        'optimizedbed': final_bed,
+        'optimizedsurf': final_surf,
+        'optimizedicethick': final_it,
+        'firstguess': dl.first_guessed_bed,
         # 'beds': dl.beds,
         # 'surfs': dl.surfs,
         # 'costs': dl.costs,
         # 'cterms': dl.c_terms,
+        'optimizedbederror': bed_error,
         'optimizedbedrmse': bed_rmse,
         'optimizedbedbias': bed_bias,
+        'optimizedsurferror': surf_error,
         'optimizedsurfrmse': surf_rmse,
         'optimizedsurfbias': surf_rmse,
         'firstguessrmse': RMSE(dl.first_guessed_bed, true_bed, ref_ice_mask),
         'firstguessbias': mean_BIAS(dl.first_guessed_bed, true_bed,
                                     ref_ice_mask),
-        # 'surfacenoise': surface_noise,
+        'surfacenoise': surface_noise,
         'surfacenoisermse': RMSE(surface_noise, 0, ref_ice_mask),
         'surfacenoisebias': mean_BIAS(surface_noise, 0, ref_ice_mask),
-        # 'bedmeasurements': bed_measurements,
+        'bedmeasurements': bed_measurements,
         'bedmeasurementsrmse': RMSE(bed_measurements, 0, ref_ice_mask),
         'bedmeasurementsbias': mean_BIAS(bed_measurements, 0, ref_ice_mask),
         'iterations': len(dl.step_indices),
         'dx': case.dx,
-        # 'R': np.corrcoef(final_bed.flatten(), true_bed.flatten())[0, 1],
         'dV': dV,
-        'warning': warning_found
+        'warning': warning_found,
+        'dir_path': inv_subdir
     }
     if new_row['experimentgroup'] == 'fg rmse':
         new_row['subgroupindex'] = new_row['firstguessrmse']
@@ -141,13 +150,29 @@ for path in filepaths:
 
 df = df.sort_values(['experimentgroup', 'experimentsubgroup', 'subgroupindex',
                      'experiment'])
+
 df.to_pickle(os.path.join(basedir, '{:s} dataframe.pkl'.format(case.name)))
-store = pd.HDFStore(os.path.join(basedir,
-                                 '{:s} dataframe.h5'.format(case.name)))
-store['df'] = df
-store.close()
+# store = pd.HDFStore(os.path.join(basedir,
+#                                 '{:s} dataframe.h5'.format(case.name)))
+# store['df'] = df
+# store.close()
+cols_to_drop = [
+    'optimizedbed',
+    'optimizedsurf',
+    'optimizedicethick',
+    'firstguess',
+    'beds',
+    'surfs',
+    'costs',
+    'cterms',
+    'optimizedbederror',
+    'optimizedsurferror',
+    'surfacenoise',
+    'bedmeasurements'
+]
+
 small_df = df.copy()
-small_df.drop(small_df.select_dtypes(['ndarray']), inplace=True, axis=1)
+small_df.drop(cols_to_drop, inplace=True, axis=1)
 small_df = small_df.to_csv(
     os.path.join(basedir, '{:s} dataframe small.csv'.format(case.name)))
 

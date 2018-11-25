@@ -28,7 +28,6 @@ class MidpointNormalize(colors.Normalize):
         # I'm ignoring masked values and all kinds of edge cases to make a
         # simple example...
         x, y = [self.vmin, self.midpoint, self.vmax], [0, 0.5, 1]
-        #value[~np.isnan(value)] = np.nan # Allow masks
         return np.ma.masked_array(np.interp(value, x, y))
 
 
