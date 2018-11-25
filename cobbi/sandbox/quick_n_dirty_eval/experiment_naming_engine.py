@@ -47,6 +47,52 @@ def get_experiment_name2(exp_folder_name):
     return exp_name
 
 
+def get_experiment_group(experiment):
+    if experiment.startswith('fg rmse'):
+        return 'fg rmse'
+    elif experiment.startswith('fg bias'):
+        return 'fg bias'
+    elif experiment.startswith('identical-twin'):
+        return 'identical-twin'
+    elif experiment.startswith('promised land'):
+        return 'promised land'
+    elif experiment.startswith('bed measurements'):
+        return 'bed measurements'
+
+
+def get_experiment_subgroup(experiment):
+    exp_group = get_experiment_group(experiment)
+    if exp_group == 'fg rmse':
+        base, rmse = get_base_rmse_from_experiment(experiment)
+        return '{:d}'.format(base)
+    elif experiment.startswith('fg bias'):
+        return 'fg bias'
+    elif experiment.startswith('identical-twin'):
+        return 'identical-twin'
+    elif experiment.startswith('promised land'):
+        base, rmse = get_base_rmse_from_experiment(experiment)
+        return '{:d}'.format(base)
+    elif experiment.startswith('bed measurements'):
+        return 'bed measurements'
+
+
+def get_base_rmse_from_experiment(experiment):
+    parts = experiment.split(' ')
+    if experiment.startswith('fg rmse'):
+        if len(experiment) <= 11:
+            base = 2
+            rmse = int(parts[-1])
+        else:
+            rmse = int(parts[2])
+            base = int(parts[-1])
+    if experiment.startswith('promised land'):
+        rmse = int(parts[-1])
+        base = int(parts[2])
+        if base == 1:
+            base = 2
+    return (base, rmse)
+
+
 def get_no_bed_measure_folder(exp_name, case_name):
     folder_dict = {
         'Giluwe promised land 3c ': 'perturbed_surface/Giluwe/fin 10 scaling 10 1e7',
