@@ -23,7 +23,7 @@ file_extension = 'pdf'
 flierprops = dict(marker='.', markerfacecolor='blue', markersize=5,
                   linestyle='none')
 
-case = Giluwe
+case = Borden
 gdir = NonRGIGlacierDirectory(case, basedir)
 ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
 df = pd.read_pickle(os.path.join(basedir,
@@ -32,7 +32,12 @@ fg_rmse_df = df.loc[df['experimentgroup'] == 'fg rmse'].copy()
 del df
 # mask too large rmse giving trouble in Giluwe
 if case is Giluwe:
-    fg_rmse_df = fg_rmse_df.loc[fg_rmse_df['subgroupindex'] < 57]
+    xlim_upper = 58
+    indexlim_upper = 61
+    fg_rmse_df = fg_rmse_df.loc[fg_rmse_df['subgroupindex'] < xlim_upper - 1]
+if case is Borden:
+    xlim_upper = 70
+    indexlim_upper = 73
 
 sgrps = fg_rmse_df.groupby(['experimentsubgroup'])
 for subgroup in sgrps:
@@ -40,7 +45,7 @@ for subgroup in sgrps:
     fig, ax = plt.subplots(figsize=(6, 8.5))
     fg_rmse = fg_rmse_grp['firstguessrmse'].values.tolist()
     # fg_rmse = np.array([fg_rmse[0]] + fg_rmse + [fg_rmse[-1]])
-    fg_rmse_index = np.arange(0, 61)
+    fg_rmse_index = np.arange(0, indexlim_upper)
     ax.fill_between(fg_rmse_index, fg_rmse_index, -fg_rmse_index,
                     alpha=0.2, color='gray')
     ax.axhline(0, color='k')
@@ -52,7 +57,7 @@ for subgroup in sgrps:
                        patch_artist=True, widths=3.5)
     for patch in bplot['boxes']:
         patch.set_facecolor('sienna')
-    x_ticks = np.arange(0, 61, 5)
+    x_ticks = np.arange(0, indexlim_upper, 5)
     ax.set_xticks(x_ticks)
     ax.yaxis.set_ticks_position('both')
     ax.xaxis.set_ticks_position('both')
@@ -61,7 +66,7 @@ for subgroup in sgrps:
 
     ax.set_ylabel('Bed elevation error (m)')
     ax.set_xlabel('First guess RMSE (m)')
-    ax.set_xlim([1, 58])
+    ax.set_xlim([1, xlim_upper])
     ax.set_xticklabels(['' if x % 10 > 0 else str(x)
                         for x in x_ticks])
     ax.tick_params(labelbottom=True)

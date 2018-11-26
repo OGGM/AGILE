@@ -17,7 +17,7 @@ cfg.initialize()
 basedir = '/home/philipp/final'
 outputdir = '/home/philipp/final'
 
-case = Giluwe
+case = Borden
 gdir = NonRGIGlacierDirectory(case, basedir)
 ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
 true_bed = salem.GeoTiff(gdir.get_filepath('dem')).get_vardata()

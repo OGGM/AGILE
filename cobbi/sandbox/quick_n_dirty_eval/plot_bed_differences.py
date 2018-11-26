@@ -13,8 +13,8 @@ from cobbi.sandbox.quick_n_dirty_eval import experiment_naming_engine
 
 cfg.initialize()
 
-output_dir = '/home/philipp/plots'
-basedir = '/home/philipp/erstabgabe/'
+output_dir = '/home/philipp/final/plots/bed_diff'
+basedir = '/home/philipp/final/'
 file_extension = 'png'
 
 
@@ -31,7 +31,7 @@ for case in [test_cases.Giluwe, test_cases.Borden]:
         gdir, exp = os.path.split(idir)
         dl = load_pickle(path)
         exp_name = experiment_naming_engine.get_experiment_name2(exp)
-        if exp_name is not None:
+        if exp_name is not None and len(dl.step_indices) > 0:
             ice_mask = np.load(os.path.join(gdir, 'ref_ice_mask.npy'))
             bed_measurements = None
             if '*' in exp_name:

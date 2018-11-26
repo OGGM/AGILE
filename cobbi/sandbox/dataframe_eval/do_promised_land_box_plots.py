@@ -24,7 +24,7 @@ file_extension = 'pdf'
 flierprops = dict(marker='.', markerfacecolor='blue', markersize=5,
                   linestyle='none')
 
-case = Giluwe
+case = Borden
 gdir = NonRGIGlacierDirectory(case, basedir)
 ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
 df = pd.read_pickle(os.path.join(basedir,
