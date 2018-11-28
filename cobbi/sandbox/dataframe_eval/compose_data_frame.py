@@ -14,8 +14,8 @@ from oggm import cfg;
 
 cfg.initialize()
 
-basedir = '/home/philipp/final'
-outputdir = '/home/philipp/final'
+basedir = '/home/philipp/final3'
+outputdir = '/home/philipp/final3'
 
 case = Borden
 gdir = NonRGIGlacierDirectory(case, basedir)

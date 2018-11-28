@@ -13,8 +13,8 @@ from cobbi.sandbox.quick_n_dirty_eval import experiment_naming_engine
 
 cfg.initialize()
 
-output_dir = '/home/philipp/final/plots/bed_diff'
-basedir = '/home/philipp/final/'
+output_dir = '/home/philipp/plots/bed_diff'
+basedir = '/home/philipp/final2/'
 file_extension = 'png'
 
 

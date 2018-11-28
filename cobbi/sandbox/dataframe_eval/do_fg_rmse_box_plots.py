@@ -17,8 +17,8 @@ from oggm import cfg;
 
 cfg.initialize()
 
-basedir = '/home/philipp/final/'
-output_dir = '/home/philipp/final/plots'
+basedir = '/home/philipp/final3/'
+output_dir = '/home/philipp/final3/plots'
 file_extension = 'pdf'
 flierprops = dict(marker='.', markerfacecolor='blue', markersize=5,
                   linestyle='none')

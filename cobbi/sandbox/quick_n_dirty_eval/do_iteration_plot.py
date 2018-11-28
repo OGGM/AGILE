@@ -21,13 +21,12 @@ sns.set_palette(sns.color_palette('Set1'))
 # import seaborn as sns
 # sns.set_style('ticks')
 
-basedir = '/home/philipp/zweitversuch2'
+basedir = '/home/philipp/final2'
     #'/media/philipp/Daten/Dokumente/Studium/Master/Masterarbeit/Ergebnisse'
 
-output_dir = '/media/philipp/Daten/Dokumente/Studium/Master/Masterarbeit' \
-             '/Thesis/figs/iteration'
+output_dir = '/home/philipp/plots'
 
-experiment = 'identical-twin'
+experiment = 'promised land 2  4'
 case = Borden
 
 gdir = NonRGIGlacierDirectory(case, basedir)

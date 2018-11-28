@@ -102,7 +102,8 @@ def perform_run(case, basedir, inversion_settings,
                 biased_fg_dict=deepcopy(default_biased_fg_dict),
                 rmsed_fg_dict=deepcopy(default_rmsed_fg_dict),
                 surface_noise_dict=deepcopy(default_surface_noise_dict),
-                bed_measurements_dict=deepcopy(default_bed_measurement_dict)):
+                bed_measurements_dict=deepcopy(default_bed_measurement_dict),
+                use_preexisting_fg=False):
     gdir = NonRGIGlacierDirectory(case, basedir)
     gdir.write_inversion_settings(**inversion_settings)
     if create_synthetic_glacier:
@@ -128,7 +129,8 @@ def perform_run(case, basedir, inversion_settings,
         add_bed_measurements(gdir, bed_measurements)
 
     # First guess options
-    compile_first_guess(gdir)
+    if not use_preexisting_fg:
+        compile_first_guess(gdir)
     if biased_fg_dict['use']:
         compile_biased_first_guess(gdir, biased_fg_dict['desired_mean_bias'])
     if rmsed_fg_dict['use']:

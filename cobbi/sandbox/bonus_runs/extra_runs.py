@@ -22,23 +22,23 @@ from cobbi.core.test_cases import Borden, Giluwe
 from cobbi.core.visualization import plot_iterative_behaviour
 
 
-basedir = '/home/philipp/final_01'
+basedir = '/home/philipp/extra1'
+#case = Giluwe
 case = Giluwe
-#case = Borden
 if case.name == 'Borden Peninsula':
     get_my_inversion_settings = get_borden_inversion_settings
-    #reg_parameters_set = np.array([0.2, 1.25, 1e3, 1e6, 0, 0]) # final2
-    #reg_parameters_set = np.array([0.2, 1.25, 1e3, 1e6, 1e6, 0]) # final3
-    reg_parameters_set = np.array([0.2, 1.25, 2e4, 2e7, 0, 0])  # final2
+    reg_parameters_set = np.array([0.2, 1.25, 1e3, 1e6, 0, 0]) # final2
+    reg_parameters_set = np.array([0.2, 1.25, 5e3, 5e6, 0, 0]) # final3
 elif case.name == 'Giluwe':
     get_my_inversion_settings = get_giluwe_inversion_settings
     reg_parameters_set = np.array([0.2, 1.25, 1e3, 1e6, 0, 0])
+    reg_parameters_set = np.array([1.0, 0, 0, 0, 0, 0])
 
 run_identical_twin = False
-run_first_guess_bias = False
+run_first_guess_bias = True
 run_first_guess_rmse = False
 run_promised_land = False
-run_bed_measurements = True
+run_bed_measurements = False
 print(basedir)
 print(case.name)
 print(run_identical_twin)
@@ -59,6 +59,7 @@ if run_identical_twin:
 if run_first_guess_bias:
     fg_bias_experiments = []
     bias_range = np.arange(-80, 81, 5)
+    bias_range = [0]  # extra 1
     for bias in bias_range:
         experiment = ('fg bias {:3d}'.format(bias), get_fg_bias_dict(bias))
         fg_bias_experiments.append(experiment)
@@ -108,9 +109,6 @@ if run_bed_measurements:
     set[5] = 1
     set2 = reg_parameters_set.copy()
     set2[5] = 1e-2
-    set3 = reg_parameters_set.copy()
-    set3[5] = 1e-1
-    base = 3
     #TODO
     bed_measurement_experiments = [
         #('promised land 3b star ', promised_land_3_dict, set_B,
@@ -122,24 +120,7 @@ if run_bed_measurements:
         #('identical-twin star 2', default_surface_noise_dict, set_A,
         # bed_measurement_masks.Borden_horizontal2)
         ]
-    if case is Giluwe:
-        shape = bed_measurement_masks.Giluwe_cross
-        shapename = 'cross'
-#        shape = bed_measurement_masks.Giluwe_upper_tongue
-#        shapename = 'upper tongue'
-    if case is Borden:
-        shape = bed_measurement_masks.Borden_horizontal
-        shapename = 'horizontal'
-#        shape = bed_measurement_masks.Borden_horizontal2
-#        shapename = 'horizontal2'
-    bed_measurement_experiments = []
-    for rmse in [10]: #2, 6
-        experiment = ('bed measurements {:d} {:s} {:2d}'.format(base,
-                                                                shapename,
-                                                                rmse),
-                      get_surf_rmse_dict(rmse, base), set,
-                      shape)
-        bed_measurement_experiments.append(experiment)
+
     for exp_name, surf_noise_dict, reg_parameters_set, measurement_mask in \
             bed_measurement_experiments:
         measurement_dict = default_bed_measurement_dict
@@ -148,10 +129,10 @@ if run_bed_measurements:
 
         identical_twin_inversion_settings = get_my_inversion_settings(
             exp_name, reg_parameters_set)
-        print(exp_name)
+
         idir = perform_run(case, basedir, identical_twin_inversion_settings,
                            surface_noise_dict=surf_noise_dict,
                            bed_measurements_dict=measurement_dict,
-#                           create_synthetic_glacier=True)
+        #create_synthetic_glacier=True)
                            create_synthetic_glacier=False)
         #plot_iterative_behaviour(idir.gdir, idir.inv_settings['inversion_subdir'])

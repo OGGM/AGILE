@@ -1,7 +1,7 @@
 import glob
 import os
 
-basedir = '/home/philipp/final/'
+basedir = '/home/philipp/final4/'
 filepaths = glob.glob(os.path.join(basedir, '*/*/results.csv'))
 
 results = ''
