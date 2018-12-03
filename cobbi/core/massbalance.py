@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 from oggm.core.massbalance import MassBalanceModel
 from oggm import cfg
 from oggm.cfg import SEC_IN_YEAR
@@ -51,12 +52,21 @@ class ClippedLinearMassBalance(MassBalanceModel):
         the mass-balance (same dim as `heights`) (units: [m s-1])
         """
         mb = (heights - self.ela_h) * self.grad
-        if self.max_mb_alt is not None:
-            mb = torch.clamp(mb, max=(self.max_mb_alt - self.ela_h) *
-                                     self.grad)
-        if self.min_mb_alt is not None:
-            mb = torch.clamp(mb, min=(self.min_mb_alt - self.ela_h) *
-                                     self.grad)
+        if type(mb) is torch.Tensor:
+            if self.max_mb_alt is not None:
+                mb = torch.clamp(mb,
+                                 max=(self.max_mb_alt - self.ela_h) * self.grad)
+            if self.min_mb_alt is not None:
+                mb = torch.clamp(mb,
+                                 min=(self.min_mb_alt - self.ela_h) * self.grad)
+        else:
+            if self.max_mb_alt is not None:
+                mb = np.clip(mb, a_min=None,
+                             a_max=(self.max_mb_alt - self.ela_h) * self.grad)
+            if self.min_mb_alt is not None:
+                mb = np.clip(mb,
+                             a_min=(self.min_mb_alt - self.ela_h) * self.grad,
+                             a_max=None)
         return mb / SEC_IN_YEAR / self.rho
 
     def get_annual_mb(self, heights, year=None):

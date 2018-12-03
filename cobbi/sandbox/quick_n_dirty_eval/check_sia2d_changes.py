@@ -1,48 +1,33 @@
 import torch
 import numpy as np
-
-from cobbi.sia2d_adapted import Upstream2D as Up2D_new
+import os
+import matplotlib.pyplot as plt
+from cobbi.core.sia2d_adapted import Upstream2D as Up2D_new
 from oggm.core.sia2d import Upstream2D as Up2D_old
-from cobbi.utils import test_cases
-
+from cobbi.core.test_cases import Giluwe, Borden
+from cobbi.core.utils import NonRGIGlacierDirectory
+from cobbi.core import gis
+from cobbi.core.massbalance import ClippedLinearMassBalance
+from cobbi.core.visualization import MidpointNormalize
+from cobbi.core.visualization import plot_differences_discrete_cmap
 from oggm import cfg
-from oggm import utils
-
-from os import path
 import salem
 
-from cobbi.utils.synthetic_ice_caps import NonRGIGlacierDirectory
-from cobbi.utils.synthetic_ice_caps \
-    import define_nonrgi_glacier_region, smooth_dem_borders
-from cobbi.utils.massbalance_pytorch \
-    import LinearMassBalance
-
 cfg.initialize()
+basedir = '/home/philipp/sia2d'
 
-case = test_cases.Arderin
+case = Giluwe
 y0 = 0
 y_spinup_end = 2000
-y_end = 2800
+y_end = 2200
 
-entity = {'min_x': case.extent[0, 0],
-          'max_x': case.extent[1, 0],
-          'min_y': case.extent[0, 1],
-          'max_y': case.extent[1, 1],
-          'name': case.name}
+gdir = NonRGIGlacierDirectory(case, basedir)
+gis.define_nonrgi_glacier_region(gdir)
 
-# Local working directory (where OGGM will write its output)
-WORKING_DIR = path.join(path.expanduser('~'), 'tmp',
-                        'synthetic_ice_cap', case.name)
-utils.mkdir(WORKING_DIR, reset=False)
-cfg.PATHS['working_dir'] = WORKING_DIR
-
-gdir = NonRGIGlacierDirectory(entity)
-define_nonrgi_glacier_region(gdir, dx=case.dx)
-smooth_dem_borders(gdir, px_count=case.smooth_border_px)
-ds = salem.GeoTiff(gdir.get_filepath('dem', filesuffix='_smooth_border'))
+ds = salem.GeoTiff(gdir.get_filepath('dem'))
 bed_2d = torch.tensor(ds.get_vardata(), dtype=torch.float, requires_grad=False)
 
-mb = LinearMassBalance(case.ela_h, grad=case.mb_grad)
+mb = case.get_mb_model()
 # Create glacier
 with torch.no_grad():
     reference_model = Up2D_old(bed_2d.detach().numpy(),
@@ -71,5 +56,20 @@ with torch.no_grad():
     ice_mask = (reference_surf > bed_2d)
     new = [start_surf, reference_surf, bed_2d]
 
-np.testing.assert_allclose(old[0], new[0])
-np.testing.assert_allclose(old[1], new[1])
+np.save(os.path.join(basedir, '{:s}_old.npy'.format(case.name)), old[1])
+np.save(os.path.join(basedir, '{:s}_new.npy'.format(case.name)), new[1])
+
+diff = (new[1]-old[1]).detach().numpy()
+cbar_min, cbar_max = np.floor(diff.min() * 2) / 2, np.ceil(diff.max() * 2) / 2
+cbar_min_max = max(abs(cbar_min), abs(cbar_max))
+norm = MidpointNormalize(midpoint=0., vmin=-cbar_min_max,
+                         vmax=cbar_min_max)
+plot_differences_discrete_cmap(diff, os.path.join(basedir,
+                                        '{:s}_diff.pdf'.format(case.name)),
+                     case, cbar_min=cbar_min, cbar_max=cbar_max, norm=norm,
+                     cbar_label='Surface elevation difference (m)',
+                               cmap='PuOr_r')
+
+#np.testing.assert_allclose(old[0], new[0])
+#np.testing.assert_allclose(old[1], new[1])
+print('end')

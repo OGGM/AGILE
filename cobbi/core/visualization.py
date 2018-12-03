@@ -4,6 +4,7 @@ import shutil
 import matplotlib.colors as colors
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+from matplotlib.colors import ListedColormap
 import numpy as np
 import salem
 import seaborn as sns
@@ -154,10 +155,12 @@ def get_extent(arr, case):
     ylim = 0.5 * y / dx
     return np.array([-xlim, xlim, -ylim, ylim])
 
-def add_colorbar(fig, ax, mappable, norm=None, extend='neither'):
+def add_colorbar(fig, ax, mappable, norm=None, boundaries=None,
+                 extend='neither'):
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
-    cbar = fig.colorbar(mappable, ax=ax, cax=cax, extend=extend)
+    cbar = fig.colorbar(mappable, ax=ax, cax=cax, extend=extend,
+                        boundaries=boundaries)
     cbar.outline.set_visible(False)
     tick_locator = ticker.MaxNLocator(nbins=5)
     cbar.locator = tick_locator
@@ -171,7 +174,6 @@ def get_axes_coords(case):
     elif case.name == 'Borden Peninsula':
         return [0., 0.015, 0.75, 0.97]  # left, bottom, width,
         # height
-
 
 def plot_bed_difference(bed_difference, filepath, case, cbar_min,
                         cbar_max, title=None,
@@ -227,9 +229,11 @@ def plot_surf_difference(surf_difference, filepath, case, cbar_min,
                      cmap, figsize, cbar_label=cbar_label,
                      existing_fig=existing_fig)
 
+
 def get_subdir_filepath(gdir, subdir, filepath):
     my_dir, my_file = os.path.split(gdir.get_filepath(filepath))
     return os.path.join(my_dir, subdir, my_file)
+
 
 def plot_iterative_behaviour(gdir, subdir, figsize=(4.5, 3),
                              file_extension='png', reset=False):
@@ -280,6 +284,8 @@ def plot_iterative_behaviour(gdir, subdir, figsize=(4.5, 3),
                             existing_fig=fig)
 
     plt.close(fig)
+
+
 def plot_iterative_step(dl, i, interesting_costs, cost_names, plot_dir, case,
                         ref_ice_mask, ref_inner_mask,
                         noisy_ref_surf, reg_parameters,
@@ -384,3 +390,46 @@ def plot_iterative_step(dl, i, interesting_costs, cost_names, plot_dir, case,
                      cbar_label='summed cost (m$^2$)')
     existing_fig.clear()
     # TODO: bed_measurements, ...
+
+
+def plot_differences_discrete_cmap(difference, filepath, case, cbar_min,
+                                   cbar_max, title=None, ice_mask=None,
+                                   bed_measurements=None, show_cbar=True,
+                                   norm=None, cmap='bwr', figsize=(4.5, 3),
+                                   cbar_label=None, existing_fig=None, n=21):
+    if type(cmap) is str:
+        cmap = plt.get_cmap(cmap)
+    cmap = ListedColormap(cmap(np.linspace(0, 1, n, endpoint=True)))
+    cbar_min_max = max(abs(cbar_min), abs(cbar_max))
+    bounds = np.linspace(-cbar_min_max, cbar_min_max, n, endpoint=True)
+    bounds_step = bounds[1] - bounds[0]
+    bounds = bounds[
+        np.logical_and(bounds + bounds_step >= cbar_min,
+                       bounds - bounds_step <= cbar_max)]
+
+    fig = existing_fig
+    if existing_fig is None:
+        fig = plt.figure(figsize=figsize)
+
+    ax = fig.add_axes(get_axes_coords(case))
+    im_b = imshow_ic(ax, difference, case, cmap=cmap, ticks=False,
+                     #norm=norm,
+                     vmin=cbar_min, vmax=cbar_max)
+    cbar = add_colorbar(fig, ax, im_b,
+                        #norm=norm,
+                        boundaries=bounds,
+                        extend='neither')
+    cbar.set_label(cbar_label)
+    cbar.set_clim(-cbar_min_max, cbar_min_max)
+    if not show_cbar:
+        cbar.remove()
+    if title is not None:
+        ax.set_title(title)
+    if ice_mask is not None:
+        plot_glacier_contours(ax, ice_mask, case)
+    if bed_measurements is not None:
+        plot_glacier_contours(ax, ~bed_measurements.mask, case, colors='k',
+                              linestyles='solid', linewidths=[2.])
+    plt.savefig(filepath)
+    if existing_fig is None:
+        plt.close(fig)

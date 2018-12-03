@@ -131,6 +131,7 @@ def define_nonrgi_glacier_region(gdir:NonRGIGlacierDirectory):
         if gdir.case.name == 'Borden Peninsula':
             print('Anti icepatch used')
             dst_array[32, 27] = gdir.case.ela_h - 5
+            dst_array[:2, -4:] = gdir.case.ela_h - 5
         dest.write(dst_array, 1)
 
     for dem_ds in dem_dss:
