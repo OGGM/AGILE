@@ -13,9 +13,9 @@ from cobbi.sandbox.quick_n_dirty_eval import experiment_naming_engine
 
 cfg.initialize()
 
-output_dir = '/home/philipp/plots/bed_diff'
-basedir = '/home/philipp/final2/'
-file_extension = 'png'
+output_dir = '/home/philipp/final/plots/bed_diff'
+basedir = '/home/philipp/final/'
+file_extension = 'pdf'
 
 
 figsize = (4.5, 3)
@@ -34,7 +34,7 @@ for case in [test_cases.Giluwe, test_cases.Borden]:
         if exp_name is not None and len(dl.step_indices) > 0:
             ice_mask = np.load(os.path.join(gdir, 'ref_ice_mask.npy'))
             bed_measurements = None
-            if '*' in exp_name:
+            if exp_name.startswith('bed measurements'):
                 bed_measurements = np.load(os.path.join(idir,
                                                         'bed_measurements.pkl'))
 
@@ -76,9 +76,9 @@ for case in [test_cases.Giluwe, test_cases.Borden]:
 
             # Some more for bed measurements
             if bed_measurements is not None:
-                no_meas_name = exp_name.replace('*', ' without bed')
-                meas_name = exp_name.replace('*', ' with bed')
-                no_meas_folder_name = exp_name[:str.find(exp_name, '*')]
+                no_meas_name = exp_name + ' without bed'
+                meas_name = exp_name + ' with bed'
+                no_meas_folder_name = 'promised land 3 10'
                 dl_no_meas = load_pickle(os.path.join(basedir, case.name,
                                                       no_meas_folder_name,
                                                       'data_logger.pkl'))

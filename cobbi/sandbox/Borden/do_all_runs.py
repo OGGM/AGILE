@@ -21,10 +21,9 @@ from cobbi.sandbox.run_additional_setting_dicts import *
 from cobbi.core.test_cases import Borden, Giluwe
 from cobbi.core.visualization import plot_iterative_behaviour
 
-
-basedir = '/home/philipp/final_01'
+basedir = '/home/philipp/final_03'
 case = Giluwe
-#case = Borden
+case = Borden
 if case.name == 'Borden Peninsula':
     get_my_inversion_settings = get_borden_inversion_settings
     #reg_parameters_set = np.array([0.2, 1.25, 1e3, 1e6, 0, 0]) # final2
@@ -107,9 +106,9 @@ if run_bed_measurements:
     set = reg_parameters_set.copy()
     set[5] = 1
     set2 = reg_parameters_set.copy()
-    set2[5] = 1e-2
+    set2[5] = 1. / 9.
     set3 = reg_parameters_set.copy()
-    set3[5] = 1e-1
+    set3[5] = 0.5
     base = 3
     #TODO
     bed_measurement_experiments = [
@@ -125,19 +124,19 @@ if run_bed_measurements:
     if case is Giluwe:
         shape = bed_measurement_masks.Giluwe_cross
         shapename = 'cross'
-#        shape = bed_measurement_masks.Giluwe_upper_tongue
-#        shapename = 'upper tongue'
+        shape = bed_measurement_masks.Giluwe_upper_tongue
+        shapename = 'upper tongue'
     if case is Borden:
         shape = bed_measurement_masks.Borden_horizontal
         shapename = 'horizontal'
-#        shape = bed_measurement_masks.Borden_horizontal2
-#        shapename = 'horizontal2'
+        # shape  = bed_measurement_masks.Borden_horizontal2
+        # shapename = 'horizontal2'
     bed_measurement_experiments = []
     for rmse in [10]: #2, 6
-        experiment = ('bed measurements {:d} {:s} {:2d}'.format(base,
+        experiment = ('bed measurements fg {:d} {:s} {:2d}'.format(base,
                                                                 shapename,
                                                                 rmse),
-                      get_surf_rmse_dict(rmse, base), set,
+                      get_surf_rmse_dict(rmse, base), set2,
                       shape)
         bed_measurement_experiments.append(experiment)
     for exp_name, surf_noise_dict, reg_parameters_set, measurement_mask in \
@@ -152,6 +151,7 @@ if run_bed_measurements:
         idir = perform_run(case, basedir, identical_twin_inversion_settings,
                            surface_noise_dict=surf_noise_dict,
                            bed_measurements_dict=measurement_dict,
-#                           create_synthetic_glacier=True)
-                           create_synthetic_glacier=False)
+                           create_synthetic_glacier=True,
+                           # create_synthetic_glacier=False,
+                           use_measurements_in_fg=True)
         #plot_iterative_behaviour(idir.gdir, idir.inv_settings['inversion_subdir'])

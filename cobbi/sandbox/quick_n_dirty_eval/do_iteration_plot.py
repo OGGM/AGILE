@@ -4,6 +4,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 from matplotlib.colors import ListedColormap
+from matplotlib.patches import Patch
 import os
 from cobbi.core.data_logging import load_pickle
 from cobbi.core.test_cases import Giluwe, Borden
@@ -21,13 +22,13 @@ sns.set_palette(sns.color_palette('Set1'))
 # import seaborn as sns
 # sns.set_style('ticks')
 
-basedir = '/home/philipp/final2'
+basedir = '/home/philipp/final'
     #'/media/philipp/Daten/Dokumente/Studium/Master/Masterarbeit/Ergebnisse'
+output_dir = '/home/philipp/final/plots'
+file_extension = 'pdf'
 
-output_dir = '/home/philipp/plots'
-
-experiment = 'promised land 2  4'
-case = Borden
+experiment = 'identical-twin'
+case = Giluwe
 
 gdir = NonRGIGlacierDirectory(case, basedir)
 #plot_iterative_behaviour(gdir, experiment)
@@ -91,7 +92,7 @@ available_fill_colors = ['sienna', 'olivedrab', 'mediumpurple',
 
 fig, (ax1, ax2) = plt.subplots(figsize=(8, 5), nrows=2)
 l1 = ax1.semilogy(iteration_index, surf_rmses, label='Surface RMSE',
-                  color='cornflowerblue', linewidth=2)
+                  color='mediumpurple', linewidth=2)
 l2 = ax1.semilogy(iteration_index, bed_rmses, label='Bed RMSE',
                   color='olivedrab', linewidth=2)
 ax1.set_ylabel('RMSE (m)')
@@ -108,27 +109,35 @@ ax1.tick_params(direction='in', which='both')
 ax1.set_xlim(iteration_index[0], iteration_index[-1])
 ax1.tick_params(axis='y', which='minor')
 ax1b = ax1.twinx()
-l3 = ax1b.semilogy(iteration_index, costs, label='Cost', color='crimson',
+l3 = ax1b.semilogy(iteration_index, costs, label='Cost', color='sienna',
                    linewidth=2, linestyle='dashed')
 ax1b.tick_params(direction='in', which='both')
 ax1b.set_ylabel('Cost (m$^2$)')
 lns = l1 + l2 + l3
 labs = [l.get_label() for l in lns]
-ax1b.legend(lns, labs, loc='center right')
+ax1b.legend(lns, labs, ncol=2, loc='upper right', fancybox=False)
 
-flatui = ["#9b59b6", "#3498db", "#95a5a6", "#e74c3c", "#34495e", "#2ecc71"]
+# flatui = ["#9b59b6", "#3498db", "#95a5a6", "#e74c3c", "#34495e", "#2ecc71"]
+flatui = ["#9b59b6", "#3498db", "#e74c3c", "#34495e", "#2ecc71"]
+flatui = flatui[:len(cost_labels)]
 sns.set_palette(sns.color_palette(flatui))
 my_cmap = ListedColormap(sns.color_palette(flatui).as_hex())
 # ax2.stackplot(iteration_index[1:], all_costs, labels=cost_labels)
 # plt.yscale('log')
 df_perc = df.divide(df.sum(axis=1), axis=0) * 100
 df_perc.plot.area(ax=ax2, stacked=True, cmap=my_cmap,
-                  linewidth=2)  # , colors=)
+                  linewidth=0.1)  # , colors=)
 # df.plot(ax=ax2)
 # plt.yscale('log')
 ax2.set_ylabel('Contribution to cost (%)')
 ax2.set_xlabel('Iteration #')
-ax2.legend(labels=cost_labels, frameon=True)  # , loc='upper
+legend_elements = [Patch(facecolor=flatui[len(cost_labels) - 1], edgecolor='k',
+                         label=cost_labels[-1])] \
+                  + [Patch(facecolor=flatui[i], edgecolor='k',
+                           label=cost_labels[i])
+                     for i in range(0, len(cost_labels) - 1)]
+ax2.legend(handles=legend_elements, fancybox=False, frameon=True,
+           loc='center right')  # , loc='upper
 # center',
 # ncol=len(df.columns))
 ax2.xaxis.set_ticks_position('both')
@@ -140,4 +149,6 @@ ax2.set_ylim(0, 100)
 ax2.tick_params(direction='in', which='both', zorder=5000)
 
 plt.tight_layout()
-plt.show()
+plt.savefig(os.path.join(output_dir, 'iteration_plot_{:s}_{:s}.{:s}'.format(
+    case.name, experiment, file_extension)))
+#plt.show()

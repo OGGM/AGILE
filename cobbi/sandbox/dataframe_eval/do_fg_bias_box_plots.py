@@ -22,7 +22,7 @@ file_extension = 'pdf'
 flierprops = dict(marker='.', markerfacecolor='blue', markersize=5,
                   linestyle='none')
 
-case = Borden
+case = Giluwe
 gdir = NonRGIGlacierDirectory(case, basedir)
 ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
 df = pd.read_pickle(os.path.join(basedir,
@@ -31,19 +31,32 @@ print(df.columns.to_series().groupby(df.dtypes).groups)
 fg_bias_df = df.loc[df['experimentgroup'] == 'fg bias'].copy()
 del df
 for key, fg_bias_grp in fg_bias_df.groupby(['experimentsubgroup']):
-    fig, ax = plt.subplots()
-    fg_rmse = fg_bias_grp['firstguessrmse'].values.tolist()
-    fg_rmse = np.array([fg_rmse[0]] + fg_rmse + [fg_rmse[-1]])
-    fg_rmse_index = np.arange(0, fg_rmse.size)
-    ax.fill_between(fg_rmse_index, fg_rmse, -fg_rmse, alpha=0.2, color='gray')
+    fig, ax = plt.subplots(figsize=(6, 4))
+    percentiles = {}
+    for perc in [5, 25, 75, 95]:
+        fg_percentile = fg_bias_grp[
+            'firstguess_{:d}_percentile'.format(perc)
+        ].values.tolist()
+        fg_percentile = np.array(
+            [fg_percentile[0]] + fg_percentile + [fg_percentile[-1]])
+        percentiles[perc] = fg_percentile
+    fg_percentiles_index = np.arange(0, percentiles[perc].size)
+    ax.fill_between(fg_percentiles_index, percentiles[95], percentiles[5],
+                    alpha=0.15, color='gray')
+    ax.fill_between(fg_percentiles_index, percentiles[75], percentiles[25],
+                    alpha=0.5, color='darkgray')
     bed_errs = fg_bias_grp['optimizedbederror'].map(
         lambda x: x[ref_ice_mask]).values
     bplot = ax.boxplot(bed_errs, showfliers=True, whis=[5, 95],
                        flierprops=flierprops, patch_artist=True, widths=0.8)
     for patch in bplot['boxes']:
         patch.set_facecolor('olivedrab')
+    if case is Giluwe:
+        divisor = 10
+    elif case is Borden:
+        divisor = 20
     x_ticklabels = fg_bias_grp['subgroupindex'].map(
-        lambda x: '' if round(x) % 10 > 0 else str(round(x))
+        lambda x: '' if round(x) % divisor > 0 else str(round(x))
     ).values
     ax.set_xticklabels(x_ticklabels)
     ax.yaxis.set_ticks_position('both')
@@ -56,15 +69,19 @@ for key, fg_bias_grp in fg_bias_df.groupby(['experimentsubgroup']):
                              '{:s}_{:s}_boxplot_bed_errors.{:s}'.format(
                                  key, case.name, file_extension)))
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(6, 4))
     surf_errs = fg_bias_grp['optimizedsurferror'].map(
         lambda x: x[ref_ice_mask]).values
     bplot = ax.boxplot(surf_errs, showfliers=True, whis=[5, 95],
                        flierprops=flierprops, patch_artist=True, widths=0.8)
     for patch in bplot['boxes']:
         patch.set_facecolor('cornflowerblue')
+    if case is Giluwe:
+        divisor = 10
+    elif case is Borden:
+        divisor = 20
     x_ticklabels = fg_bias_grp['subgroupindex'].map(
-        lambda x: '' if round(x) % 10 > 0 else str(round(x))
+        lambda x: '' if round(x) % divisor > 0 else str(round(x))
     ).values
     ax.set_xticklabels(x_ticklabels)
     ax.yaxis.set_ticks_position('both')
@@ -95,7 +112,7 @@ for key, fg_bias_grp in fg_bias_df.groupby(['experimentsubgroup']):
     cmap = plt.get_cmap('RdBu_r')
     norm = BoundaryNorm(np.linspace(-1, 1, n, endpoint=True), n)
     for quantity, errs in zip(['bed', 'surf'], [bed_errs, surf_errs]):
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(6, 4))
         cmap = ListedColormap(cmap(np.linspace(0, 1, n, endpoint=True)))
         corr_matrix = np.corrcoef(np.vstack(errs))
         mat = ax.matshow(corr_matrix, cmap=cmap, vmin=corr_matrix.min(),

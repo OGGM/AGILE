@@ -6,7 +6,7 @@ import glob
 import salem
 from cobbi.core.utils import NonRGIGlacierDirectory
 from cobbi.core.test_cases import Borden, Giluwe
-from cobbi.core.arithmetics import RMSE, mean_BIAS
+from cobbi.core.arithmetics import RMSE, mean_BIAS, percentiles
 from cobbi.core.data_logging import load_pickle
 from cobbi.sandbox.quick_n_dirty_eval.experiment_naming_engine import \
     get_experiment_group, get_experiment_subgroup
@@ -14,10 +14,10 @@ from oggm import cfg;
 
 cfg.initialize()
 
-basedir = '/home/philipp/final3'
-outputdir = '/home/philipp/final3'
+basedir = '/home/philipp/final'
+outputdir = '/home/philipp/final'
 
-case = Borden
+case = Giluwe
 gdir = NonRGIGlacierDirectory(case, basedir)
 ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
 true_bed = salem.GeoTiff(gdir.get_filepath('dem')).get_vardata()
@@ -44,10 +44,18 @@ columns = [
     'optimizedbedbias',
     'optimizedsurfbias',
     'firstguessrmse',
-    'firstguessbias'
+    'firstguessbias',
+    'firstguess_5_percentile',
+    'firstguess_25_percentile',
+    'firstguess_75_percentile',
+    'firstguess_95_percentile',
     'surfacenoise',
     'surfacenoisermse',
     'surfacenoisebias',
+    'surfacenoise_5_percentile',
+    'surfacenoise_25_percentile',
+    'surfacenoise_75_percentile',
+    'surfacenoise_95_percentile',
     'bedmeasurements',
     'bedmeasurementsrmse',
     'bedmeasurementsbias',
@@ -74,6 +82,8 @@ for path in filepaths:
         bed_measurements = np.load(os.path.join(gdir.dir, inv_subdir,
                                                 'bed_measurements.pkl'))
     warning_found = False
+    # first_guessed_bed_noise = np.load(os.path.join(gdir.dir, inv_subdir,
+    # 'first_guessed_bed_noise.npy'))
     if os.path.exists(os.path.join(gdir.dir, inv_subdir,
                                    'warning.txt')):
         warning_found = True
@@ -101,7 +111,9 @@ for path in filepaths:
         surf_rmse = np.nan
         surf_bias = np.nan
         dV = np.nan
-
+    first_guess_percentiles = percentiles(dl.first_guessed_bed, true_bed,
+                                          ref_ice_mask)
+    surface_noise_percentiles = percentiles(surface_noise, 0, ref_ice_mask)
     new_row = {
         'experiment': experiment,
         'experimentgroup': get_experiment_group(experiment),
@@ -124,9 +136,17 @@ for path in filepaths:
         'firstguessrmse': RMSE(dl.first_guessed_bed, true_bed, ref_ice_mask),
         'firstguessbias': mean_BIAS(dl.first_guessed_bed, true_bed,
                                     ref_ice_mask),
+        'firstguess_5_percentile': first_guess_percentiles[0],
+        'firstguess_25_percentile': first_guess_percentiles[1],
+        'firstguess_75_percentile': first_guess_percentiles[-2],
+        'firstguess_95_percentile': first_guess_percentiles[-1],
         'surfacenoise': surface_noise,
         'surfacenoisermse': RMSE(surface_noise, 0, ref_ice_mask),
         'surfacenoisebias': mean_BIAS(surface_noise, 0, ref_ice_mask),
+        'surfacenoise_5_percentile': surface_noise_percentiles[0],
+        'surfacenoise_25_percentile': surface_noise_percentiles[1],
+        'surfacenoise_75_percentile': surface_noise_percentiles[-2],
+        'surfacenoise_95_percentile': surface_noise_percentiles[-1],
         'bedmeasurements': bed_measurements,
         'bedmeasurementsrmse': RMSE(bed_measurements, 0, ref_ice_mask),
         'bedmeasurementsbias': mean_BIAS(bed_measurements, 0, ref_ice_mask),

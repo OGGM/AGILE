@@ -12,13 +12,12 @@ from cobbi.core.data_manipulation import take_true_bed_as_first_guess
 from cobbi.core.dynamics import create_glacier
 from cobbi.core.first_guess import compile_biased_first_guess
 from cobbi.core.first_guess import compile_first_guess
+from cobbi.core.first_guess import apply_bed_measurements_to_first_guess
 from cobbi.core.inversion import InversionDirectory
 from cobbi.core.table_creation import create_case_table, eval_identical_twin
 from cobbi.core.utils import NonRGIGlacierDirectory
 default_minimize_options = {'maxiter': 1000, 'ftol': 1e-7, 'gtol': 1e-8,
                             'disp': True, 'maxcor': 100, 'maxls': 50}
-default_minimize_options1 = {'maxiter': 300, 'ftol': 0.5e-3, 'gtol': 1e-4,
-                            'disp': True}
 default_biased_fg_dict={'use': False, 'desired_mean_bias':None}
 default_rmsed_fg_dict={'use': False, 'desired_rmse': None, 'octaves': 4,
                             'base': 2, 'freq': 3, 'glacier_only': True}
@@ -86,24 +85,37 @@ def get_inversion_settings(inversion_subdir, reg_parameters, base_inv_settings):
     base_inv_settings['reg_parameters'] = reg_parameters
     return base_inv_settings
 
+
 def get_fg_bias_dict(bias=0):
    return {'use': True, 'desired_mean_bias': bias}
+
 
 def get_fg_rmse_dict(rmse=0, base=2):
    return {'use': True, 'desired_rmse': rmse, 'octaves': 4,
                             'base': base, 'freq': 3, 'glacier_only': True}
 
+
 def get_surf_rmse_dict(rmse=0, base=2):
    return {'use': True, 'desired_rmse': rmse, 'octaves': 4,
                             'base': base, 'freq': 3, 'glacier_only': True}
 
+
 def perform_run(case, basedir, inversion_settings,
                 create_synthetic_glacier=True,
-                biased_fg_dict=deepcopy(default_biased_fg_dict),
-                rmsed_fg_dict=deepcopy(default_rmsed_fg_dict),
-                surface_noise_dict=deepcopy(default_surface_noise_dict),
-                bed_measurements_dict=deepcopy(default_bed_measurement_dict),
-                use_preexisting_fg=False):
+                biased_fg_dict=None,
+                rmsed_fg_dict=None,
+                surface_noise_dict=None,
+                bed_measurements_dict=None,
+                use_preexisting_fg=False,
+                use_measurements_in_fg=False):
+    if bed_measurements_dict is None:
+        bed_measurements_dict = deepcopy(default_bed_measurement_dict)
+    if surface_noise_dict is None:
+        surface_noise_dict = deepcopy(default_surface_noise_dict)
+    if biased_fg_dict is None:
+        biased_fg_dict = deepcopy(default_biased_fg_dict)
+    if rmsed_fg_dict is None:
+        rmsed_fg_dict = deepcopy(default_rmsed_fg_dict)
     gdir = NonRGIGlacierDirectory(case, basedir)
     gdir.write_inversion_settings(**inversion_settings)
     if create_synthetic_glacier:
@@ -139,6 +151,9 @@ def perform_run(case, basedir, inversion_settings,
         noise = create_perlin_noise(gdir, **rmsed_fg_dict)
         take_true_bed_as_first_guess(gdir)
         add_noise_to_first_guess(gdir, noise)
+
+    if use_measurements_in_fg:
+        apply_bed_measurements_to_first_guess(gdir)
 
     # Maybe some surface noise?
     if surface_noise_dict['use']:

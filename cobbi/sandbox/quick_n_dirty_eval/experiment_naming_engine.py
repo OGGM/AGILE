@@ -78,6 +78,7 @@ def get_experiment_subgroup(experiment):
 
 def get_base_rmse_from_experiment(experiment):
     parts = experiment.split(' ')
+    base, rmse = None, None
     if experiment.startswith('fg rmse'):
         if len(experiment) <= 11:
             base = 2

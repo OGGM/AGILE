@@ -129,7 +129,7 @@ def define_nonrgi_glacier_region(gdir:NonRGIGlacierDirectory):
 
         # TODO: ugly
         if gdir.case.name == 'Borden Peninsula':
-            print('Anti ice patch used')
+            print('Anti icepatch used')
             dst_array[32, 27] = gdir.case.ela_h - 5
         dest.write(dst_array, 1)
 

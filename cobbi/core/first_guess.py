@@ -171,6 +171,18 @@ def interpolate_all_boundary(first_guessed_bed, ice_mask):
     return first_guessed_bed
 
 
+def apply_bed_measurements_to_first_guess(gdir):
+    bed_measurements = np.load(gdir.get_filepath('bed_measurements'))
+    with rasterio.open(gdir.get_filepath('first_guessed_bed')) as src:
+        fg = src.read(1)
+        profile = src.profile
+
+    fg[~bed_measurements.mask] = bed_measurements[~bed_measurements.mask]
+
+    with rasterio.open(gdir.get_filepath('first_guessed_bed'),
+                       'w', **profile) as dst:
+        dst.write(fg, 1)
+
 def compile_biased_first_guess(gdir, desired_mean_bias):
     ref_ice_thickness = np.load(gdir.get_filepath('ref_ice_thickness'))
     ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
