@@ -17,8 +17,6 @@ from oggm import cfg
 
 cfg.initialize()
 
-output_dir = '/media/philipp/Daten/Dokumente/Studium/Master/Masterarbeit' \
-           '/Thesis/figs/surf_diff'
 output_dir = '/home/philipp/final/plots/surf_diff'
 basedir = '/home/philipp/final/'
 file_extension = 'pdf'

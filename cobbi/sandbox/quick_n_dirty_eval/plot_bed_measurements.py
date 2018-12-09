@@ -2,6 +2,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.colors import ListedColormap
+from matplotlib import ticker
 import numpy as np
 import glob
 import os
@@ -25,17 +26,31 @@ figsize = (4.5, 3)
 
 def plot_bed_measurement(measurement_noise, filepath, case, cbar_min,
                          cbar_max, title=None, ice_mask=None,
-                         show_cbar=True, norm=None, cmap='bwr', text=None):
+                         show_cbar=True, norm=None, cmap='bwr', text=None,
+                         n=10):
+    if type(cmap) is str:
+        cmap = plt.get_cmap(cmap)
+    cmap = ListedColormap(cmap(np.linspace(0, 1, n - 1, endpoint=True)))
+    cbar_min_max = max(abs(cbar_min), abs(cbar_max))
+    bounds = np.linspace(-cbar_min_max, cbar_min_max, n)
+    bounds_step = bounds[1] - bounds[0]
+    bounds = bounds[
+        np.logical_and(bounds + bounds_step >= cbar_min,
+                       bounds - bounds_step <= cbar_max)]
     fig = plt.figure(figsize=figsize)
     ax = fig.add_axes(get_axes_coords(case))
     im_b = imshow_ic(ax, measurement_noise, case, cmap=cmap, ticks=False,
                      #norm=norm,  # norm turns out to be superfluent if
                      # using clim on coolorbar
                      vmin=cbar_min, vmax=cbar_max)
-    cbar = add_colorbar(fig, ax, im_b, norm=norm, extend='neither')
+    cbar = add_colorbar(fig, ax, im_b, norm=norm, boundaries=bounds,
+                        extend='neither')
     cbar.set_label('bed measurement error  (m)')
     cbar_min_max = max(abs(cbar_min), abs(cbar_max))
     cbar.set_clim(-cbar_min_max, cbar_min_max)
+    tick_locator = ticker.MaxNLocator(nbins=5)
+    cbar.locator = tick_locator
+    cbar.update_ticks()
     if not show_cbar:
         cbar.remove()
     if title is not None:
@@ -81,6 +96,8 @@ for case in [test_cases.Giluwe, test_cases.Borden]:
                 np.ma.set_fill_value(measurement_noise, np.nan)
                 cbar_min = measurement_noise.min()
                 cbar_max = measurement_noise.max()
+                cbar_min = np.floor(cbar_min / 5) * 5
+                cbar_max = np.ceil(cbar_max / 5) * 5
                 cbar_min_max = max(abs(cbar_min), abs(cbar_max))
                 norm = MidpointNormalize(midpoint=0., vmin=-cbar_min_max,
                                          vmax=cbar_min_max,
@@ -98,6 +115,6 @@ for case in [test_cases.Giluwe, test_cases.Borden]:
                                      ice_mask=ice_mask,
                                      cbar_min=cbar_min, cbar_max=cbar_max,
                                      show_cbar=True, norm=norm, cmap=my_cmap,
-                                     text=text)
+                                     text=text, n=int((2 * cbar_min_max) / 10))
                     #'Bed errors case {:s}\n ''experiment {:s}'.format(case,exp_name),
                 #exit()

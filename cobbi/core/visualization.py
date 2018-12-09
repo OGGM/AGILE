@@ -399,9 +399,9 @@ def plot_differences_discrete_cmap(difference, filepath, case, cbar_min,
                                    cbar_label=None, existing_fig=None, n=21):
     if type(cmap) is str:
         cmap = plt.get_cmap(cmap)
-    cmap = ListedColormap(cmap(np.linspace(0, 1, n, endpoint=True)))
+    cmap = ListedColormap(cmap(np.linspace(0, 1, n - 1, endpoint=True)))
     cbar_min_max = max(abs(cbar_min), abs(cbar_max))
-    bounds = np.linspace(-cbar_min_max, cbar_min_max, n, endpoint=True)
+    bounds = np.linspace(-cbar_min_max, cbar_min_max, n)
     bounds_step = bounds[1] - bounds[0]
     bounds = bounds[
         np.logical_and(bounds + bounds_step >= cbar_min,
@@ -413,10 +413,10 @@ def plot_differences_discrete_cmap(difference, filepath, case, cbar_min,
 
     ax = fig.add_axes(get_axes_coords(case))
     im_b = imshow_ic(ax, difference, case, cmap=cmap, ticks=False,
-                     #norm=norm,
+                     norm=norm,
                      vmin=cbar_min, vmax=cbar_max)
     cbar = add_colorbar(fig, ax, im_b,
-                        #norm=norm,
+                        norm=norm,
                         boundaries=bounds,
                         extend='neither')
     cbar.set_label(cbar_label)
