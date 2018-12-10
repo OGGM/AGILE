@@ -2,7 +2,7 @@ import glob
 import os
 from cobbi.sandbox.quick_n_dirty_eval import experiment_naming_engine
 
-basedir = '/home/philipp/final/'
+basedir = '/home/philipp/HR_01/'
 filepaths = glob.glob(os.path.join(basedir, '*/*/results.csv'))
 
 results = ''

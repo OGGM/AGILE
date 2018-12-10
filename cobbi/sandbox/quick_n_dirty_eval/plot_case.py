@@ -21,14 +21,13 @@ from cobbi.core.visualization import MidpointNormalize, truncate_colormap,\
 
 cfg.initialize()
 
-basedir = '/home/philipp/thesis/plot_case'
-output_dir = '/media/philipp/Daten/Dokumente/Studium/Master/Masterarbeit' \
-             '/Thesis/figs/creation'
+basedir = '/home/philipp/HR_01'
+output_dir = '/home/philipp/HR_01'
 file_extension = 'pdf'
 
-case = test_cases.Giluwe
+case = test_cases.Trikora
 figsize = (4.5, 3)
-for case in [test_cases.Borden, test_cases.Giluwe]:
+for case in [test_cases.BordenHR]:  # [test_cases.Borden, test_cases.Giluwe]:
     gdir = NonRGIGlacierDirectory(case, basedir)
 
     spinup_surf = salem.GeoTiff(gdir.get_filepath('spinup_dem')).get_vardata()
@@ -45,7 +44,7 @@ for case in [test_cases.Borden, test_cases.Giluwe]:
     masked_reference_surf = np.ma.masked_array(reference_surf,
                                                mask=np.logical_not(ref_ice_mask))
 
-    plt.ioff()
+    #plt.ioff()
 
     cmap = plt.get_cmap('terrain')
     terrain_cmap = truncate_colormap(cmap, 0.3, 0.8)
@@ -91,6 +90,7 @@ for case in [test_cases.Borden, test_cases.Giluwe]:
     cbar.set_label('ice thickness (m)')
     fname = '{:s}_ice_thickness.{:s}'.format(case.name, file_extension)
     plot_glacier_contours(ax, ref_ice_mask, case)
+    #plt.show()
     #plt.tight_layout()
     plt.savefig(os.path.join(output_dir, fname))
     plt.close(fig)
@@ -102,7 +102,7 @@ for case in [test_cases.Borden, test_cases.Giluwe]:
     print(np.max(angle))
     print(np.min(angle))
 
-    plt.ion()
+    #plt.ion()
 
 #inner_mask = torch.zeros(ice_mask.shape)
 #inner_mask[1:-1, 1:-1] = torch.conv2d(torch.tensor([[ice_mask]], dtype=torch.float), torch.ones((1, 1, 3,3))) == 9
