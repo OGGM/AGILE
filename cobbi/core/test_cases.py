@@ -116,6 +116,7 @@ Trikora.ela_h = 3800
 Trikora.mb_grad = 4.
 Trikora.dx = 400
 Trikora.smooth_border_px = 3
+Trikora.mb_max_alt = 5000
 
 # Mount Giluwe, Papua New Guinea, p.1033
 Giluwe = TestCase()
@@ -228,3 +229,15 @@ Borden.mb_grad = 2.
 Borden.smooth_border_px = 2
 Borden.smooth_border_h = 0
 Borden.mb_max_alt = 1200
+
+
+#Borden Peninsula High Resolution
+BordenHR = TestCase()
+BordenHR.name = 'Borden Peninsula HR'
+BordenHR.extent= np.array([[-85.69, 72.445], [-83.67, 72.97]])
+BordenHR.ela_h = 685
+BordenHR.dx = 500
+BordenHR.mb_grad = 2.
+BordenHR.smooth_border_px = 2
+BordenHR.smooth_border_h = 0
+BordenHR.mb_max_alt = 1200
