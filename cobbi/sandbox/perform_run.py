@@ -66,10 +66,6 @@ default_Borden_inversion_settings = {
     'bounds_min_max': (None, 1000)
     }
 
-reg_parameters_set_A = np.array([0.2, 1e-4, 100, 1e6, 0.0, 0.0])
-reg_parameters_set_B = np.array([0.2, 1e-1, 1000, 1e7, 0.0, 0.0])
-reg_parameters_set_C = np.array([0.2, 1e-1, 1000, 1e7, 1e5, 0.0])
-
 def get_giluwe_inversion_settings(inversion_subdir, reg_parameters):
     return get_inversion_settings(inversion_subdir, reg_parameters,
                                   deepcopy(default_Giluwe_inversion_settings))

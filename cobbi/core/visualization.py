@@ -80,6 +80,12 @@ def plot_glacier_contours(ax, ice_mask, case, resolution_enhance=1e1,
     elif case.name == 'Borden Peninsula':
         extent = [0 - 0.45, x[:-1].max() - 0.45,
                   0 - 0.3, y[:-1].max() - 0.48]
+    elif case.name == 'Borden Peninsula HR':
+        extent = [0 - 0.45, x[:-1].max() - 0.45,
+                  0 - 0.3, y[:-1].max() - 0.48]
+    elif case.name == 'Trikora':
+           extent=[0-0.45, x[:-1].max()-0.5,
+                   0-0.3, y[:-1].max()-0.4]
 
     ax.contour(Z[::-1], [0.5], colors=colors, linewidths=linewidths,
                extent=extent, linestyles=linestyles)
@@ -136,6 +142,10 @@ def imshow_ic(ax, arr, case, cmap=None, ice_mask=None, ticks=True,
             pixels = 8
         elif case.name == 'Borden Peninsula':
             pixels = 10
+        elif case.name == 'Borden Peninsula HR':
+            pixels = 10
+        elif case.name == 'Trikora':
+            pixels = 20
         scalebar = AnchoredSizeBar(ax.transData, pixels,
                                    '{:g}km'.format(pixels * case.dx * 1e-3),
                                    1, frameon=True, pad=0.5, size_vertical=0.3,
@@ -172,8 +182,12 @@ def get_axes_coords(case):
     if case.name == 'Giluwe':
         return [0., 0.015, 0.75, 0.97]  # left, bottom, width, height
     elif case.name == 'Borden Peninsula':
-        return [0., 0.015, 0.75, 0.97]  # left, bottom, width,
-        # height
+        return [0., 0.015, 0.75, 0.97]  # left, bottom, width, height
+    elif case.name == 'Borden Peninsula HR':
+        return [0., 0.015, 0.75, 0.97]  # left, bottom, width, height
+    elif case.name == 'Trikora':
+        return [0., 0.015, 0.75, 0.97]  # left, bottom, width, height
+
 
 def plot_bed_difference(bed_difference, filepath, case, cbar_min,
                         cbar_max, title=None,

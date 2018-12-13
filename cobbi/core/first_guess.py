@@ -67,7 +67,9 @@ def first_guess(surf, ice_mask, dx, slope_cutoff_angle=5.0, factor=1):
     f = factor
 
     gradients = np.gradient(surf, dx)
-    gradients = np.sqrt(gradients[0] ** 2 + gradients[1] ** 2)
+    sqrd_gradients = gradients[0] ** 2 + gradients[1] ** 2
+    sqrd_gradients[sqrd_gradients == 0] = 1e-7
+    gradients = np.sqrt(sqrd_gradients)
 
     sin_angle = np.sin(np.arctan(gradients))
 

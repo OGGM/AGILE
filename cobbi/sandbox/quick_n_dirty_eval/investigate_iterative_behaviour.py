@@ -15,31 +15,32 @@ from cobbi.core import test_cases
 from cobbi.core.utils import NonRGIGlacierDirectory
 from oggm import cfg
 from scipy.signal import convolve2d
+from cobbi.core.arithmetics import compute_inner_mask
 
 
 cfg.initialize()
 
-output_dir = '/media/philipp/Daten/Dokumente/Studium/Master/Masterarbeit' \
-             '/iteration_plots'
-basedir = '/home/philipp/thesis/identical_twin/'
+basedir = '/home/philipp/HR_01/'
 file_extension = 'png'
-case = test_cases.Giluwe
+case = test_cases.BordenHR
 dx = case.dx
 gdir = NonRGIGlacierDirectory(case, basedir)
+experiment = 'identical-twin 0'
+output_dir = os.path.join(gdir.dir, experiment, 'plots')
 
 figsize = (4.5, 3)
 
-dl = load_pickle(os.path.join(gdir.dir, 'identical twin', 'data_logger.pkl'))
+dl = load_pickle(os.path.join(gdir.dir, experiment, 'data_logger.pkl'))
 ref_surf = salem.GeoTiff(gdir.get_filepath('ref_dem')).get_vardata()
 ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
 #true_bed = salem.GeoTiff(gdir.get_filepath('dem')).get_vardata()
 
-ref_inner_mask = compute_inner_mask(ref_ice_mask)
+ref_inner_mask = compute_inner_mask(ref_ice_mask, full_array=True)
 #plt.figure()
 #plt.imshow(ref_ice_mask)
 #plt.imshow(ref_inner_mask, cmap='RdBu')
 #plt.show()
-inversion_settings = load_pickle(os.path.join(gdir.dir, 'identical twin',
+inversion_settings = load_pickle(os.path.join(gdir.dir, experiment,
                                               'inversion_settings.pkl'))
 reg_parameters = inversion_settings['reg_parameters']
 margin = np.logical_xor(ref_ice_mask, ref_inner_mask)
@@ -136,7 +137,7 @@ for i in dl.step_indices:
     surf_diff = model_surf - dl.ref_surf
     bed_diff = guessed_bed - dl.true_bed
     model_ice_mask = (model_surf - guessed_bed) > 0
-    model_inner_mask = compute_inner_mask(model_ice_mask)
+    model_inner_mask = compute_inner_mask(model_ice_mask, full_array=True)
     costs_arr = get_costs_arr(reg_parameters, ref_surf, ref_ice_mask,
                               ref_inner_mask, guessed_bed, model_surf,
                               model_ice_mask, model_inner_mask, dx)

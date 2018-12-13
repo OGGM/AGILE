@@ -21,8 +21,8 @@ from cobbi.sandbox.quick_n_dirty_eval import experiment_naming_engine
 
 cfg.initialize()
 
-output_dir = '/home/philipp/HR_02/plots/bed_diff'
-basedir = '/home/philipp/HR_02/'
+output_dir = '/home/philipp/HR_01/'
+basedir = '/home/philipp/HR_01/'
 file_extension = 'pdf'
 
 figsize = (4.5, 3)
@@ -88,7 +88,7 @@ cbar_steps = 22
 #     if existing_fig is None:
 #        plt.close(fig)
 
-for case in [test_cases.Trikora]:#, test_cases.Borden]:
+for case in [test_cases.BordenHR]:#, test_cases.Borden]:
     filepaths = glob.glob(os.path.join(basedir,
                                        '{:s}/*/data_logger.pkl'.format(
                                            case.name)))
