@@ -27,7 +27,7 @@ flierprops = dict(marker='.', markerfacecolor='blue', markersize=5,
 available_fill_colors = ['sienna', 'olivedrab', 'mediumpurple',
                          'cornflowerblue']
 
-case = Giluwe
+case = Borden
 gdir = NonRGIGlacierDirectory(case, basedir)
 ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
 df = pd.read_pickle(os.path.join(basedir,
@@ -101,6 +101,13 @@ leg = ax_arr[1].legend(handles=legend_elements,
                        ncol=3, title='first guess noise pattern', loc=loc,
                        frameon=True, facecolor='white', fancybox=False,
                        framealpha=0.5, edgecolor='k')
+
+sample_size = bed_errs[0].size
+ax_arr[0].text(0.05, 0.93, 'n = {:d}'.format(sample_size),
+               horizontalalignment='left',
+               verticalalignment='top',
+               transform=ax_arr[0].transAxes, weight='bold')
+
 plt.tight_layout()
 plt.savefig(os.path.join(
     output_dir, 'fg_rmse_{:s}_boxplot_bed_errors.{:s}'.format(

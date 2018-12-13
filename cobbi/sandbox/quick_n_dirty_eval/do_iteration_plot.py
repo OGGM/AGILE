@@ -28,7 +28,7 @@ output_dir = '/home/philipp/final/plots'
 file_extension = 'pdf'
 
 experiment = 'identical-twin'
-case = Giluwe
+case = Borden
 
 gdir = NonRGIGlacierDirectory(case, basedir)
 #plot_iterative_behaviour(gdir, experiment)

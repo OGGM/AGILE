@@ -24,7 +24,7 @@ file_extension = 'pdf'
 flierprops = dict(marker='.', markerfacecolor='blue', markersize=5,
                   linestyle='none')
 
-case = Giluwe
+case = Borden
 gdir = NonRGIGlacierDirectory(case, basedir)
 ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
 df = pd.read_pickle(os.path.join(basedir,
@@ -86,6 +86,12 @@ leg = ax.legend(handles=legend_elements,
                 ncol=3, title='surface noise pattern', loc=loc,
                 frameon=True, facecolor='white', fancybox=False,
                 framealpha=0.5, edgecolor='k')
+
+sample_size = bed_errs[0].size
+ax.text(0.035, 0.95, 'n = {:d}'.format(sample_size),
+        horizontalalignment='left',
+        verticalalignment='top',
+        transform=ax.transAxes, weight='bold')
 
 plt.tight_layout()
 plt.savefig(os.path.join(
@@ -188,6 +194,12 @@ leg = ax.legend(handles=legend_elements,
                 frameon=True, facecolor='white', fancybox=False,
                 framealpha=0.5, edgecolor='k')
 
+sample_size = bed_errs[0].size
+ax.text(0.03, 0.95, 'n = {:d}'.format(sample_size),
+        horizontalalignment='left',
+        verticalalignment='top',
+        transform=ax.transAxes, weight='bold')
+
 plt.tight_layout()
 plt.savefig(os.path.join(
     output_dir, 'promised_land_{:s}_boxplot_surf_errors.{:s}'.format(
@@ -289,7 +301,7 @@ for quantity, errs in zip(['bed', 'surf'], [bed_errs, surf_errs]):
     # ax.set_xlabel('Surface noise RMSE (m)')
     ax.set_ylabel('Surface noise RMSE (m)')
     for k in range(1, 4):
-        fig.text(0.22 * k - 0.055, 0.02, 'noise pattern {:d}'.format(k))
+        fig.text(0.22 * k - 0.055, 0.015, 'noise pattern {:d}'.format(k))
 
         fig.text(0.8, 1.16 - 0.295 * k, 'noise pattern {:d}'.format(k),
                  rotation=90)

@@ -22,7 +22,7 @@ file_extension = 'pdf'
 flierprops = dict(marker='.', markerfacecolor='blue', markersize=5,
                   linestyle='none')
 
-case = Giluwe
+case = Borden
 gdir = NonRGIGlacierDirectory(case, basedir)
 ref_ice_mask = np.load(gdir.get_filepath('ref_ice_mask'))
 df = pd.read_pickle(os.path.join(basedir,
@@ -41,10 +41,11 @@ for key, fg_bias_grp in fg_bias_df.groupby(['experimentsubgroup']):
             [fg_percentile[0]] + fg_percentile + [fg_percentile[-1]])
         percentiles[perc] = fg_percentile
     fg_percentiles_index = np.arange(0, percentiles[perc].size)
-    ax.fill_between(fg_percentiles_index, percentiles[95], percentiles[5],
-                    alpha=0.15, color='gray')
-    ax.fill_between(fg_percentiles_index, percentiles[75], percentiles[25],
-                    alpha=0.5, color='darkgray')
+    # ax.fill_between(fg_percentiles_index, percentiles[95], percentiles[5],
+    #                alpha=0.15, color='gray')
+    # ax.fill_between(fg_percentiles_index, percentiles[75], percentiles[25],
+    #                alpha=0.5, color='darkgray')
+    ax.axhline(0, color='k')
     bed_errs = fg_bias_grp['optimizedbederror'].map(
         lambda x: x[ref_ice_mask]).values
     bplot = ax.boxplot(bed_errs, showfliers=True, whis=[5, 95],
@@ -64,6 +65,11 @@ for key, fg_bias_grp in fg_bias_df.groupby(['experimentsubgroup']):
     ax.tick_params(labelleft=True, labelright=True, direction='in')
     ax.set_xlabel('First guess bias (m)')
     ax.set_ylabel('Bed elevation error (m)')
+    sample_size = bed_errs[0].size
+    ax.text(0.05, 0.95, 'n = {:d}'.format(sample_size),
+            horizontalalignment='left',
+            verticalalignment='top',
+            transform=ax.transAxes, weight='bold')
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir,
                              '{:s}_{:s}_boxplot_bed_errors.{:s}'.format(
