@@ -64,7 +64,7 @@ def plot_gradient(filepath, gradient, title, ref_shape=None,
         plt.close(fig)
 
 
-def plot_glacier_contours(ax, ice_mask, case, resolution_enhance=1e1,
+def plot_glacier_contours(ax, ice_mask, case, resolution_enhance=10,
                           colors='gray', linestyles='dashed',
                           linewidths=[0.75]):
     func = lambda x, y: ice_mask[int(y), int(x)]
@@ -225,7 +225,8 @@ def plot_differences(difference, filepath, case, cbar_min, cbar_max,
     if bed_measurements is not None:
         plot_glacier_contours(ax, ~bed_measurements.mask, case, colors='k',
                               linestyles='solid', linewidths=[2.])
-    plt.savefig(filepath)
+    if filepath is not None:
+        plt.savefig(filepath)
     if existing_fig is None:
         plt.close(fig)
 
