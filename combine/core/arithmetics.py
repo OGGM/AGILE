@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 from scipy.signal import convolve2d
 
 def mean_BIAS(a1, a2, ice_mask=None):
