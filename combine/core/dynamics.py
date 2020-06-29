@@ -5,6 +5,9 @@ import salem
 from oggm import entity_task, cfg
 from combine.core.sia2d_adapted import Upstream2D
 import logging
+from combine.core.flowline_adapted import ParabolicBedFlowline
+from combine.core.flowline_adapted import RectangularBedFlowline
+from combine.core.flowline_adapted import FluxBasedModel 
 # -------------------------------
 # Further initialization / extended import tasks
 # Module logger
@@ -180,3 +183,27 @@ def create_glacier(gdir, run_spinup=True):
     np.save(gdir.get_filepath('ref_ice_mask'), ref_ice_mask)
 
 
+def run_flowline_forward_core(surface_h, bed_h, bed_shape, map_dx, torch_type,
+                              mb_model, yrs_to_run, used_bed_geometry):
+    if used_bed_geometry == 'parabolic':
+        flowline = ParabolicBedFlowline(surface_h=surface_h,
+                                        bed_h=bed_h,
+                                        bed_shape=bed_shape,
+                                        map_dx=map_dx,
+                                        torch_type=torch_type)
+    elif used_bed_geometry == 'rectangular':
+        flowline = RectangularBedFlowline(surface_h=surface_h,
+                                          bed_h=bed_h,
+                                          widths=bed_shape,
+                                          map_dx=map_dx,
+                                          torch_type=torch_type)
+
+    model = FluxBasedModel(flowline,
+                           mb_model=mb_model,
+                           y0=0.)
+
+    model.run_until(yrs_to_run)
+
+    #return model.fls[0].bed_h.pow(2), model.fls[0].bed_shape.pow(2)
+    #return flowline.surface_h, flowline.widths_m
+    return model.fls[0].surface_h, model.fls[0].widths_m

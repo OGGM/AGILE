@@ -1,6 +1,3 @@
-import xarray as xr
-import torch
-
 import os
 
 import torch
@@ -9,6 +6,7 @@ from oggm import cfg
 from oggm.cfg import G, SEC_IN_YEAR, SEC_IN_DAY, SEC_IN_MONTH
 
 # BIG TODO: re-check entire model
+
 
 def filter_ice_border(ice_thick):
     """Sets the ice thickness at the border of the domain to zero."""

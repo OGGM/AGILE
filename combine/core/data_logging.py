@@ -28,14 +28,14 @@ class DataLogger(object):
     def __init__(self, true_bed, exact_surf, ref_surf, first_guessed_bed):
         self.reset(true_bed, exact_surf, ref_surf, first_guessed_bed)
 
-    def __init__(self, inv_dir):
-        self.reset(inv_dir.true_bed,
-                   inv_dir.ref_surf,
-                   inv_dir.ref_surf,
-                   inv_dir.first_guessed_bed)
-        self.case = inv_dir.inv_settings['case']
-        self.solver = inv_dir.inv_settings['solver']
-        self.minimize_options = inv_dir.inv_settings['minimize_options']
+    # def __init__(self, inv_dir):
+    #     self.reset(inv_dir.true_bed,
+    #                inv_dir.ref_surf,
+    #                inv_dir.ref_surf,
+    #                inv_dir.first_guessed_bed)
+    #     self.case = inv_dir.inv_settings['case']
+    #     self.solver = inv_dir.inv_settings['solver']
+    #     self.minimize_options = inv_dir.inv_settings['minimize_options']
 
     def reset(self, true_bed, exact_surf, ref_surf, first_guessed_bed):
         self.grads = []
@@ -44,6 +44,7 @@ class DataLogger(object):
         self.surfs = []
         self.beds = []
         self.step_indices = []
+        self.widths = []
         self.lambdas = np.zeros(6)
         self.true_bed = true_bed
         self.exact_surf = exact_surf

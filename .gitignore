@@ -1,0 +1,6 @@
+# Don't track content of these folders
+.ipynb_checkpoints/
+.pytest_cache/
+*nbgrader.log
+__pycache__
+
