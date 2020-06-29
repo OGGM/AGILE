@@ -1,5 +1,8 @@
 import numpy as np
 from scipy.signal import convolve2d
+import torch
+from torch.autograd.function import Function
+
 
 def mean_BIAS(a1, a2, ice_mask=None):
     if ice_mask is None:
@@ -24,6 +27,7 @@ def percentiles(a1, a2, ice_mask, q=[5, 25, 50, 75, 95]):
         dev = (a1 - a2)[ice_mask]
     return np.percentile(dev, q)
 
+
 def compute_inner_mask(ice_mask, full_array=False):
     conv_array = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]])  # TODO
     if full_array:
@@ -31,3 +35,74 @@ def compute_inner_mask(ice_mask, full_array=False):
     inner_mask = convolve2d(ice_mask, conv_array, mode='same') == \
                  conv_array.sum()
     return inner_mask
+
+
+def to_torch_tensor(val, torch_type, requires_grad=False):
+    if type(val) == np.ndarray:
+        val = torch.from_numpy(val).to(torch_type)
+    elif type(val) != torch.Tensor:
+        val = torch.tensor(val,
+                           dtype=torch_type,
+                           requires_grad=requires_grad)
+
+    return val
+
+
+def to_numpy_array(val):
+    if type(val) == torch.Tensor:
+        val = val.detach().numpy()
+    elif type(val) != np.ndarray:
+        val = np.array(val)
+
+    return val
+
+
+class para_width_from_thick(Function):
+    @staticmethod
+    def forward(ctx, shape, thick):
+        result = torch.sqrt(4. * thick / shape)
+
+        # save parameters for gradient calculation
+        ctx.save_for_backward(thick, shape)
+
+        return result
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        # get parameters from forward run
+        thick, shape, = ctx.saved_tensors
+
+        # only calculate gradients when needed
+        shape_grad = thick_grad = None
+        if ctx.needs_input_grad[0]:
+            shape_grad = grad_output * torch.sqrt(thick / shape.pow(3)) * (- 1)
+        if ctx.needs_input_grad[1]:
+            thick_grad = grad_output / (torch.sqrt(thick * shape))
+
+        return shape_grad, thick_grad
+
+
+class para_thick_from_section(Function):
+    @staticmethod
+    def forward(ctx, shape, section):
+        result = (0.75 * section * torch.sqrt(shape))**(2./3.)
+
+        # save parameters for gradient calculation
+        ctx.save_for_backward(section, shape)
+
+        return result
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        # get parameters from forward run
+        section, shape = ctx.saved_tensors
+
+        # only calculate gradients when needed
+        shape_grad = section_grad = None
+        if ctx.needs_input_grad[0]:
+            shape_grad = grad_output / (2 * 6**(1/3)) * \
+                (section / shape)**(2/3)
+        if ctx.needs_input_grad[1]:
+            section_grad = grad_output / (6**(1/3)) * (shape / section)**(1/3)
+
+        return shape_grad, section_grad

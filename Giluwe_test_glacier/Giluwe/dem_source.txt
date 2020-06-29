@@ -1,0 +1,9 @@
+VIEWFINDER PANORAMAS DEMs
+
+Original resolution: 3 arcsec (~90m)
+
+These data are downloaded from Jonathan de Ferranti's webpage: http://viewfinderpanoramas.org/dem3.html
+
+# Data Citation
+
+There is no recommended citation for these data. Please refer to the website above in case of doubt.

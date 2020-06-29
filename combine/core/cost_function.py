@@ -3,6 +3,8 @@ import salem
 import torch
 
 from combine.core.dynamics import run_forward_core
+from combine.core.dynamics import run_flowline_forward_core
+from combine.core.arithmetics import to_torch_tensor
 
 
 def create_cost_func(gdir, data_logger=None, surface_noise=None,
@@ -169,8 +171,139 @@ def cost_function(b, reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask,
     return cost, grad
 
 
-def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask, guessed_bed,
-              model_surf, model_ice_mask, model_inner_mask, dx,
+def creat_cost_function_flowline(bed_known, shape_known, spinup_surf,
+                                 reg_parameters, ref_surf, ref_width,
+                                 yrs_to_run, dx, mb_model, torch_type='float',
+                                 used_geometry='parabolic', data_logger=None):
+
+    def c_fun(parameters_unknown):
+        return cost_fucntion_flowline(parameters_unknown,
+                                      bed_known,
+                                      shape_known,
+                                      spinup_surf,
+                                      reg_parameters,
+                                      ref_surf,
+                                      ref_width,
+                                      yrs_to_run,
+                                      dx,
+                                      mb_model,
+                                      torch_type,
+                                      used_geometry,
+                                      data_logger)
+
+    return c_fun
+
+
+def cost_fucntion_flowline(parameters_unknown, bed_known, shape_known,
+                           spinup_surf, reg_parameters, ref_surf, ref_width,
+                           yrs_to_run, dx, mb_model, torch_type='float',
+                           used_bed_geometry='rectangular', data_logger=None):
+    if torch_type == 'double':
+        torch_type = torch.double
+    else:
+        torch_type = torch.float
+
+    # check if only bed is unknown or if shape and bed is unknown
+    if len(bed_known) == len(shape_known):
+        # check if bed and shape unknown have the same length
+        assert np.mod(len(parameters_unknown), 2) == 0
+
+        mid_point_unknown = int(len(parameters_unknown) / 2)
+        bed_unknown = parameters_unknown[:mid_point_unknown]
+        shape_unknown = parameters_unknown[mid_point_unknown:]
+
+        bed_unknown = torch.tensor(bed_unknown,
+                                   dtype=torch_type,
+                                   requires_grad=True)
+        shape_unknown = torch.tensor(shape_unknown,
+                                     dtype=torch_type,
+                                     requires_grad=True)
+
+        bed_known = torch.tensor(bed_known,
+                                 dtype=torch_type,
+                                 requires_grad=False)
+        shape_known = torch.tensor(shape_known,
+                                   dtype=torch_type,
+                                   requires_grad=False)
+
+        bed = torch.cat((bed_unknown, bed_known), 0)
+        shape = torch.cat((shape_unknown, shape_known), 0)
+    else:
+        bed_unknown = torch.tensor(parameters_unknown,
+                                   dtype=torch_type,
+                                   requires_grad=True)
+        bed_known = torch.tensor(bed_known,
+                                 dtype=torch_type,
+                                 requires_grad=False)
+        bed = torch.cat((bed_unknown, bed_known), 0)
+
+        shape_unknown = None
+        shape = torch.tensor(shape_known,
+                             dtype=torch_type,
+                             requires_grad=False)
+
+    model_surf, model_width = run_flowline_forward_core(spinup_surf,
+                                                        bed,
+                                                        shape,
+                                                        dx,
+                                                        torch_type,
+                                                        mb_model,
+                                                        yrs_to_run,
+                                                        used_bed_geometry)
+
+    c_terms = get_flowline_costs(reg_parameters, ref_surf, ref_width, dx,
+                                 bed, model_surf, model_width,
+                                 torch_type)
+
+    c = c_terms.sum()
+    c.backward()
+    bed_grad = bed_unknown.grad
+    if shape_unknown is not None:
+        shape_grad = shape_unknown.grad
+    else:
+        shape_grad = torch.tensor([],
+                                  dtype=torch_type)
+
+    g = torch.cat((bed_grad, shape_grad), 0)
+    grad = g.detach().numpy().reshape(parameters_unknown.shape)\
+        .astype(np.float64)
+    # grad = np.where(np.isnan(grad), 0, grad)
+    cost = c.detach().numpy().astype(np.float64)
+
+    # Do keep data for logging if desired
+    if data_logger is not None:
+        data_logger.c_terms.append(c_terms.detach().numpy())
+        data_logger.costs.append(cost)
+        data_logger.grads.append(grad)
+        data_logger.beds.append(bed_unknown.detach().numpy())
+        data_logger.surfs.append(model_surf.detach().numpy())
+        data_logger.widths.append(model_width.detach().numpy())
+
+    return cost, grad
+
+
+def get_flowline_costs(reg_parameters, ref_surf, ref_width, dx,
+                       bed, model_surf, model_width, torch_type):
+    cost = torch.zeros(3,
+                       dtype=torch_type)
+
+    if reg_parameters[0] != 0:
+        ref_surf = to_torch_tensor(ref_surf, torch_type)
+        cost[0] = reg_parameters[0] * (ref_surf - model_surf).pow(2).sum()
+
+    if reg_parameters[1] != 0:
+        ref_width = to_torch_tensor(ref_width, torch_type)
+        cost[1] = reg_parameters[1] * (ref_width - model_width).pow(2).sum()
+
+    if reg_parameters[2] != 0:
+        db_dx = (bed[1:] - bed[:-1]) / dx
+        cost[2] = reg_parameters[2] * db_dx.pow(2).sum()
+
+    return cost
+
+
+def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask,
+              guessed_bed, model_surf, model_ice_mask, model_inner_mask, dx,
               gpr=None):
     """
     TODO: Documentation
