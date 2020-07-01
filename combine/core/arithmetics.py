@@ -75,9 +75,20 @@ class para_width_from_thick(Function):
         # only calculate gradients when needed
         shape_grad = thick_grad = None
         if ctx.needs_input_grad[0]:
-            shape_grad = grad_output * torch.sqrt(thick / shape.pow(3)) * (- 1)
+            shape_mul = torch.where(shape.abs() < 10e-10,
+                                    torch.tensor([1.],
+                                                 dtype=torch.double),
+                                    torch.sqrt(thick / shape.pow(3)) * (- 1)
+                                    )
+            shape_grad = grad_output * shape_mul
         if ctx.needs_input_grad[1]:
-            thick_grad = grad_output / (torch.sqrt(thick * shape))
+            thick_mul = torch.where((thick.abs() < 10e-10) |
+                                    (shape.abs() < 10e-10),
+                                    torch.tensor([1.],
+                                                 dtype=torch.double),
+                                    1 / (torch.sqrt(thick * shape))
+                                    )
+            thick_grad = grad_output * thick_mul
 
         return shape_grad, thick_grad
 
@@ -100,9 +111,18 @@ class para_thick_from_section(Function):
         # only calculate gradients when needed
         shape_grad = section_grad = None
         if ctx.needs_input_grad[0]:
-            shape_grad = grad_output / (2 * 6**(1/3)) * \
-                (section / shape)**(2/3)
+            shape_mul = torch.where(shape.abs() < 10e-10,
+                                    torch.tensor([1.], dtype=torch.double),
+                                    1 / (2 * 6**(1/3)) *
+                                    (section / shape)**(2/3)
+                                    )
+            shape_grad = grad_output * shape_mul
         if ctx.needs_input_grad[1]:
-            section_grad = grad_output / (6**(1/3)) * (shape / section)**(1/3)
+            section_mul = torch.where(section.abs() < 10e-10,
+                                      torch.tensor([1.], dtype=torch.double),
+                                      1 / (6**(1/3)) *
+                                      (shape / section)**(1/3)
+                                      )
+            section_grad = grad_output * section_mul
 
         return shape_grad, section_grad
