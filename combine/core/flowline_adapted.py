@@ -1225,7 +1225,7 @@ class FluxBasedModel(FlowlineModel):
             raise NotImplementedError()
 
         # save new section in flowline
-        self.fls[0].section = torch.clamp(CS_new, min=0)
+        # self.fls[0].section = torch.clamp(CS_new, min=0)
 
         # Next step
         self.t += dt_use

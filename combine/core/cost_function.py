@@ -194,114 +194,6 @@ def creat_cost_function_flowline(bed_known, shape_known, spinup_surf,
     return c_fun
 
 
-def cost_fucntion_flowline(parameters_unknown, bed_known, shape_known,
-                           spinup_surf, reg_parameters, ref_surf, ref_width,
-                           yrs_to_run, dx, mb_model, torch_type='float',
-                           used_bed_geometry='rectangular', data_logger=None):
-    if torch_type == 'double':
-        torch_type = torch.double
-    else:
-        torch_type = torch.float
-
-    # check if only bed is unknown or if shape and bed is unknown
-    if len(bed_known) == len(shape_known):
-        # check if bed and shape unknown have the same length
-        assert np.mod(len(parameters_unknown), 2) == 0
-
-        mid_point_unknown = int(len(parameters_unknown) / 2)
-        bed_unknown = parameters_unknown[:mid_point_unknown]
-        shape_unknown = parameters_unknown[mid_point_unknown:]
-
-        bed_unknown = torch.tensor(bed_unknown,
-                                   dtype=torch_type,
-                                   requires_grad=True)
-        shape_unknown = torch.tensor(shape_unknown,
-                                     dtype=torch_type,
-                                     requires_grad=True)
-
-        bed_known = torch.tensor(bed_known,
-                                 dtype=torch_type,
-                                 requires_grad=False)
-        shape_known = torch.tensor(shape_known,
-                                   dtype=torch_type,
-                                   requires_grad=False)
-
-        bed = torch.cat((bed_unknown, bed_known), 0)
-        shape = torch.cat((shape_unknown, shape_known), 0)
-    else:
-        bed_unknown = torch.tensor(parameters_unknown,
-                                   dtype=torch_type,
-                                   requires_grad=True)
-        bed_known = torch.tensor(bed_known,
-                                 dtype=torch_type,
-                                 requires_grad=False)
-        bed = torch.cat((bed_unknown, bed_known), 0)
-
-        shape_unknown = None
-        shape = torch.tensor(shape_known,
-                             dtype=torch_type,
-                             requires_grad=False)
-
-    model_surf, model_width = run_flowline_forward_core(spinup_surf,
-                                                        bed,
-                                                        shape,
-                                                        dx,
-                                                        torch_type,
-                                                        mb_model,
-                                                        yrs_to_run,
-                                                        used_bed_geometry)
-
-    c_terms = get_flowline_costs(reg_parameters, ref_surf, ref_width, dx,
-                                 bed, model_surf, model_width,
-                                 torch_type)
-
-    c = c_terms.sum()
-    c.backward()
-    bed_grad = bed_unknown.grad
-    if shape_unknown is not None:
-        shape_grad = shape_unknown.grad
-    else:
-        shape_grad = torch.tensor([],
-                                  dtype=torch_type)
-
-    g = torch.cat((bed_grad, shape_grad), 0)
-    grad = g.detach().numpy().reshape(parameters_unknown.shape)\
-        .astype(np.float64)
-    # grad = np.where(np.isnan(grad), 0, grad)
-    cost = c.detach().numpy().astype(np.float64)
-
-    # Do keep data for logging if desired
-    if data_logger is not None:
-        data_logger.c_terms.append(c_terms.detach().numpy())
-        data_logger.costs.append(cost)
-        data_logger.grads.append(grad)
-        data_logger.beds.append(bed_unknown.detach().numpy())
-        data_logger.surfs.append(model_surf.detach().numpy())
-        data_logger.widths.append(model_width.detach().numpy())
-
-    return cost, grad
-
-
-def get_flowline_costs(reg_parameters, ref_surf, ref_width, dx,
-                       bed, model_surf, model_width, torch_type):
-    cost = torch.zeros(3,
-                       dtype=torch_type)
-
-    if reg_parameters[0] != 0:
-        ref_surf = to_torch_tensor(ref_surf, torch_type)
-        cost[0] = reg_parameters[0] * (ref_surf - model_surf).pow(2).sum()
-
-    if reg_parameters[1] != 0:
-        ref_width = to_torch_tensor(ref_width, torch_type)
-        cost[1] = reg_parameters[1] * (ref_width - model_width).pow(2).sum()
-
-    if reg_parameters[2] != 0:
-        db_dx = (bed[1:] - bed[:-1]) / dx
-        cost[2] = reg_parameters[2] * db_dx.pow(2).sum()
-
-    return cost
-
-
 def get_costs(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask,
               guessed_bed, model_surf, model_ice_mask, model_inner_mask, dx,
               gpr=None):
@@ -567,3 +459,299 @@ def get_costs_arr(reg_parameters, ref_surf, ref_ice_mask, ref_inner_mask,
         # then an additional .abs() is required for db_dx1, ...
     return cost
 
+
+def cost_fucntion_flowline(parameters_unknown, bed_known, shape_known,
+                           spinup_surf, reg_parameters, ref_surf, ref_width,
+                           yrs_to_run, dx, mb_model, torch_type='float',
+                           used_bed_geometry='rectangular', data_logger=None):
+    if torch_type == 'double':
+        torch_type = torch.double
+    else:
+        torch_type = torch.float
+
+    # check if only bed is unknown or if shape and bed is unknown
+    if len(bed_known) == len(shape_known):
+        # check if bed and shape unknown have the same length
+        assert np.mod(len(parameters_unknown), 2) == 0
+
+        split_point = int(len(parameters_unknown) / 2)
+        bed_unknown = parameters_unknown[:split_point]
+        shape_unknown = parameters_unknown[split_point:]
+
+        # create variables for optimization
+        bed_unknown = torch.tensor(bed_unknown,
+                                   dtype=torch_type,
+                                   requires_grad=True)
+        shape_unknown = torch.tensor(shape_unknown,
+                                     dtype=torch_type,
+                                     requires_grad=True)
+
+        bed_known = torch.tensor(bed_known,
+                                 dtype=torch_type,
+                                 requires_grad=False)
+        shape_known = torch.tensor(shape_known,
+                                   dtype=torch_type,
+                                   requires_grad=False)
+
+        bed = torch.cat((bed_unknown, bed_known), 0)
+        shape = torch.cat((shape_unknown, shape_known), 0)
+    else:
+        bed_unknown = torch.tensor(parameters_unknown,
+                                   dtype=torch_type,
+                                   requires_grad=True)
+        bed_known = torch.tensor(bed_known,
+                                 dtype=torch_type,
+                                 requires_grad=False)
+        bed = torch.cat((bed_unknown, bed_known), 0)
+
+        shape_unknown = None
+        shape = torch.tensor(shape_known,
+                             dtype=torch_type,
+                             requires_grad=False)
+
+    model_surf, model_width = run_flowline_forward_core(spinup_surf,
+                                                        bed,
+                                                        shape,
+                                                        dx,
+                                                        torch_type,
+                                                        mb_model,
+                                                        yrs_to_run,
+                                                        used_bed_geometry)
+
+    c_terms = get_flowline_costs(reg_parameters, ref_surf, ref_width, dx,
+                                 bed, model_surf, model_width,
+                                 torch_type)
+
+    c = c_terms.sum()
+    c.backward()
+    bed_grad = bed_unknown.grad
+    if shape_unknown is not None:
+        shape_grad = shape_unknown.grad
+
+        # smoothing grad at last gird point
+        shape_grad[-1] = shape_grad[-2]
+    else:
+        shape_grad = torch.tensor([],
+                                  dtype=torch_type)
+
+    g = torch.cat((bed_grad, shape_grad), 0)
+    grad = g.detach().numpy().reshape(parameters_unknown.shape)\
+        .astype(np.float64)
+
+    # compensate overestimation of gradient in first point
+    grad[0] = grad[1]
+
+    # grad = np.where(np.isnan(grad), 0, grad)
+    cost = c.detach().numpy().astype(np.float64)
+
+    # Do keep data for logging if desired
+    if data_logger is not None:
+        data_logger.c_terms.append(c_terms.detach().numpy())
+        data_logger.costs.append(cost)
+        data_logger.grads.append(grad)
+        data_logger.beds.append(bed_unknown.detach().numpy())
+        data_logger.surfs.append(model_surf.detach().numpy())
+        data_logger.widths.append(model_width.detach().numpy())
+        if shape_unknown is not None:
+            data_logger.shapes.append(shape_unknown.detach().numpy())
+
+    return cost, grad
+
+
+def get_flowline_costs(reg_parameters, ref_surf, ref_width, dx,
+                       bed, model_surf, model_width, torch_type):
+    cost = torch.zeros(3,
+                       dtype=torch_type)
+
+    if reg_parameters[0] != 0:
+        ref_surf = to_torch_tensor(ref_surf, torch_type)
+        cost[0] = (reg_parameters[0] * (ref_surf - model_surf).pow(2).sum())
+
+    if reg_parameters[1] != 0:
+        ref_width = to_torch_tensor(ref_width, torch_type)
+        cost[1] = (reg_parameters[1] * (ref_width - model_width).pow(2).sum())
+
+    if reg_parameters[2] != 0:
+        db_dx = (bed[1:] - bed[:-1]) / dx
+        cost[2] = reg_parameters[2] * db_dx.pow(2).sum()
+
+    return cost
+
+
+def creat_cost_fct(bed_h,
+                   shape,
+                   spinup_surf,
+                   reg_parameter,
+                   ref_surf,
+                   ref_width,
+                   yrs_to_run,
+                   dx,
+                   mb_model,
+                   opti_var='bed_h',
+                   torch_type='double',
+                   used_geometry='parabolic',
+                   data_logger=None):
+    '''
+    Creates a cost function for optimizing bed height or for optimizing bed
+    shape
+    '''
+
+    def c_fun(parameter_unknown):
+        return cost_fct(parameter_unknown,
+                        opti_var,
+                        bed_h,
+                        shape,
+                        spinup_surf,
+                        reg_parameter,
+                        ref_surf,
+                        ref_width,
+                        yrs_to_run,
+                        dx,
+                        mb_model,
+                        torch_type,
+                        used_geometry,
+                        data_logger)
+
+    return c_fun
+
+
+def cost_fct(parameter_unknown,
+             opti_var,
+             bed_h,
+             shape,
+             spinup_surf,
+             reg_parameter,
+             ref_surf,
+             ref_width,
+             yrs_to_run,
+             dx,
+             mb_model,
+             torch_type='double',
+             used_geometry='parabolic',
+             data_logger=None):
+    # check which data type should be used for calculation
+    if torch_type == 'double':
+        torch_type = torch.double
+    else:
+        torch_type = torch.float
+
+    # check which parameter should be optimized
+    if opti_var == 'bed_h':
+        bed_unknown = torch.tensor(parameter_unknown,
+                                   dtype=torch_type,
+                                   requires_grad=True)
+        bed_known = torch.tensor(bed_h,
+                                 dtype=torch_type,
+                                 requires_grad=False)
+        bed_h = torch.cat((bed_unknown, bed_known), 0)
+
+        shape = torch.tensor(shape,
+                             dtype=torch_type,
+                             requires_grad=False)
+
+    elif opti_var == 'shape':
+        shape_unknown = torch.tensor(parameter_unknown,
+                                     dtype=torch_type,
+                                     requires_grad=True)
+        shape_known = torch.tensor(shape,
+                                   dtype=torch_type,
+                                   requires_grad=False)
+        shape = torch.cat((shape_unknown, shape_known), 0)
+
+        bed_h = torch.tensor(bed_h,
+                             dtype=torch_type,
+                             requires_grad=False)
+
+    else:
+        raise ValueError('Optimisation variable unknown!')
+
+    # check if shape and bed_h same length
+    assert len(bed_h) == len(shape), 'Parameters not the same length!!!'
+
+    # forward run of model
+    model_surf, model_width = run_flowline_forward_core(spinup_surf,
+                                                        bed_h,
+                                                        shape,
+                                                        dx,
+                                                        torch_type,
+                                                        mb_model,
+                                                        yrs_to_run,
+                                                        used_geometry)
+
+    # calculate terms of cost function
+    c_terms = get_cost_terms(opti_var, reg_parameter, ref_surf, ref_width, dx,
+                             bed_h, model_surf, model_width, torch_type)
+
+    # sum up cost function terms
+    c = c_terms.sum()
+
+    # calculate the gradient for the optimisation parameter
+    c.backward()
+
+    # convert cost to numpy array
+    cost = c.detach().numpy().astype(np.float64)
+
+    # convert gradient to numpy array and do some smoothing
+    if opti_var == 'bed_h':
+        g = bed_unknown.grad
+        grad = g.detach().numpy().astype(np.float64)
+        grad[0] = grad[1]
+
+    elif opti_var == 'shape':
+        g = shape_unknown.grad
+        grad = g.detach().numpy().astype(np.float64)
+        grad[-1] = grad[-2]
+
+    # Do keep data for logging if desired
+    if data_logger is not None:
+        if opti_var == 'bed_h':
+            data_logger.in_bed_h_opti = True
+            data_logger.bed_h_c_terms.append(c_terms.detach().numpy())
+            data_logger.bed_h_costs.append(cost)
+            data_logger.bed_h_grads.append(grad)
+            data_logger.beds.append(bed_unknown.detach().numpy())
+            data_logger.bed_h_surfs.append(model_surf.detach().numpy())
+            data_logger.bed_h_widths.append(model_width.detach().numpy())
+
+        elif opti_var == 'shape':
+            data_logger.in_shape_opti = True
+            data_logger.shape_c_terms.append(c_terms.detach().numpy())
+            data_logger.shape_costs.append(cost)
+            data_logger.shape_grads.append(grad)
+            data_logger.shapes.append(shape_unknown.detach().numpy())
+            data_logger.shape_surfs.append(model_surf.detach().numpy())
+            data_logger.shape_widths.append(model_width.detach().numpy())
+
+    return cost, grad
+
+
+def get_cost_terms(opti_var,
+                   reg_parameter,
+                   ref_surf,
+                   ref_width,
+                   dx,
+                   bed_h,
+                   model_surf,
+                   model_width,
+                   torch_type):
+    # calculate cost terms according to optimisation variable
+    if opti_var == 'bed_h':
+        cost = torch.zeros(2,
+                           dtype=torch_type)
+
+        ref_surf = to_torch_tensor(ref_surf, torch_type)
+        cost[0] = (ref_surf - model_surf).pow(2).sum()
+
+        db_dx = (bed_h[1:] - bed_h[:-1]) / dx
+        cost[1] = reg_parameter[0] * db_dx.pow(2).sum()
+
+    elif opti_var == 'shape':
+        cost = torch.zerow(1,
+                           dtype=torch_type)
+        ref_width = to_torch_tensor(ref_width, torch_type)
+        cost[1] = (ref_width - model_width).pow(2).sum()
+
+    else:
+        raise ValueError('Optimisation variable unknown!')
+
+    return cost
