@@ -204,4 +204,4 @@ def run_flowline_forward_core(surface_h, bed_h, bed_shape, map_dx, torch_type,
 
     model.run_until(yrs_to_run)
 
-    return model.fls[0].surface_h, model.fls[0].widths_m
+    return model.fls[0].surface_h, model.fls[0].widths_m, model.fls[0].thick
