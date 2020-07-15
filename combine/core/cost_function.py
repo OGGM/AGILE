@@ -693,12 +693,13 @@ def cost_fct(parameter_unknown,
         bed_known = torch.tensor(bed_h,
                                  dtype=torch_type,
                                  requires_grad=False)
-        bed_h = torch.empty(sum(list(bed_unknown.size() +
-                                     bed_known.size())),
-                            dtype=torch_type,
-                            requires_grad=False)
-        bed_h[ice_mask] = bed_unknown
-        bed_h[~ice_mask] = bed_known
+        bed_h = torch.cat((bed_unknown, bed_known), 0)
+        # torch.empty(sum(list(bed_unknown.size() +
+        #                              bed_known.size())),
+        #                     dtype=torch_type,
+        #                     requires_grad=False)
+        # bed_h[ice_mask] = bed_unknown
+        # bed_h[~ice_mask] = bed_known
 
         shape = torch.tensor(shape,
                              dtype=torch_type,
@@ -711,12 +712,13 @@ def cost_fct(parameter_unknown,
         shape_known = torch.tensor(shape,
                                    dtype=torch_type,
                                    requires_grad=False)
-        shape = torch.empty(sum(list(shape_unknown.size() +
-                                     shape_known.size())),
-                            dtype=torch_type,
-                            requires_grad=False)
-        shape[ice_mask] = shape_unknown
-        shape[~ice_mask] = shape_known
+        shape = torch.cat((shape_unknown, shape_known), 0)
+        # torch.empty(sum(list(shape_unknown.size() +
+        #                              shape_known.size())),
+        #                     dtype=torch_type,
+        #                     requires_grad=False)
+        # shape[ice_mask] = shape_unknown
+        # shape[~ice_mask] = shape_known
 
         bed_h = torch.tensor(bed_h,
                              dtype=torch_type,
@@ -732,12 +734,13 @@ def cost_fct(parameter_unknown,
         bed_known = torch.tensor(bed_h,
                                  dtype=torch_type,
                                  requires_grad=False)
-        bed_h = torch.empty(sum(list(bed_unknown.size() +
-                                     bed_known.size())),
-                            dtype=torch_type,
-                            requires_grad=False)
-        bed_h[ice_mask] = bed_unknown
-        bed_h[~ice_mask] = bed_known
+        bed_h = torch.cat((bed_unknown, bed_known), 0)
+        # torch.empty(sum(list(bed_unknown.size() +
+        #                              bed_known.size())),
+        #                     dtype=torch_type,
+        #                     requires_grad=False)
+        # bed_h[ice_mask] = bed_unknown
+        # bed_h[~ice_mask] = bed_known
 
         shape_unknown = parameter_unknown[split_point:]
         shape_unknown = torch.tensor(shape_unknown,
@@ -746,12 +749,13 @@ def cost_fct(parameter_unknown,
         shape_known = torch.tensor(shape,
                                    dtype=torch_type,
                                    requires_grad=False)
-        shape = torch.empty(sum(list(shape_unknown.size() +
-                                     shape_known.size())),
-                            dtype=torch_type,
-                            requires_grad=False)
-        shape[ice_mask] = shape_unknown
-        shape[~ice_mask] = shape_known
+        shape = torch.cat((shape_unknown, shape_known), 0)
+        # torch.empty(sum(list(shape_unknown.size() +
+        #                              shape_known.size())),
+        #                     dtype=torch_type,
+        #                     requires_grad=False)
+        # shape[ice_mask] = shape_unknown
+        # shape[~ice_mask] = shape_known
 
     else:
         raise ValueError('Optimisation variable unknown!')
