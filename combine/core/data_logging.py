@@ -509,52 +509,73 @@ Main Iteration number {iteration:d}:'''
                         plot_height=400):
         if opti_var == 'bed_h':
             x = self.geometry['distance_along_glacier']
+            estimated_beds = np.zeros(
+                (len(self.beds), len(x)))
+            estimated_beds[:, self.measurements['ice_mask']] = self.beds
+            estimated_beds[:, ~self.measurements['ice_mask']] =\
+                self.measurements['bed_known']
             dictionary = {int(i): hv.Curve(
                 (x,
-                 np.append(y,
-                           self.measurements['bed_known']) -
-                 self.measurements['bed_all']),
+                 y - self.measurements['bed_all']),
                 'distance',
                 'diff bed_h',
                 label='estimated')
-                          for i, y in enumerate(self.beds)}
+                          for i, y in enumerate(estimated_beds)}
+
+            first_guess = np.zeros(len(x))
+            first_guess[self.measurements['ice_mask']] = self.first_guessed_bed
+            first_guess[~self.measurements['ice_mask']] =\
+                self.measurements['bed_known']
+
             first_guess_bed = hv.Curve(
                 (x,
-                 np.append(self.first_guessed_bed,
-                           self.measurements['bed_known']) -
+                 first_guess -
                  self.measurements['bed_all']),
                 'distance',
                 'diff bed_h',
                 label='first guess')
+
             zero_line_bed = hv.Curve(
                 (x,
                  np.zeros(len(x))),
                 'distance',
                 'diff bed_h',
                 ).opts(line_color='black')
+
             bed_h_plot = (zero_line_bed *
                           first_guess_bed *
                           hv.HoloMap(dictionary,
                                      kdims='Iteration')
                           ).opts(width=plot_width,
                                  height=plot_height)
+
             return bed_h_plot.opts(opts.Curve(line_width=3))
 
         elif opti_var == 'shape':
             x = self.geometry['distance_along_glacier']
+
+            estimated_shapes = np.zeros(
+                (len(self.shapes), len(x)))
+            estimated_shapes[:, self.measurements['ice_mask']] = self.shapes
+            estimated_shapes[:, ~self.measurements['ice_mask']] =\
+                self.measurements['shape_known']
             dictionary = {int(i): hv.Curve(
                 (x,
-                 np.append(y,
-                           self.measurements['shape_known']) -
-                 self.measurements['shape_all']),
+                 y - self.measurements['shape_all']),
                 'distance',
                 'diff shape',
                 label='estimated')
-                          for i, y in enumerate(self.shapes)}
+                          for i, y in enumerate(estimated_shapes)}
+
+            first_guess = np.zeros(len(x))
+            first_guess[self.measurements['ice_mask']] =\
+                self.first_guessed_shape
+            first_guess[~self.measurements['ice_mask']] =\
+                self.measurements['shape_known']
+
             first_guess_shape = hv.Curve(
                 (x,
-                 np.append(self.first_guessed_shape,
-                           self.measurements['shape_known']) -
+                 first_guess -
                  self.measurements['shape_all']),
                 'distance',
                 'diff shape',
@@ -576,39 +597,64 @@ Main Iteration number {iteration:d}:'''
         elif opti_var == 'bed_h and shape':
             self.filter_data_from_optimization(opti_var)
             x = self.geometry['distance_along_glacier']
+
+            first_guess_b = np.zeros(len(x))
+            first_guess_b[self.measurements['ice_mask']] =\
+                self.first_guessed_bed
+            first_guess_b[~self.measurements['ice_mask']] =\
+                self.measurements['bed_known']
             first_guess_bed = hv.Curve(
                 (x,
-                 np.append(self.first_guessed_bed,
-                           self.measurements['bed_known']) -
+                 first_guess_b -
                  self.measurements['bed_all']),
                 'distance',
                 'diff bed_h',
                 label='first guess')
+
             zero_line_bed = hv.Curve(
                 (x,
                  np.zeros(len(x))),
                 'distance',
                 'diff bed_h',
                 ).opts(line_color='black')
+
+            first_guess_s = np.zeros(len(x))
+            first_guess_s[self.measurements['ice_mask']] =\
+                self.first_guessed_shape
+            first_guess_s[~self.measurements['ice_mask']] =\
+                self.measurements['shape_known']
+
             first_guess_shape = hv.Curve(
                 (x,
-                 np.append(self.first_guessed_shape,
-                           self.measurements['shape_known']) -
+                 first_guess_s -
                  self.measurements['shape_all']),
                 'distance',
                 'diff shape',
                 label='first guess')
+
             zero_line_shape = hv.Curve(
                 (x,
                  np.zeros(len(x))),
                 'distance',
                 'diff shape',
                 ).opts(line_color='black')
+
+            estimated_beds = np.zeros(
+                (len(self.beds), len(x)))
+            estimated_beds[:, self.measurements['ice_mask']] = self.beds
+            estimated_beds[:, ~self.measurements['ice_mask']] =\
+                self.measurements['bed_known']
+
+            estimated_shapes = np.zeros(
+                (len(self.shapes), len(x)))
+            estimated_shapes[:, self.measurements['ice_mask']] = self.shapes
+            estimated_shapes[:, ~self.measurements['ice_mask']] =\
+                self.measurements['shape_known']
+
             dictionary = {int(i): ((zero_line_bed * first_guess_bed *
                                     hv.Curve(
                                         (x,
-                                         np.append(bed,
-                                            self.measurements['bed_known']) -
+                                         bed -
                                          self.measurements['bed_all']),
                                         'distance',
                                         'diff bed_h',
@@ -619,8 +665,7 @@ Main Iteration number {iteration:d}:'''
                                    + (zero_line_shape * first_guess_shape *
                                       hv.Curve(
                                         (x,
-                                         np.append(shape,
-                                            self.measurements['shape_known']) -
+                                         shape -
                                          self.measurements['shape_all']),
                                         'distance',
                                         'diff shape',
@@ -628,8 +673,9 @@ Main Iteration number {iteration:d}:'''
                                       ).opts(width=plot_width,
                                              height=int(plot_height / 2))
                                    ).cols(1).opts(opts.Curve(line_width=3))
-                          for i, (bed, shape) in enumerate(zip(self.beds,
-                                                               self.shapes))}
+                          for i, (bed, shape) in enumerate(zip(estimated_beds,
+                                                               estimated_shapes
+                                                               ))}
 
             return hv.HoloMap(dictionary, kdims='Iteration').collate()
 
