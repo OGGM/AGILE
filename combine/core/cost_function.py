@@ -4,7 +4,7 @@ import torch
 
 from combine.core.dynamics import run_forward_core
 from combine.core.dynamics import run_flowline_forward_core
-from combine.core.arithmetics import to_torch_tensor
+from combine.core.arithmetics import to_torch_tensor, magnitude
 
 
 def create_cost_func(gdir, data_logger=None, surface_noise=None,
@@ -478,6 +478,9 @@ def cost_fucntion_flowline(parameters_unknown, bed_known, shape_known,
         bed_unknown = parameters_unknown[:split_point]
         shape_unknown = parameters_unknown[split_point:]
 
+        bed_mag = magnitude(np.median(bed_unknown))
+        shape_mag = magnitude(np.median(shape_unknown))
+
         # create variables for optimization
         bed_unknown = torch.tensor(bed_unknown,
                                    dtype=torch_type,
@@ -509,14 +512,15 @@ def cost_fucntion_flowline(parameters_unknown, bed_known, shape_known,
                              dtype=torch_type,
                              requires_grad=False)
 
-    model_surf, model_width = run_flowline_forward_core(spinup_surf,
-                                                        bed,
-                                                        shape,
-                                                        dx,
-                                                        torch_type,
-                                                        mb_model,
-                                                        yrs_to_run,
-                                                        used_bed_geometry)
+    model_surf, model_width, model_thick = run_flowline_forward_core(
+        spinup_surf,
+        bed,
+        shape,
+        dx,
+        torch_type,
+        mb_model,
+        yrs_to_run,
+        used_bed_geometry)
 
     c_terms = get_flowline_costs(reg_parameters, ref_surf, ref_width, dx,
                                  bed, model_surf, model_width,
@@ -524,26 +528,45 @@ def cost_fucntion_flowline(parameters_unknown, bed_known, shape_known,
 
     c = c_terms.sum()
     c.backward()
-    bed_grad = bed_unknown.grad
+
+    bed_grad = bed_unknown.grad.detach().numpy().astype(np.float64)
+
+    bed_grad_mag = magnitude(np.max(np.abs(bed_grad)))
+
+    # scaling factor to comensate different magnitudes of bed h and shape
+    bed_grad = bed_grad * 100
+
+    # smoothing for overestimation of gradient in first point
+    bed_grad[0] = bed_grad[1]
+
     if shape_unknown is not None:
-        shape_grad = shape_unknown.grad
+        shape_grad = shape_unknown.grad.detach().numpy().astype(np.float64)
 
-        # smoothing grad at last gird point
+        shape_grad_mag = magnitude(np.max(np.abs(shape_grad)))
+        # scaling factor to compensate different magnitudes of bed h and shape
+        shape_grad = shape_grad# / 100
+
+        if np.abs(shape_grad[-2]) < np.abs(shape_grad[-3]):
+            shape_grad[-2] = shape_grad[-3]  # * np.sign(grad[-2])
+        # if np.abs(grad[-1]) < np.abs(grad[-3]):
         shape_grad[-1] = shape_grad[-2]
+        # smoothing grad at last gird point
+        thick = model_thick[:len(shape_grad)].detach().numpy().\
+            astype(np.float64)
+        # good_indices = np.argwhere(thick > 20)
+        # shape_grad = np.where(thick > 20,
+        #                      shape_grad,
+        #                      shape_grad[good_indices[-1]])
+        shape_grad = shape_grad / 100
     else:
-        shape_grad = torch.tensor([],
-                                  dtype=torch_type)
+        shape_grad = np.array([])
 
-    g = torch.cat((bed_grad, shape_grad), 0)
-    grad = g.detach().numpy().reshape(parameters_unknown.shape)\
-        .astype(np.float64)
+    grad = np.append(bed_grad, shape_grad)
 
-    # compensate overestimation of gradient in first point
-    grad[0] = grad[1]
-
-    # grad = np.where(np.isnan(grad), 0, grad)
     cost = c.detach().numpy().astype(np.float64)
 
+    #print('bed: ' + str(bed_mag) + '\nbed grad: ' + str(bed_grad_mag) +
+    #      '\nshape: ' + str(shape_mag) + '\nshape grad: ' + str(shape_grad_mag))
     # Do keep data for logging if desired
     if data_logger is not None:
         data_logger.c_terms.append(c_terms.detach().numpy())
@@ -584,13 +607,19 @@ def creat_cost_fct(bed_h,
                    reg_parameter,
                    ref_surf,
                    ref_width,
+                   ice_mask,
                    yrs_to_run,
                    dx,
                    mb_model,
                    opti_var='bed_h',
                    torch_type='double',
                    used_geometry='parabolic',
-                   data_logger=None):
+                   data_logger=None,
+                   get_c_terms=False,
+                   grad_scaling={'bed_h': 1,
+                                 'shape': 1},
+                   grad_smoothing={'bed_h': '2nd is 1st',
+                                   'shape': 'last 3 same'}):
     '''
     Creates a cost function for optimizing bed height or for optimizing bed
     shape
@@ -605,12 +634,16 @@ def creat_cost_fct(bed_h,
                         reg_parameter,
                         ref_surf,
                         ref_width,
+                        ice_mask,
                         yrs_to_run,
                         dx,
                         mb_model,
                         torch_type,
                         used_geometry,
-                        data_logger)
+                        data_logger,
+                        get_c_terms,
+                        grad_scaling,
+                        grad_smoothing)
 
     return c_fun
 
@@ -623,17 +656,34 @@ def cost_fct(parameter_unknown,
              reg_parameter,
              ref_surf,
              ref_width,
+             ice_mask,
              yrs_to_run,
              dx,
              mb_model,
              torch_type='double',
              used_geometry='parabolic',
-             data_logger=None):
+             data_logger=None,
+             get_c_terms=False,
+             grad_scaling={'bed_h': 1,
+                           'shape': 1},
+             grad_smoothing={'bed_h': '2nd is 1st',
+                             'shape': 'last 3 same'}):
     # check which data type should be used for calculation
     if torch_type == 'double':
         torch_type = torch.double
     else:
         torch_type = torch.float
+
+    # check that all parameters are positive
+    if np.any(np.sign(parameter_unknown) == -1):
+        cost = np.Inf
+        grad = np.empty(len(parameter_unknown)) * np.nan
+        return cost, grad
+
+    # ice mask is needed for cost calculation
+    ice_mask = torch.tensor(ice_mask,
+                            requires_grad=False,
+                            dtype=torch.bool)
 
     # check which parameter should be optimized
     if opti_var == 'bed_h':
@@ -643,7 +693,10 @@ def cost_fct(parameter_unknown,
         bed_known = torch.tensor(bed_h,
                                  dtype=torch_type,
                                  requires_grad=False)
-        bed_h = torch.cat((bed_unknown, bed_known), 0)
+        bed_h = torch.empty(sum(list(bed_unknown.size() +
+                                     bed_known.size())))
+        bed_h[ice_mask] = bed_unknown
+        bed_h[~ice_mask] = bed_known
 
         shape = torch.tensor(shape,
                              dtype=torch_type,
@@ -656,11 +709,41 @@ def cost_fct(parameter_unknown,
         shape_known = torch.tensor(shape,
                                    dtype=torch_type,
                                    requires_grad=False)
-        shape = torch.cat((shape_unknown, shape_known), 0)
+        shape = torch.empty(sum(list(shape_unknown.size() +
+                                     shape_known.size())))
+        shape[ice_mask] = shape_unknown
+        shape[~ice_mask] = shape_known
 
         bed_h = torch.tensor(bed_h,
                              dtype=torch_type,
                              requires_grad=False)
+
+    elif opti_var == 'bed_h and shape':
+        split_point = int(len(parameter_unknown) / 2)
+
+        bed_unknown = parameter_unknown[:split_point]
+        bed_unknown = torch.tensor(bed_unknown,
+                                   dtype=torch_type,
+                                   requires_grad=True)
+        bed_known = torch.tensor(bed_h,
+                                 dtype=torch_type,
+                                 requires_grad=False)
+        bed_h = torch.empty(sum(list(bed_unknown.size() +
+                                     bed_known.size())))
+        bed_h[ice_mask] = bed_unknown
+        bed_h[~ice_mask] = bed_known
+
+        shape_unknown = parameter_unknown[split_point:]
+        shape_unknown = torch.tensor(shape_unknown,
+                                     dtype=torch_type,
+                                     requires_grad=True)
+        shape_known = torch.tensor(shape,
+                                   dtype=torch_type,
+                                   requires_grad=False)
+        shape = torch.empty(sum(list(shape_unknown.size() +
+                                     shape_known.size())))
+        shape[ice_mask] = shape_unknown
+        shape[~ice_mask] = shape_known
 
     else:
         raise ValueError('Optimisation variable unknown!')
@@ -669,18 +752,24 @@ def cost_fct(parameter_unknown,
     assert len(bed_h) == len(shape), 'Parameters not the same length!!!'
 
     # forward run of model
-    model_surf, model_width = run_flowline_forward_core(spinup_surf,
-                                                        bed_h,
-                                                        shape,
-                                                        dx,
-                                                        torch_type,
-                                                        mb_model,
-                                                        yrs_to_run,
-                                                        used_geometry)
+    model_surf, model_width, model_thick = run_flowline_forward_core(
+        spinup_surf,
+        bed_h,
+        shape,
+        dx,
+        torch_type,
+        mb_model,
+        yrs_to_run,
+        used_geometry)
 
     # calculate terms of cost function
-    c_terms = get_cost_terms(opti_var, reg_parameter, ref_surf, ref_width, dx,
-                             bed_h, model_surf, model_width, torch_type)
+    c_terms = get_cost_terms(reg_parameter, ref_surf, ref_width, dx, bed_h,
+                             shape, model_surf, model_width, torch_type,
+                             model_thick, ice_mask)
+
+    # shortcut when regularisation parameters are searched
+    if get_c_terms:
+        return c_terms.detach().numpy().astype(np.float64)
 
     # sum up cost function terms
     c = c_terms.sum()
@@ -691,19 +780,38 @@ def cost_fct(parameter_unknown,
     # convert cost to numpy array
     cost = c.detach().numpy().astype(np.float64)
 
-    # convert gradient to numpy array and do some smoothing
-    if opti_var == 'bed_h':
-        g = bed_unknown.grad
-        grad = g.detach().numpy().astype(np.float64)
-        grad[0] = grad[1]
+    # convert thick to numpy array
+    thick = model_thick.detach().numpy().astype(np.float64)
 
+    # convert gradient to numpy array and do some smoothing
+    if (opti_var == 'bed_h') or (opti_var == 'bed_h and shape'):
+        g_bed = bed_unknown.grad
+        grad_bed = g_bed.detach().numpy().astype(np.float64)
+        if grad_smoothing['bed_h'] == '2nd is 1st':
+            grad_bed[0] = grad_bed[1]
+
+    if (opti_var == 'shape') or (opti_var == 'bed_h and shape'):
+        g_shape = shape_unknown.grad
+        grad_shape = g_shape.detach().numpy().astype(np.float64)
+        # grad_unsmoothed = np.copy(grad_shape)
+        if grad_smoothing['shape'] == 'last 3 same':
+            if np.abs(grad_shape[-2]) < np.abs(grad_shape[-3]):
+                grad_shape[-2] = grad_shape[-3]  
+            grad_shape[-1] = grad_shape[-2]  
+
+    if opti_var == 'bed_h':
+        grad = grad_bed * grad_scaling['bed_h']
     elif opti_var == 'shape':
-        g = shape_unknown.grad
-        grad = g.detach().numpy().astype(np.float64)
-        grad[-1] = grad[-2]
+        grad = grad_shape * grad_scaling['shape']
+    elif opti_var == 'bed_h and shape':
+        # scaling for gradients
+        grad_bed = grad_bed * grad_scaling['bed_h']
+        grad_shape = grad_shape * grad_scaling['shape']
+        grad = np.append(grad_bed, grad_shape)
 
     # Do keep data for logging if desired
     if data_logger is not None:
+        data_logger.fct_calls.append(data_logger.fct_calls[-1] + 1)
         if opti_var == 'bed_h':
             data_logger.in_bed_h_opti = True
             data_logger.bed_h_c_terms.append(c_terms.detach().numpy())
@@ -712,46 +820,74 @@ def cost_fct(parameter_unknown,
             data_logger.beds.append(bed_unknown.detach().numpy())
             data_logger.bed_h_surfs.append(model_surf.detach().numpy())
             data_logger.bed_h_widths.append(model_width.detach().numpy())
+            data_logger.bed_h_thicks.append(thick)
 
         elif opti_var == 'shape':
             data_logger.in_shape_opti = True
             data_logger.shape_c_terms.append(c_terms.detach().numpy())
             data_logger.shape_costs.append(cost)
-            data_logger.shape_grads.append(grad)
+            data_logger.shape_grads_smoothed.append(grad)
+            # data_logger.shape_grads.append(grad_unsmoothed)
             data_logger.shapes.append(shape_unknown.detach().numpy())
             data_logger.shape_surfs.append(model_surf.detach().numpy())
             data_logger.shape_widths.append(model_width.detach().numpy())
+            data_logger.shape_thicks.append(thick)
+        elif opti_var == 'bed_h and shape':
+            data_logger.in_bed_h_and_shape_opti = True
+            data_logger.c_terms.append(c_terms.detach().numpy())
+            data_logger.costs.append(cost)
+            data_logger.grads.append(grad)
+            data_logger.beds.append(bed_unknown.detach().numpy())
+            data_logger.surfs.append(model_surf.detach().numpy())
+            data_logger.widths.append(model_width.detach().numpy())
+            data_logger.shapes.append(shape_unknown.detach().numpy())
+            data_logger.thicks.append(thick)
 
     return cost, grad
 
 
-def get_cost_terms(opti_var,
-                   reg_parameter,
+def get_cost_terms(reg_parameter,
                    ref_surf,
                    ref_width,
                    dx,
                    bed_h,
+                   shape,
                    model_surf,
                    model_width,
-                   torch_type):
-    # calculate cost terms according to optimisation variable
-    if opti_var == 'bed_h':
-        cost = torch.zeros(2,
-                           dtype=torch_type)
+                   torch_type,
+                   model_thick,
+                   ice_mask):
+    # calculate cost terms
+    costs = torch.zeros(6,
+                        dtype=torch_type)
 
-        ref_surf = to_torch_tensor(ref_surf, torch_type)
-        cost[0] = (ref_surf - model_surf).pow(2).sum()
+    # misfit between modeled and measured surface height
+    ref_surf = to_torch_tensor(ref_surf, torch_type)
+    costs[0] = reg_parameter[0] * (ref_surf - model_surf).pow(2).sum()
 
-        db_dx = (bed_h[1:] - bed_h[:-1]) / dx
-        cost[1] = reg_parameter[0] * db_dx.pow(2).sum()
+    # smoothnes of glacier bed
+    db_dx = (bed_h[1:] - bed_h[:-1]) / dx
+    costs[1] = reg_parameter[1] * db_dx.pow(2).sum()
 
-    elif opti_var == 'shape':
-        cost = torch.zerow(1,
-                           dtype=torch_type)
-        ref_width = to_torch_tensor(ref_width, torch_type)
-        cost[1] = (ref_width - model_width).pow(2).sum()
+    # misfit between modeled and measured width
+    ref_width = to_torch_tensor(ref_width, torch_type)
+    costs[2] = reg_parameter[2] * ((ref_width - model_width)).pow(2).sum()
 
-    else:
-        raise ValueError('Optimisation variable unknown!')
+    # smoothnes of shape parameter
+    dshape_dx = (shape[1:] - shape[:-1]) / dx
+    costs[3] = reg_parameter[3] * dshape_dx.pow(2).sum()
 
-    return cost
+    # guessed glacier bed higher than measured surface
+    costs[4] = reg_parameter[4] * torch.where(bed_h > ref_surf,
+                                              torch.tensor(1.),
+                                              torch.tensor(0.)).sum()
+
+    # ice thickness zero where no glacier should be and vice versa
+    modeled_ice = torch.where(model_thick > 1e-3,
+                              torch.tensor(1),
+                              torch.tensor(0))
+    costs[5] = reg_parameter[5] * torch.where(ice_mask != modeled_ice,
+                                              torch.tensor(1.),
+                                              torch.tensor(0.)).sum()
+
+    return costs

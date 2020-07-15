@@ -57,6 +57,12 @@ def to_numpy_array(val):
     return val
 
 
+def magnitude(x):
+    x = np.where(x != 0,
+                 x, 1e-100)
+    return np.floor(np.log10(np.abs(x))).astype(int)
+
+
 class para_width_from_thick(Function):
     @staticmethod
     def forward(ctx, shape, thick):
