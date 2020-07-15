@@ -35,21 +35,25 @@ def define_geometry(used_bed_h_geometry='linear',
                                                       geometry['nx']) *
                                           geometry['map_dx'] * 1e-3)
 
-    # glacier top height
-    geometry['top_height'] = 4000
-
-    # glacier bottom height
-    geometry['bottom_height'] = 0
-
     if used_bed_h_geometry == 'linear':
+        # glacier top height
+        geometry['top_height'] = 4000
+
+        # glacier bottom height
+        geometry['bottom_height'] = 0
         # define linear glacier bed with zero ice thickness
         geometry['bed_h'] = np.linspace(geometry['top_height'],
                                         geometry['bottom_height'],
                                         geometry['nx'])
     elif used_bed_h_geometry == 'cliff':
+        # glacier top height
+        geometry['top_height'] = 4000
+
+        # glacier bottom height
+        geometry['bottom_height'] = 1000
         # define extend of cliff
-        cliff_top = 3000
-        cliff_bottom = 2800
+        cliff_top = 3200
+        cliff_bottom = 3000
 
         geometry['bed_h'] = np.concatenate(
             (np.linspace(geometry['top_height'],
@@ -57,13 +61,18 @@ def define_geometry(used_bed_h_geometry='linear',
                          geometry['nx'] / 4),
              np.linspace(cliff_bottom,
                          geometry['bottom_height'],
-                         geometry['nx']* 3 / 4 )))
+                         geometry['nx'] * 3 / 4)))
     elif used_bed_h_geometry == 'random':
+        # glacier top height
+        geometry['top_height'] = 4000
+
+        # glacier bottom height
+        geometry['bottom_height'] = 1500
         # set numpy seed to always get the same random bed
         np.random.seed(0)
 
         # get the differences from linear bed
-        offsets = np.random.normal(scale=50., size=geometry['nx'])
+        offsets = np.random.normal(scale=30., size=geometry['nx'])
 
         # define random glacier bed
         geometry['bed_h'] = (np.linspace(geometry['top_height'],

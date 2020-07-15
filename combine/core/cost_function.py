@@ -694,7 +694,9 @@ def cost_fct(parameter_unknown,
                                  dtype=torch_type,
                                  requires_grad=False)
         bed_h = torch.empty(sum(list(bed_unknown.size() +
-                                     bed_known.size())))
+                                     bed_known.size())),
+                            dtype=torch_type,
+                            requires_grad=False)
         bed_h[ice_mask] = bed_unknown
         bed_h[~ice_mask] = bed_known
 
@@ -710,7 +712,9 @@ def cost_fct(parameter_unknown,
                                    dtype=torch_type,
                                    requires_grad=False)
         shape = torch.empty(sum(list(shape_unknown.size() +
-                                     shape_known.size())))
+                                     shape_known.size())),
+                            dtype=torch_type,
+                            requires_grad=False)
         shape[ice_mask] = shape_unknown
         shape[~ice_mask] = shape_known
 
@@ -729,7 +733,9 @@ def cost_fct(parameter_unknown,
                                  dtype=torch_type,
                                  requires_grad=False)
         bed_h = torch.empty(sum(list(bed_unknown.size() +
-                                     bed_known.size())))
+                                     bed_known.size())),
+                            dtype=torch_type,
+                            requires_grad=False)
         bed_h[ice_mask] = bed_unknown
         bed_h[~ice_mask] = bed_known
 
@@ -741,7 +747,9 @@ def cost_fct(parameter_unknown,
                                    dtype=torch_type,
                                    requires_grad=False)
         shape = torch.empty(sum(list(shape_unknown.size() +
-                                     shape_known.size())))
+                                     shape_known.size())),
+                            dtype=torch_type,
+                            requires_grad=False)
         shape[ice_mask] = shape_unknown
         shape[~ice_mask] = shape_known
 
