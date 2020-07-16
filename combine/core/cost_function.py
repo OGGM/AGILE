@@ -807,17 +807,27 @@ def cost_fct(parameter_unknown,
     if (opti_var == 'bed_h') or (opti_var == 'bed_h and shape'):
         g_bed = bed_unknown.grad
         grad_bed = g_bed.detach().numpy().astype(np.float64)
-        if grad_smoothing['bed_h'] == '2nd is 1st':
+        if grad_smoothing['bed_h'] == 'no':
+            # do nothing
+            pass
+        elif grad_smoothing['bed_h'] == '2nd is 1st':
             grad_bed[0] = grad_bed[1]
+        else:
+            raise ValueError('Unknown gradient smoothing for bed_h!')
 
     if (opti_var == 'shape') or (opti_var == 'bed_h and shape'):
         g_shape = shape_unknown.grad
         grad_shape = g_shape.detach().numpy().astype(np.float64)
         # grad_unsmoothed = np.copy(grad_shape)
-        if grad_smoothing['shape'] == 'last 3 same':
+        if grad_smoothing['shape'] == 'no':
+            # do nothing
+            pass
+        elif grad_smoothing['shape'] == 'last 3 same':
             if np.abs(grad_shape[-2]) < np.abs(grad_shape[-3]):
-                grad_shape[-2] = grad_shape[-3]  
-            grad_shape[-1] = grad_shape[-2]  
+                grad_shape[-2] = grad_shape[-3]
+            grad_shape[-1] = grad_shape[-2]
+        else:
+            raise ValueError('Unknown gradient smoothing for shape!')
 
     if opti_var == 'bed_h':
         grad = grad_bed * grad_scaling['bed_h']
@@ -903,7 +913,7 @@ def get_cost_terms(reg_parameter,
                                               torch.tensor(0.)).sum()
 
     # ice thickness zero where no glacier should be and vice versa
-    modeled_ice = torch.where(model_thick > 1e-3,
+    modeled_ice = torch.where(model_thick > 1e-2,
                               torch.tensor(1),
                               torch.tensor(0))
     costs[5] = reg_parameter[5] * torch.where(ice_mask != modeled_ice,
