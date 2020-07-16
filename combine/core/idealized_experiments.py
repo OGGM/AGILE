@@ -53,7 +53,7 @@ def define_geometry(used_bed_h_geometry='linear',
         geometry['bottom_height'] = 1000
         # define extend of cliff
         cliff_top = 3200
-        cliff_bottom = 3000
+        cliff_bottom = 3050
 
         geometry['bed_h'] = np.concatenate(
             (np.linspace(geometry['top_height'],
