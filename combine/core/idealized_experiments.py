@@ -188,7 +188,7 @@ def create_measurements(geometry,
     measurements['yrs_to_run'] = ref_model.yr
 
     # find ice and ice free points
-    ice_mask = np.where(ref_model.fls[0].thick > 10e-3, True, False)
+    ice_mask = np.where(ref_model.fls[0].thick > 10e-2, True, False)
     measurements['ice_mask'] = ice_mask
     measurements['bed_known'] = ref_model.fls[0].bed_h[~ice_mask]
     measurements['bed_unknown'] = ref_model.fls[0].bed_h[ice_mask]
@@ -268,7 +268,7 @@ def get_first_guess(measurements,
         define_glacier_region(gdir)
 
         fl = model.fls[0]
-        pg = np.where(fl.thick > 10e-3)
+        pg = np.where(fl.thick > 10e-2)
         ice_index = pg[0]
         line = shpg.LineString([fl.line.coords[int(p)] for p in ice_index])
         sh = fl.surface_h[ice_index]
