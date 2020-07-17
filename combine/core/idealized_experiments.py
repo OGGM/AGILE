@@ -89,7 +89,18 @@ def define_geometry(used_bed_h_geometry='linear',
             geometry['bed_shapes'] = np.zeros(geometry['nx']) + 1.
         else:
             raise ValueError('Unkonwn bed shape!')
+    elif used_along_glacier_geometry == 'random':
+        np.random.seed(0)
+        random_shape = np.random.normal(loc=1.,
+                                        scale=0.3,
+                                        size=geometry['nx'])
 
+        if bed_shape == 'rectangular':
+            geometry['widths'] = random_shape
+        elif bed_shape == 'parabolic':
+            geometry['bed_shapes'] = random_shape
+        else:
+            raise ValueError('Unkonwn bed shape!')
     else:
         raise ValueError('Unknown along glacier geometry!')
 
@@ -366,9 +377,9 @@ def get_reg_parameters(opti_var,
         if c_term != 0.:
             term_mag = magnitude(c_term)
             if term_mag == -100:
-                reg_parameters[i] = 10**(desired_mag)
+                reg_parameters[i] = 10.**(desired_mag)
             else:
-                reg_parameters[i] = 10**(desired_mag - term_mag)
+                reg_parameters[i] = 10.**(desired_mag - term_mag)
 
     print('\nreg_parameters = ' + str(reg_parameters))
     return reg_parameters

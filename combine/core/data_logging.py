@@ -688,7 +688,7 @@ Main Iteration number {iteration:d}:'''
                                ).opts(line_color='black',
                                       width=600,
                                       height=400)
-        
+
         glacier_sfc = hv.Curve((self.geometry['distance_along_glacier'],
                                 self.measurements['sfc_h']),
                                'distance',
@@ -699,6 +699,18 @@ Main Iteration number {iteration:d}:'''
                                       height=400)
 
         return (glacier_bed * glacier_sfc).opts(opts.Curve(line_width=3))
+
+    def plot_glacier_shape(self):
+        glacier_shape = hv.Curve((self.geometry['distance_along_glacier'],
+                                  self.geometry['bed_shapes']),
+                                 'distance',
+                                 'shape factor',
+                                 label='glacier shape factor'
+                                 ).opts(line_color='black',
+                                        width=600,
+                                        height=400)
+
+        return (glacier_shape).opts(opts.Curve(line_width=3))
 
     def plot_all(self, dir):
         plt.ioff()
