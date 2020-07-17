@@ -1198,20 +1198,23 @@ class FluxBasedModel(FlowlineModel):
         q_grad = (q[self.kp_stag] - q[self.km_stag]) / dx
 
         # choose timestap as long as possible to fullfill cfl criterion, and
-        # check to be smaller than the maximum dt_max
+        # check to be smaller than the maximum max_dt
         divisor = torch.max(torch.abs(u_stag))
         if divisor == 0:
-            dt_cfl = self.dt_max
+            dt_cfl = self.max_dt
         else:
             dt_cfl = self.cfl_nr * dx / divisor
 
+        dt = torch.tensor(dt,
+                          dtype=dtype,
+                          requires_grad=False)
         dt_use = torch.clamp(torch.min(dt_cfl, dt),
                              torch.tensor(0.,
                                           dtype=dtype,
                                           requires_grad=False),
-                             self.dt_max)
+                             self.max_dt)
 
-        # check timestep that timestep is at least dt_max / 100, to avoid
+        # check timestep that timestep is at least max_dt / 100, to avoid
         # memory overfolw and a break down of the program
         if (dt_use != dt) and (dt_use / self.max_dt < 0.01):
             raise MemoryError('Stopping dynamics run to avoid memory overflow')
