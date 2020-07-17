@@ -1123,14 +1123,23 @@ class FluxBasedModel(FlowlineModel):
         if len(self.fls) > 1:
             raise ValueError('Model does not work with tributaries.')
 
+        # datatype for torch tensors
+        dtype = self.fls[0].torch_type
+
         self.dt_warning = False,
         if fixed_dt is not None:
             min_dt = fixed_dt
             max_dt = fixed_dt
-        self.min_dt = min_dt
-        self.max_dt = max_dt
+        self.min_dt = torch.tensor(min_dt,
+                                   dtype=dtype,
+                                   requires_grad=False)
+        self.max_dt = torch.tensor(max_dt,
+                                   dtype=dtype,
+                                   requires_grad=False)
         # defines cfl criterion
-        self.cfl_nr = cfl_nr
+        self.cfl_nr = torch.tensor(cfl_nr,
+                                   dtype=dtype,
+                                   requires_grad=False)
 
         # define indices for time step
         Nx = self.fls[0].nx
@@ -1188,10 +1197,24 @@ class FluxBasedModel(FlowlineModel):
         # gradient of flux on unstaggered grid
         q_grad = (q[self.kp_stag] - q[self.km_stag]) / dx
 
-        # choose timestap as long as possible to fullfill cfl criterion
-        dt_stab = self.cfl_nr * dx / torch.max(torch.abs(u_stag))
+        # choose timestap as long as possible to fullfill cfl criterion, and
+        # check to be smaller than the maximum dt_max
+        divisor = torch.max(torch.abs(u_stag))
+        if divisor == 0:
+            dt_cfl = self.dt_max
+        else:
+            dt_cfl = self.cfl_nr * dx / divisor
 
-        dt_use = min(dt_stab, dt)
+        dt_use = torch.clamp(torch.min(dt_cfl, dt),
+                             torch.tensor(0.,
+                                          dtype=dtype,
+                                          requires_grad=False),
+                             self.dt_max)
+
+        # check timestep that timestep is at least dt_max / 100, to avoid
+        # memory overfolw and a break down of the program
+        if (dt_use != dt) and (dt_use / self.max_dt < 0.01):
+            raise MemoryError('Stopping dynamics run to avoid memory overflow')
 
         # get massbalance
         m_dot = torch.tensor(self.get_mb(fl.surface_h,

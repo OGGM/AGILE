@@ -776,8 +776,9 @@ def cost_fct(parameter_unknown,
             mb_model,
             yrs_to_run,
             used_geometry)
-    except:
-        print('Error in forward model run -> set Cost to Inf')
+    except MemoryError:
+        print('MemoryError in forward model run (due to a too small timestep) \
+              -> set Costfunction to Inf')
         cost = np.Inf
         grad = np.empty(len(parameter_unknown)) * np.nan
         return cost, grad
