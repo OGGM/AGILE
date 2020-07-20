@@ -1205,9 +1205,6 @@ class FluxBasedModel(FlowlineModel):
         else:
             dt_cfl = self.cfl_nr * dx / divisor
 
-        dt = torch.tensor(dt,
-                          dtype=dtype,
-                          requires_grad=False)
         dt_use = torch.clamp(torch.min(dt_cfl, dt),
                              torch.tensor(0.,
                                           dtype=dtype,
