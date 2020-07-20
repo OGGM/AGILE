@@ -92,7 +92,7 @@ def define_geometry(used_bed_h_geometry='linear',
     elif used_along_glacier_geometry == 'random':
         np.random.seed(0)
         random_shape = np.random.normal(loc=1.,
-                                        scale=0.3,
+                                        scale=0.1,
                                         size=geometry['nx'])
 
         if bed_shape == 'rectangular':
