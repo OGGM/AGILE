@@ -666,8 +666,8 @@ def cost_fct(parameter_unknown,
              get_c_terms=False,
              grad_scaling={'bed_h': 1,
                            'shape': 1},
-             grad_smoothing={'bed_h': '2nd is 1st',
-                             'shape': 'last 3 same'}):
+             grad_smoothing={'bed_h': 'no',
+                             'shape': 'no'}):
     # check which data type should be used for calculation
     if torch_type == 'double':
         torch_type = torch.double
@@ -784,9 +784,9 @@ def cost_fct(parameter_unknown,
         return cost, grad
 
     # calculate terms of cost function
-    c_terms = get_cost_terms(reg_parameter, ref_surf, ref_width, dx, bed_h,
-                             shape, model_surf, model_width, torch_type,
-                             model_thick, ice_mask)
+    c_terms, max_diff = get_cost_terms(reg_parameter, ref_surf, ref_width, dx,
+                                       bed_h, shape, model_surf, model_width,
+                                       torch_type, model_thick, ice_mask)
 
     # shortcut when regularisation parameters are searched
     if get_c_terms:
@@ -813,6 +813,13 @@ def cost_fct(parameter_unknown,
             pass
         elif grad_smoothing['bed_h'] == '2nd is 1st':
             grad_bed[0] = grad_bed[1]
+        # stopping criterion to avoid over minimizing
+        elif grad_smoothing['bed_h'] == 'stop if small enough':
+            if max_diff[0] < 0.5:
+                print('stopped becaus max_diff sfc is {}'.format(max_diff[0]))
+                cost = np.zeros(1)
+                grad = np.zeros(len(parameter_unknown))
+                return cost, grad
         else:
             raise ValueError('Unknown gradient smoothing for bed_h!')
 
@@ -827,6 +834,14 @@ def cost_fct(parameter_unknown,
             if np.abs(grad_shape[-2]) < np.abs(grad_shape[-3]):
                 grad_shape[-2] = grad_shape[-3]
             grad_shape[-1] = grad_shape[-2]
+        # stopping criterion to avoid over minimizing
+        elif grad_smoothing['shape'] == 'stop if small enough':
+            if max_diff[1] < 0.5:
+                print('stopped becaus max_diff width is {}'
+                      .format(max_diff[1]))
+                cost = np.zeros(1)
+                grad = np.zeros(len(parameter_unknown))
+                return cost, grad
         else:
             raise ValueError('Unknown gradient smoothing for shape!')
 
@@ -889,7 +904,7 @@ def get_cost_terms(reg_parameter,
                    model_thick,
                    ice_mask):
     # calculate cost terms
-    costs = torch.zeros(6,
+    costs = torch.zeros(8,
                         dtype=torch_type)
 
     # misfit between modeled and measured surface height
@@ -921,4 +936,12 @@ def get_cost_terms(reg_parameter,
                                               torch.tensor(1.),
                                               torch.tensor(0.)).sum()
 
-    return costs
+    # for having a break criterion if the largest difference is below a certain
+    # threshold
+    max_diff = np.zeros(2)
+    max_diff[0] = np.max(np.abs(ref_surf.detach().numpy() -
+                         model_surf.detach().numpy()))
+    max_diff[1] = np.max(np.abs(ref_width.detach().numpy() -
+                         model_width.detach().numpy()))
+
+    return costs, max_diff
