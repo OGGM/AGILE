@@ -327,6 +327,7 @@ def get_first_guess(measurements,
     elif method == 'perfect':
         first_guess['bed_h'] = measurements['bed_unknown']
         first_guess['shape'] = measurements['shape_unknown']
+        return first_guess
     else:
         raise ValueError('Unknown first guess method!')
 
