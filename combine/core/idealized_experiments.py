@@ -324,6 +324,11 @@ def get_first_guess(measurements,
             first_guess['shape'] = measurements['shape_unknown']
 
         return first_guess
+    elif method == 'perfect':
+        first_guess['bed_h'] = measurements['bed_unknown']
+        first_guess['shape'] = measurements['shape_unknown']
+    else:
+        raise ValueError('Unknown first guess method!')
 
 
 def get_reg_parameters(opti_var,
