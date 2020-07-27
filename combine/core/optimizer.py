@@ -27,6 +27,7 @@ def optimize_bed_h_and_shape(bed_h_guess,
                              data_logger=None,
                              iterations=5,
                              check_cost_terms=False,
+                             ice_mask=None
                              ):
     for loop in range(iterations):
         bed_h_success = False
@@ -46,6 +47,7 @@ def optimize_bed_h_and_shape(bed_h_guess,
             reg_parameter=reg_parameter_bed_h,
             ref_surf=ref_surf,
             ref_width=ref_widths,
+            ice_mask=ice_mask,
             yrs_to_run=yrs_to_run,
             dx=map_dx,
             mb_model=mb_model,
@@ -58,17 +60,16 @@ def optimize_bed_h_and_shape(bed_h_guess,
             cost_fct_bed_h(bed_h_guess)
             break
 
-        minimize_options_bed_h['maxiter'] = loop + 1
-        res = minimize(fun=cost_fct_bed_h,
-                       x0=bed_h_guess,
-                       method='L-BFGS-B',
-                       jac=True,
-                       # bounds=bounds,
-                       options=minimize_options_bed_h,
-                       callback=data_logger.callback_fct)
+        res_bed_h = minimize(fun=cost_fct_bed_h,
+                             x0=bed_h_guess,
+                             method='L-BFGS-B',
+                             jac=True,
+                             # bounds=bounds,
+                             options=minimize_options_bed_h,
+                             callback=data_logger.callback_fct)
 
-        bed_h_guess = res.x
-        bed_h_success = res.success
+        bed_h_guess = res_bed_h.x
+        bed_h_success = res_bed_h.success
 
         if data_logger is not None:
             data_logger.current_step_indices_bed_h = []
@@ -83,6 +84,7 @@ def optimize_bed_h_and_shape(bed_h_guess,
             reg_parameter=reg_parameter_shape,
             ref_surf=ref_surf,
             ref_width=ref_widths,
+            ice_mask=ice_mask,
             yrs_to_run=yrs_to_run,
             dx=map_dx,
             mb_model=mb_model,
@@ -91,17 +93,16 @@ def optimize_bed_h_and_shape(bed_h_guess,
             used_geometry=used_geometry,
             data_logger=data_logger)
 
-        minimize_options_shape['maxiter'] = loop + 1
-        res = minimize(fun=cost_fct_shape,
-                       x0=shape_guess,
-                       method='L-BFGS-B',
-                       jac=True,
-                       # bounds=bounds,
-                       options=minimize_options_shape,
-                       callback=data_logger.callback_fct)
+        res_shape = minimize(fun=cost_fct_shape,
+                             x0=shape_guess,
+                             method='L-BFGS-B',
+                             jac=True,
+                             # bounds=bounds,
+                             options=minimize_options_shape,
+                             callback=data_logger.callback_fct)
 
-        shape_guess = res.x
-        shape_success = res.success
+        shape_guess = res_shape.x
+        shape_success = res_shape.success
 
         if data_logger is not None:
             data_logger.current_step_indices_shape = []
@@ -110,7 +111,8 @@ def optimize_bed_h_and_shape(bed_h_guess,
             print('Optimisation was successful!')
             break
 
-    return bed_h_guess, shape_guess
+    res = [res_bed_h, res_shape]
+    return data_logger, res
 
 
 def idealized_inversion_experiment(used_bed_h_geometry='linear',
@@ -138,7 +140,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                                      'disp': True,
                                                      'maxcor': 50,
                                                      'maxls': 50},
-                                   show_plot=True):
+                                   show_plot=True,
+                                   iterations_separeted=5):
     # define glacier bed geometry
     print('- Define geometry: ')
     geometry = define_geometry(used_bed_h_geometry,
@@ -195,7 +198,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
         dl.geometry = geometry
         dl.measurements = measurements
 
-    # create cost function and define regularisation parameters
+    # define regularisation parameters
     if reg_parameters is None:
         print('\n- Calculate regularization parameters: ')
         reg_parameters = get_reg_parameters(opti_parameter_first_guess,
@@ -209,7 +212,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                             wanted_c_terms)
         print('---DONE---')
 
-    # create cost function
+    # define initial values
     if opti_parameter == 'bed_h':
         bed_h = measurements['bed_known']
         shape = measurements['shape_all']
@@ -224,42 +227,82 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
         shape = measurements['shape_known']
         first_guess_cost_fct = np.append(first_guess['bed_h'],
                                          first_guess['shape'])
+    else:
+        raise ValueError('Unknown optimisation parameter!')
 
-    cost_fct = creat_cost_fct(
-        bed_h=bed_h,
-        shape=shape,
-        spinup_surf=measurements['spinup_sfc'],
-        reg_parameter=reg_parameters,
-        ref_surf=measurements['sfc_h'],
-        ref_width=measurements['widths'],
-        ice_mask=measurements['ice_mask'],
-        yrs_to_run=measurements['yrs_to_run'],
-        dx=geometry['map_dx'],
-        mb_model=mb_model,
-        opti_var=opti_parameter_first_guess,
-        torch_type=torch_type,
-        used_geometry=bed_shape,
-        data_logger=dl,
-        grad_scaling=grad_scaling,
-        grad_smoothing=grad_smoothing)
+    if ((opti_parameter == 'bed_h') or (opti_parameter == 'shape') or
+       (opti_parameter == 'bed_h and shape at once')):
+        cost_fct = creat_cost_fct(
+            bed_h=bed_h,
+            shape=shape,
+            spinup_surf=measurements['spinup_sfc'],
+            reg_parameter=reg_parameters,
+            ref_surf=measurements['sfc_h'],
+            ref_width=measurements['widths'],
+            ice_mask=measurements['ice_mask'],
+            yrs_to_run=measurements['yrs_to_run'],
+            dx=geometry['map_dx'],
+            mb_model=mb_model,
+            opti_var=opti_parameter_first_guess,
+            torch_type=torch_type,
+            used_geometry=bed_shape,
+            data_logger=dl,
+            grad_scaling=grad_scaling,
+            grad_smoothing=grad_smoothing)
 
-    print('\n- Start minimising:')
-    res = minimize(fun=cost_fct,
-                   x0=first_guess_cost_fct,
-                   method='L-BFGS-B',
-                   jac=True,
-                   # bounds=bounds,
-                   options=minimize_options,
-                   callback=dl.callback_fct)
+        print('\n- Start minimising:')
+        res = minimize(fun=cost_fct,
+                       x0=first_guess_cost_fct,
+                       method='L-BFGS-B',
+                       jac=True,
+                       # bounds=bounds,
+                       options=minimize_options,
+                       callback=dl.callback_fct)
 
-    if show_plot:
-        result_plot = plot_result(res,
-                                  measurements,
-                                  geometry,
-                                  first_guess,
-                                  opti_parameter,
-                                  bed_shape)
+        if show_plot:
+            result_plot = plot_result(res,
+                                      measurements,
+                                      geometry,
+                                      first_guess,
+                                      opti_parameter,
+                                      bed_shape)
 
-        return dl, res, result_plot
+            return dl, res, result_plot
 
-    return dl, res
+        return dl, res
+
+    elif opti_parameter == 'bed_h and shape separeted':
+        dl, res = optimize_bed_h_and_shape(
+            bed_h_guess=first_guess['bed_h'],
+            shape_guess=first_guess['shape'],
+            bed_h_known=bed_h,
+            shape_known=shape,
+            mb_model=mb_model,
+            spinup_surf=measurements['spinup_sfc'],
+            ref_surf=measurements['sfc_h'],
+            ref_widths=measurements['widths'],
+            yrs_to_run=measurements['yrs_to_run'],
+            map_dx=geometry['map_dx'],
+            minimize_options_bed_h=minimize_options,
+            minimize_options_shape=minimize_options,
+            reg_parameter_bed_h=reg_parameters,
+            reg_parameter_shape=reg_parameters,
+            torch_type=torch_type,
+            used_geometry=bed_shape,
+            data_logger=dl,
+            iterations=iterations_separeted,
+            check_cost_terms=False,
+            ice_mask=measurements['ice_mask']
+            )
+
+        if show_plot:
+            result_plot = plot_result(res,
+                                      measurements,
+                                      geometry,
+                                      first_guess,
+                                      opti_parameter,
+                                      bed_shape)
+
+            return dl, res, result_plot
+
+        return dl, res

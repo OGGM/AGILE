@@ -409,11 +409,14 @@ def plot_result(res,
         bed_h_res = measurements['bed_unknown']
         shape_res = res.x
         single_plot_height = plot_height
-    elif ((opti_parameter == 'bed_h and shape at once') or
-          (opti_parameter == 'bed_h and shape separeted')):
+    elif opti_parameter == 'bed_h and shape at once':
         split_point = int(len(res.x) / 2)
         bed_h_res = res.x[:split_point]
         shape_res = res.x[split_point:]
+        single_plot_height = int(plot_height / 2)
+    elif opti_parameter == 'bed_h and shape separeted':
+        bed_h_res = res[0].x
+        shape_res = res[1].x
         single_plot_height = int(plot_height / 2)
     else:
         raise ValueError('Unknown optimisation parameter!')

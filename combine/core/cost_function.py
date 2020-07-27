@@ -618,8 +618,8 @@ def creat_cost_fct(bed_h,
                    get_c_terms=False,
                    grad_scaling={'bed_h': 1,
                                  'shape': 1},
-                   grad_smoothing={'bed_h': '2nd is 1st',
-                                   'shape': 'last 3 same'}):
+                   grad_smoothing={'bed_h': 'no',
+                                   'shape': 'no'}):
     '''
     Creates a cost function for optimizing bed height or for optimizing bed
     shape
@@ -904,7 +904,7 @@ def get_cost_terms(reg_parameter,
                    model_thick,
                    ice_mask):
     # calculate cost terms
-    costs = torch.zeros(8,
+    costs = torch.zeros(6,
                         dtype=torch_type)
 
     # misfit between modeled and measured surface height
