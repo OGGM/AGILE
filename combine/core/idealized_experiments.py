@@ -7,6 +7,7 @@ from oggm.core.massbalance import LinearMassBalance
 from oggm.core.flowline import FluxBasedModel as oggm_FluxModel
 from oggm.core.flowline import RectangularBedFlowline
 from oggm.core.flowline import ParabolicBedFlowline
+from oggm.core.flowline import TrapezoidalBedFlowline
 from oggm import GlacierDirectory
 from oggm.tasks import define_glacier_region
 import geopandas as gpd
@@ -22,7 +23,7 @@ from oggm import cfg
 
 def define_geometry(used_bed_h_geometry='linear',
                     used_along_glacier_geometry='linear',
-                    bed_shape='parabolic'):
+                    bed_geometry='parabolic'):
     geometry = {}
     # number of steps from bottem to top of glacier
     geometry['nx'] = 100
@@ -83,10 +84,13 @@ def define_geometry(used_bed_h_geometry='linear',
         raise ValueError('Unknown bed height geometry!')
 
     if used_along_glacier_geometry == 'linear':
-        if bed_shape == 'rectangular':
+        if bed_geometry == 'rectangular':
             geometry['widths'] = np.zeros(geometry['nx']) + 1.
-        elif bed_shape == 'parabolic':
+        elif bed_geometry == 'parabolic':
             geometry['bed_shapes'] = np.zeros(geometry['nx']) + 1.
+        elif bed_geometry == 'trapezoid':
+            geometry['w0'] = np.zeros(geometry['nx']) + 1.
+            geometry['lambdas'] = np.zeros(geometry['nx']) + 1.
         else:
             raise ValueError('Unkonwn bed shape!')
     elif used_along_glacier_geometry == 'random':
@@ -95,10 +99,13 @@ def define_geometry(used_bed_h_geometry='linear',
                                         scale=0.1,
                                         size=geometry['nx'])
 
-        if bed_shape == 'rectangular':
+        if bed_geometry == 'rectangular':
             geometry['widths'] = random_shape
-        elif bed_shape == 'parabolic':
+        elif bed_geometry == 'parabolic':
             geometry['bed_shapes'] = random_shape
+        elif bed_geometry == 'trapezoid':
+            geometry['w0'] = random_shape
+            geometry['lambdas'] = np.zeros(geometry['nx']) + 1.
         else:
             raise ValueError('Unkonwn bed shape!')
     else:
@@ -129,24 +136,29 @@ def define_mb_model(mb_type='linear',
 
 def create_measurements(geometry,
                         mb_model,
-                        bed_shape='rectangular',
+                        bed_geometry='rectangular',
                         glacier_state='equilibrium',
                         add_noise=False):
     measurements = {}
 
     # Create glacier and let it run
-    if bed_shape == 'rectangular':
+    if bed_geometry == 'rectangular':
         oggm_fl = RectangularBedFlowline(surface_h=geometry['bed_h'],
                                          bed_h=geometry['bed_h'],
                                          widths=geometry['widths'],
                                          map_dx=geometry['map_dx'])
-    elif bed_shape == 'parabolic':
+    elif bed_geometry == 'parabolic':
         oggm_fl = ParabolicBedFlowline(surface_h=geometry['bed_h'],
                                        bed_h=geometry['bed_h'],
                                        bed_shape=geometry['bed_shapes'],
                                        map_dx=geometry['map_dx'])
-    elif bed_shape == 'trapezoidol':
-        raise NotImplementedError('Trapezoidol bed shape not read yet!')
+    elif bed_geometry == 'trapezoidol':
+        oggm_fl = TrapezoidalBedFlowline(surface_h=geometry['bed_h'],
+                                         bed_h=geometry['bed_h'],
+                                         widths=geometry['w0'],
+                                         lambdas=geometry['lambdas'],
+                                         map_dx=geometry['map_dx'],
+                                         )
     else:
         raise ValueError('Unkown bed shape!')
 
@@ -204,7 +216,7 @@ def create_measurements(geometry,
     measurements['bed_known'] = ref_model.fls[0].bed_h[~ice_mask]
     measurements['bed_unknown'] = ref_model.fls[0].bed_h[ice_mask]
     measurements['bed_all'] = ref_model.fls[0].bed_h
-    if bed_shape == 'parabolic':
+    if bed_geometry == 'parabolic':
         measurements['shape_known'] = ref_model.fls[0].bed_shape[~ice_mask]
         measurements['shape_unknown'] = ref_model.fls[0].bed_shape[ice_mask]
         measurements['shape_all'] = ref_model.fls[0].bed_shape
@@ -221,7 +233,7 @@ def create_measurements(geometry,
 
 def get_first_guess(measurements,
                     method='oggm',
-                    bed_shape='rectangular',
+                    bed_geometry='rectangular',
                     const={'bed_h': None, 'shape': None},
                     opti_parameter='bed_h'):
     first_guess = {'bed_h': None, 'shape': None}
@@ -287,10 +299,10 @@ def get_first_guess(measurements,
         flo = centerlines.Centerline(line, dx=fl.dx * 2,
                                      surface_h=sh)
         flo.widths = fl.widths[ice_index] * 2  # * 2 because of gdir.grid.dx
-        if bed_shape == 'rectangular':
+        if bed_geometry == 'rectangular':
             flo.is_rectangular = np.ones(flo.nx).astype(np.bool)
 
-        elif bed_shape == 'parabolic':
+        elif (bed_geometry == 'parabolic') or (bed_geometry == 'trapezoidol'):
             flo.is_rectangular = np.zeros(flo.nx).astype(np.bool)
 
         else:
@@ -337,7 +349,7 @@ def get_reg_parameters(opti_var,
                        geometry,
                        mb_model,
                        torch_type,
-                       bed_shape,
+                       bed_geometry,
                        first_guess,
                        glacier_state,
                        wanted_c_terms=None):
@@ -373,8 +385,9 @@ def get_reg_parameters(opti_var,
         mb_model=mb_model,
         opti_var=opti_var,
         torch_type=torch_type,
-        used_geometry=bed_shape,
-        get_c_terms=True)
+        used_geometry=bed_geometry,
+        get_c_terms=True,
+        lambdas=lambdas)
 
     c_terms = cost_fct(first_guess_cost_fct)
 
@@ -396,13 +409,13 @@ def plot_result(res,
                 geometry,
                 first_guess,
                 opti_parameter,
-                bed_shape):
+                bed_geometry):
     plot_height = 450
     plot_width = 800
 
     if opti_parameter == 'bed_h':
         bed_h_res = res.x
-        if bed_shape == 'parabolic':
+        if bed_geometry == 'parabolic':
             shape_res = measurements['shape_unknown']
         single_plot_height = plot_height
     elif opti_parameter == 'shape':

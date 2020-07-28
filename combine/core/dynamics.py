@@ -7,7 +7,8 @@ from combine.core.sia2d_adapted import Upstream2D
 import logging
 from combine.core.flowline_adapted import ParabolicBedFlowline
 from combine.core.flowline_adapted import RectangularBedFlowline
-from combine.core.flowline_adapted import FluxBasedModel 
+from combine.core.flowline_adapted import TrapezoidalBedFlowline
+from combine.core.flowline_adapted import FluxBasedModel
 # -------------------------------
 # Further initialization / extended import tasks
 # Module logger
@@ -183,20 +184,32 @@ def create_glacier(gdir, run_spinup=True):
     np.save(gdir.get_filepath('ref_ice_mask'), ref_ice_mask)
 
 
-def run_flowline_forward_core(surface_h, bed_h, bed_shape, map_dx, torch_type,
-                              mb_model, yrs_to_run, used_bed_geometry):
+def run_flowline_forward_core(surface_h, bed_h, shape, map_dx, torch_type,
+                              mb_model, yrs_to_run, used_bed_geometry,
+                              ref_surf, ref_width, lambdas=None):
     if used_bed_geometry == 'parabolic':
         flowline = ParabolicBedFlowline(surface_h=surface_h,
                                         bed_h=bed_h,
-                                        bed_shape=bed_shape,
+                                        bed_shape=shape,
                                         map_dx=map_dx,
                                         torch_type=torch_type)
     elif used_bed_geometry == 'rectangular':
         flowline = RectangularBedFlowline(surface_h=surface_h,
                                           bed_h=bed_h,
-                                          widths=bed_shape,
+                                          widths=shape,
                                           map_dx=map_dx,
                                           torch_type=torch_type)
+    elif used_bed_geometry == 'trapezoidol':
+        # TODO: calculate widths
+
+        flowline = TrapezoidalBedFlowline(map_dx=map_dx,
+                                          surface_h=surface_h,
+                                          bed_h=bed_h,
+                                          widths=shape,
+                                          lambdas=lambdas,
+                                          torch_type=torch_type)
+    else:
+        raise ValueError('Unknown bed geometry!')
 
     model = FluxBasedModel(flowline,
                            mb_model=mb_model,
