@@ -619,7 +619,8 @@ def creat_cost_fct(bed_h,
                    grad_scaling={'bed_h': 1,
                                  'shape': 1},
                    grad_smoothing={'bed_h': 'no',
-                                   'shape': 'no'}):
+                                   'shape': 'no'},
+                   lambdas=None):
     '''
     Creates a cost function for optimizing bed height or for optimizing bed
     shape
@@ -643,7 +644,8 @@ def creat_cost_fct(bed_h,
                         data_logger,
                         get_c_terms,
                         grad_scaling,
-                        grad_smoothing)
+                        grad_smoothing,
+                        lambdas)
 
     return c_fun
 
@@ -667,7 +669,8 @@ def cost_fct(parameter_unknown,
              grad_scaling={'bed_h': 1,
                            'shape': 1},
              grad_smoothing={'bed_h': 'no',
-                             'shape': 'no'}):
+                             'shape': 'no'},
+             lambdas=None):
     # check which data type should be used for calculation
     if torch_type == 'double':
         torch_type = torch.double
@@ -775,7 +778,10 @@ def cost_fct(parameter_unknown,
             torch_type,
             mb_model,
             yrs_to_run,
-            used_geometry)
+            used_geometry,
+            ref_surf,
+            ref_width,
+            lambdas)
     except MemoryError:
         print('MemoryError in forward model run (due to a too small timestep) \
               -> set Costfunction to Inf')

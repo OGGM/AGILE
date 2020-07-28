@@ -117,7 +117,7 @@ def optimize_bed_h_and_shape(bed_h_guess,
 
 def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                    used_along_glacier_geometry='linear',
-                                   bed_shape='parabolic',
+                                   bed_geometry='parabolic',
                                    mb_type='linear',
                                    mb_opts={'ELA': np.array([3000.]),
                                             'grad': np.array([4.])},
@@ -131,8 +131,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                    wanted_c_terms=None,
                                    grad_scaling={'bed_h': 1,
                                                  'shape': 1},
-                                   grad_smoothing={'bed_h': '2nd is 1st',
-                                                   'shape': 'last 3 same'},
+                                   grad_smoothing={'bed_h': 'no',
+                                                   'shape': 'no'},
                                    torch_type='double',
                                    minimize_options={'maxiter': 10,
                                                      'ftol': 1e-7,
@@ -146,7 +146,10 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
     print('- Define geometry: ')
     geometry = define_geometry(used_bed_h_geometry,
                                used_along_glacier_geometry,
-                               bed_shape)
+                               bed_geometry)
+
+    if bed_geometry == 'trapezoid':
+        lambdas = geometry['lambdas']
     print('---DONE---')
 
     # define mass balance profile
@@ -158,7 +161,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
     print('\n- Create Measurements: ')
     measurements = create_measurements(geometry,
                                        mb_model,
-                                       bed_shape=bed_shape,
+                                       bed_geometry=bed_geometry,
                                        glacier_state=glacier_state,
                                        add_noise=add_measurement_noise)
 
@@ -181,7 +184,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
     print('\n- Get first guess: ')
     first_guess = get_first_guess(measurements,
                                   method=first_guess_method,
-                                  bed_shape=bed_shape,
+                                  bed_geometry=bed_geometry,
                                   const=first_guess_const,
                                   opti_parameter=opti_parameter_first_guess)
     print('---DONE---')
@@ -206,7 +209,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                             geometry,
                                             mb_model,
                                             torch_type,
-                                            bed_shape,
+                                            bed_geometry,
                                             first_guess,
                                             glacier_state,
                                             wanted_c_terms)
@@ -245,7 +248,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
             mb_model=mb_model,
             opti_var=opti_parameter_first_guess,
             torch_type=torch_type,
-            used_geometry=bed_shape,
+            used_geometry=bed_geometry,
             data_logger=dl,
             grad_scaling=grad_scaling,
             grad_smoothing=grad_smoothing)
@@ -265,7 +268,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                       geometry,
                                       first_guess,
                                       opti_parameter,
-                                      bed_shape)
+                                      bed_geometry)
 
             return dl, res, result_plot
 
@@ -288,7 +291,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
             reg_parameter_bed_h=reg_parameters,
             reg_parameter_shape=reg_parameters,
             torch_type=torch_type,
-            used_geometry=bed_shape,
+            used_geometry=bed_geometry,
             data_logger=dl,
             iterations=iterations_separeted,
             check_cost_terms=False,
@@ -301,7 +304,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                       geometry,
                                       first_guess,
                                       opti_parameter,
-                                      bed_shape)
+                                      bed_geometry)
 
             return dl, res, result_plot
 
