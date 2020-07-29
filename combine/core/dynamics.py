@@ -90,7 +90,7 @@ def run_forward(gdir, case, yrs, bed, mb=None, init_ice_thick=None):
     elif isinstance(bed, (list, tuple)) and len(bed) == 2 and all(
             isinstance(s, str) for s in bed):
         bed_arr = salem.GeoTiff(
-            gdir.get_filepath(bed[0],filesuffix=bed[1])
+            gdir.get_filepath(bed[0], filesuffix=bed[1])
         ).get_vardata()
     else:
         raise TypeError('Unexpected Type of argument "bed" in "run_forward"')
@@ -171,7 +171,6 @@ def create_glacier(gdir, run_spinup=True):
                            mb=inv_settings['mb_forward_run'],
                            init_ice_thick=spinup_it)
 
-
     profile['dtype'] = 'float32'
     with rasterio.open(gdir.get_filepath('ref_dem'),
                        'w', **profile) as dst:
@@ -200,12 +199,24 @@ def run_flowline_forward_core(surface_h, bed_h, shape, map_dx, torch_type,
                                           map_dx=map_dx,
                                           torch_type=torch_type)
     elif used_bed_geometry == 'trapezoidol':
-        # TODO: calculate widths
+        # calculate desired ice thickness at the end
+        ice_thick_end = ref_surf - bed_h
+
+        # calculate w0 with desired width
+        w0 = ref_width - lambdas * ice_thick_end
+
+        # only positive w0 are allowed
+        # TODO: check the maximum ice thickness
+        w0 = np.clip(w0, 0, np.Inf)
+
+        # calculate the model with out of the start ice thickness
+        ice_thick_start = surface_h - bed_h
+        width_start = w0 + lambdas * ice_thick_start
 
         flowline = TrapezoidalBedFlowline(map_dx=map_dx,
                                           surface_h=surface_h,
                                           bed_h=bed_h,
-                                          widths=shape,
+                                          widths=width_start,
                                           lambdas=lambdas,
                                           torch_type=torch_type)
     else:

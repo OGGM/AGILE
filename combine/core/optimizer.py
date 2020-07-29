@@ -27,7 +27,8 @@ def optimize_bed_h_and_shape(bed_h_guess,
                              data_logger=None,
                              iterations=5,
                              check_cost_terms=False,
-                             ice_mask=None
+                             ice_mask=None,
+                             lambdas=None
                              ):
     for loop in range(iterations):
         bed_h_success = False
@@ -54,7 +55,8 @@ def optimize_bed_h_and_shape(bed_h_guess,
             opti_var='bed_h',
             torch_type=torch_type,
             used_geometry=used_geometry,
-            data_logger=data_logger)
+            data_logger=data_logger,
+            lambdas=lambdas)
 
         if check_cost_terms:
             cost_fct_bed_h(bed_h_guess)
@@ -91,7 +93,8 @@ def optimize_bed_h_and_shape(bed_h_guess,
             opti_var='shape',
             torch_type=torch_type,
             used_geometry=used_geometry,
-            data_logger=data_logger)
+            data_logger=data_logger,
+            lambdas=lambdas)
 
         res_shape = minimize(fun=cost_fct_shape,
                              x0=shape_guess,
@@ -150,6 +153,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
 
     if bed_geometry == 'trapezoid':
         lambdas = geometry['lambdas']
+    else:
+        lambdas = None
     print('---DONE---')
 
     # define mass balance profile
@@ -212,7 +217,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                             bed_geometry,
                                             first_guess,
                                             glacier_state,
-                                            wanted_c_terms)
+                                            wanted_c_terms,
+                                            lambdas=lambdas)
         print('---DONE---')
 
     # define initial values
@@ -251,7 +257,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
             used_geometry=bed_geometry,
             data_logger=dl,
             grad_scaling=grad_scaling,
-            grad_smoothing=grad_smoothing)
+            grad_smoothing=grad_smoothing,
+            lambdas=lambdas)
 
         print('\n- Start minimising:')
         res = minimize(fun=cost_fct,
@@ -295,7 +302,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
             data_logger=dl,
             iterations=iterations_separeted,
             check_cost_terms=False,
-            ice_mask=measurements['ice_mask']
+            ice_mask=measurements['ice_mask'],
+            lambdas=lambdas
             )
 
         if show_plot:
