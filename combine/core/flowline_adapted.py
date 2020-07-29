@@ -1172,7 +1172,8 @@ class FluxBasedModel(FlowlineModel):
         elif fl.fl_type == 'ParabolicFlowline':
             CS = 2./3. * H * w
         elif fl.fl_type == 'TrapezoidalFlowline':
-            raise NotImplementedError()
+            w = fl.widths_m
+            CS = fl.section
 
         # Surface gradient on staggerd grid
         S_grad = (S[self.k_right] - S[self.k_left]) / dx
@@ -1246,7 +1247,7 @@ class FluxBasedModel(FlowlineModel):
                                                 self.fls[0].thick)
             self.fls[0].widths = w_new / fl.map_dx
         elif fl.fl_type == 'TrapezoidalFlowline':
-            raise NotImplementedError()
+            self.fls[0].section = torch.clamp(CS_new, min=0)
 
         # save new section in flowline
         # self.fls[0].section = torch.clamp(CS_new, min=0)
