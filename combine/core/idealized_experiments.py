@@ -352,7 +352,8 @@ def get_reg_parameters(opti_var,
                        bed_geometry,
                        first_guess,
                        glacier_state,
-                       wanted_c_terms=None):
+                       wanted_c_terms=None,
+                       lambdas=None):
     if opti_var == 'bed_h':
         bed_h = measurements['bed_known']
         shape = measurements['shape_all']
