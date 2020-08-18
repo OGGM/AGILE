@@ -226,6 +226,9 @@ def run_flowline_forward_core(surface_h, bed_h, shape, map_dx, torch_type,
                            mb_model=mb_model,
                            y0=0.)
 
-    model.run_until(yrs_to_run)
+    if yrs_to_run == 'equilibrium':
+        model.run_until_equilibrium()
+    else:
+        model.run_until(yrs_to_run)
 
-    return model.fls[0].surface_h, model.fls[0].widths_m, model.fls[0].thick
+    return model.fls[0]

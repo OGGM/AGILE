@@ -4,7 +4,7 @@ from combine.core.cost_function import creat_cost_fct
 from scipy.optimize import minimize
 from combine.core.idealized_experiments import define_geometry,\
     define_mb_model, create_measurements, get_first_guess, get_reg_parameters,\
-    plot_result
+    plot_result, get_spinup_sfc
 from combine.core.data_logging import DataLogger_bed_h_and_shape
 
 
@@ -144,7 +144,14 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                                      'maxcor': 50,
                                                      'maxls': 50},
                                    show_plot=True,
-                                   iterations_separeted=5):
+                                   iterations_separeted=5,
+                                   minimize_options_spinup={'maxiter': 10,
+                                                            'ftol': 1e-7,
+                                                            'gtol': 1e-8,
+                                                            'disp': True,
+                                                            'maxcor': 50,
+                                                            'maxls': 50}
+                                   ):
     # define glacier bed geometry
     print('- Define geometry: ')
     geometry = define_geometry(used_bed_h_geometry,
@@ -170,7 +177,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                        glacier_state=glacier_state,
                                        add_noise=add_measurement_noise)
 
-    if glacier_state == 'retreating':
+    if (glacier_state == 'retreating' or
+       glacier_state == 'retreating with unknow spinup'):
         # use only second mass balance model for optimization
         mb_model = mb_model[1]
     print('---DONE---')
@@ -191,7 +199,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                   method=first_guess_method,
                                   bed_geometry=bed_geometry,
                                   const=first_guess_const,
-                                  opti_parameter=opti_parameter_first_guess)
+                                  opti_parameter=opti_parameter_first_guess,
+                                  lambdas=lambdas)
     print('---DONE---')
 
     # create Datalogger
@@ -206,6 +215,17 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
         dl.geometry = geometry
         dl.measurements = measurements
 
+    if glacier_state == 'retreating with unknow spinup':
+        print('\n- Calculate spinup surface:')
+        measurements['spinup_sfc'] = get_spinup_sfc(measurements,
+                                                    mb_model,
+                                                    first_guess,
+                                                    minimize_options_spinup,
+                                                    bed_geometry,
+                                                    geometry,
+                                                    lambdas=lambdas,
+                                                    torch_type=torch_type)
+        print('---DONE---')
     # define regularisation parameters
     if reg_parameters is None:
         print('\n- Calculate regularization parameters: ')
