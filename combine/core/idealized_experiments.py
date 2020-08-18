@@ -1,7 +1,8 @@
 import numpy as np
+from scipy.optimize import minimize
 import holoviews as hv
 from holoviews import opts
-from combine.core.cost_function import creat_cost_fct
+from combine.core.cost_function import creat_cost_fct, creat_spinup_cost_fct
 from combine.core.arithmetics import magnitude
 from oggm.core.massbalance import LinearMassBalance
 from oggm.core.flowline import FluxBasedModel as oggm_FluxModel
@@ -173,7 +174,8 @@ def create_measurements(geometry,
         ref_model = oggm_FluxModel(oggm_fl, mb_model=mb_model, y0=0.)
         ref_model.run_until(int(eq_years/2))
 
-    elif glacier_state == 'retreating':
+    elif (glacier_state == 'retreating' or
+          glacier_state == 'retreating with unknow spinup'):
         assert len(mb_model) >= 2,\
             'Need at least two mass balance models for retreating!'
         years_to_retreat = None
@@ -192,6 +194,7 @@ def create_measurements(geometry,
                 retreat_model.run_until(years_to_retreat)
                 break
         ref_model = retreat_model
+
     else:
         raise ValueError('Unknown glacier state!')
 
@@ -200,7 +203,7 @@ def create_measurements(geometry,
     widths_noise = np.zeros(geometry['nx'])
 
     if add_noise:
-        raise NotImplementedError('measuremetns noise not ready yet!')
+        raise NotImplementedError('measurement noise not ready yet!')
 
     # safe model
     measurements['model'] = ref_model
@@ -225,6 +228,10 @@ def create_measurements(geometry,
         measurements['spinup_sfc'] = np.zeros(len(measurements['bed_all']))
     elif glacier_state == 'retreating':
         measurements['spinup_sfc'] = start_model.fls[0].surface_h
+    elif glacier_state == 'retreating with unknow spinup':
+        measurements['spinup_volume'] = start_model.fls[0].volume_m3
+        measurements['spinup_bin_area'] = start_model.fls[0].bin_area_m2
+        measurements['ref_spinup_sfc'] = start_model.fls[0].surface_h
     else:
         raise ValueError('Unknown glacier state!')
 
@@ -235,7 +242,8 @@ def get_first_guess(measurements,
                     method='oggm',
                     bed_geometry='rectangular',
                     const={'bed_h': None, 'shape': None},
-                    opti_parameter='bed_h'):
+                    opti_parameter='bed_h',
+                    lambdas=None):
     first_guess = {'bed_h': None, 'shape': None}
     get_bed_h = get_shape = False
     if opti_parameter == 'bed_h':
@@ -302,7 +310,7 @@ def get_first_guess(measurements,
         if bed_geometry == 'rectangular':
             flo.is_rectangular = np.ones(flo.nx).astype(np.bool)
 
-        elif (bed_geometry == 'parabolic') or (bed_geometry == 'trapezoidol'):
+        elif bed_geometry == 'parabolic' or bed_geometry == 'trapezoidol':
             flo.is_rectangular = np.zeros(flo.nx).astype(np.bool)
 
         else:
@@ -334,6 +342,12 @@ def get_first_guess(measurements,
                                             4 * ocls[-1]['thick'] / 10**2)
         else:
             first_guess['shape'] = measurements['shape_unknown']
+
+        if bed_geometry == 'trapezoidol':
+            first_guess['w0'] = np.clip(ocls[-1]['width'] - lambdas *
+                                        ocls[-1]['thick'],
+                                        0,
+                                        np.Inf)
 
         return first_guess
     elif method == 'perfect':
@@ -504,3 +518,61 @@ def plot_result(res,
         return return_plot.opts(opts.Curve(line_width=3))
     else:
         raise ValueError('Unknown optimisation parameter!')
+
+
+def get_spinup_sfc(measurements,
+                   mb_model,
+                   first_guess,
+                   minimize_options,
+                   bed_geometry,
+                   geometry,
+                   lambdas,
+                   torch_type='double'):
+    # cost function to find tbias for spinup
+    cost_fct = creat_spinup_cost_fct(measurements,
+                                     mb_model,
+                                     first_guess,
+                                     bed_geometry,
+                                     geometry,
+                                     lambdas,
+                                     torch_type)
+
+    # first guess for tbias is 0
+    tbias = 0
+
+    res = minimize(fun=cost_fct,
+                   x0=tbias,
+                   method='L-BFGS-B',
+                   jac=True,
+                   # bounds=bounds,
+                   options=minimize_options,
+                   # callback=dl.callback_fct
+                   )
+
+    # calculate final spinup surface
+    tbias = res.x
+    mb_model.temp_bias = tbias
+    if bed_geometry == 'rectangular':
+        oggm_fl = RectangularBedFlowline(surface_h=first_guess['bed_h'],
+                                         bed_h=first_guess['bed_h'],
+                                         widths=measurements['widths'],
+                                         map_dx=geometry['map_dx'])
+    elif bed_geometry == 'parabolic':
+        oggm_fl = ParabolicBedFlowline(surface_h=first_guess['bed_h'],
+                                       bed_h=first_guess['bed_h'],
+                                       bed_shape=first_guess['shape'],
+                                       map_dx=geometry['map_dx'])
+    elif bed_geometry == 'trapezoidol':
+        oggm_fl = TrapezoidalBedFlowline(surface_h=first_guess['bed_h'],
+                                         bed_h=first_guess['bed_h'],
+                                         widths=first_guess['w0'],
+                                         lambdas=geometry['lambdas'],
+                                         map_dx=geometry['map_dx'],
+                                         )
+
+    final_model = oggm_FluxModel(oggm_fl, mb_model=mb_model, y0=0.)
+    final_model.run_until_equilibrium()
+
+    # TODO: print message with difference of actual and calculated sfc, t_bias
+
+    return final_model.fls[0].surface_h

@@ -512,7 +512,7 @@ def cost_fucntion_flowline(parameters_unknown, bed_known, shape_known,
                              dtype=torch_type,
                              requires_grad=False)
 
-    model_surf, model_width, model_thick = run_flowline_forward_core(
+    model_flowline = run_flowline_forward_core(
         spinup_surf,
         bed,
         shape,
@@ -521,6 +521,10 @@ def cost_fucntion_flowline(parameters_unknown, bed_known, shape_known,
         mb_model,
         yrs_to_run,
         used_bed_geometry)
+
+    model_surf = model_flowline.surface_h
+    model_width = model_flowline.widths_m
+    model_thick = model_flowline.thick
 
     c_terms = get_flowline_costs(reg_parameters, ref_surf, ref_width, dx,
                                  bed, model_surf, model_width,
@@ -770,7 +774,7 @@ def cost_fct(parameter_unknown,
 
     # forward run of model
     try:
-        model_surf, model_width, model_thick = run_flowline_forward_core(
+        model_flowline = run_flowline_forward_core(
             spinup_surf,
             bed_h,
             shape,
@@ -782,6 +786,10 @@ def cost_fct(parameter_unknown,
             ref_surf,
             ref_width,
             lambdas)
+
+        model_surf = model_flowline.surface_h
+        model_width = model_flowline.widths_m
+        model_thick = model_flowline.thick
     except MemoryError:
         print('MemoryError in forward model run (due to a too small timestep) \
               -> set Costfunction to Inf')
@@ -951,3 +959,73 @@ def get_cost_terms(reg_parameter,
                          model_width.detach().numpy()))
 
     return costs, max_diff
+
+
+def creat_spinup_cost_fct(measurements,
+                          mb_model,
+                          first_guess,
+                          used_geometry,
+                          geometry,
+                          lambdas,
+                          torch_type):
+    '''
+    Creates a cost function for optimizing t bias for the spinup
+    '''
+
+    def c_fun(t_bias):
+        return spinup_cost_fct(t_bias,
+                               measurements,
+                               mb_model,
+                               first_guess,
+                               used_geometry,
+                               geometry,
+                               lambdas,
+                               torch_type)
+
+    return c_fun
+
+
+def spinup_cost_fct(t_bias,
+                    measurements,
+                    mb_model,
+                    first_guess,
+                    used_geometry,
+                    geometry,
+                    lambdas,
+                    torch_type='double'):
+    # check which data type should be used for calculation
+    if torch_type == 'double':
+        torch_type = torch.double
+    else:
+        torch_type = torch.float
+
+    temp_bias = torch.tensor(t_bias,
+                             dtype=torch_type,
+                             requires_grad=True)
+    # set the temperature bias for the mass balance model
+    mb_model.temp_bias = temp_bias
+
+    # run the model with the first guess geometry to equilibrium and get volume
+    model_flowline = run_flowline_forward_core(
+            spinup_surf=first_guess['bed_h'],
+            bed_h=first_guess['bed_h'],
+            shape=first_guess['shape'],
+            dx=geometry['map_dx'],
+            torch_type=torch_type,
+            mb_model=mb_model,
+            yrs_to_run='equilibrium',
+            used_geometry=used_geometry,
+            ref_surf=measurements['sfc_h'],
+            ref_width=measurements['widths'],
+            lambdas=lambdas)
+    model_volume = model_flowline.volume_m3
+
+    ref_volume = to_torch_tensor(measurements['spinup_volume'], torch_type)
+
+    c = torch.abs(model_volume - ref_volume)
+    c.backward()
+
+    cost = c.detach().numpy().astype(np.float64)
+    grad = temp_bias.grad.detach().numpy().astype(np.float64)
+
+    return cost, grad
