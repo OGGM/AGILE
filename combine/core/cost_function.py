@@ -708,9 +708,10 @@ def cost_fct(parameter_unknown,
         bed_h[~ice_mask] = bed_known
         # torch.cat((bed_unknown, bed_known), 0)
 
-        shape = torch.tensor(shape,
-                             dtype=torch_type,
-                             requires_grad=False)
+        if used_geometry == 'parabolic':
+            shape = torch.tensor(shape,
+                                 dtype=torch_type,
+                                 requires_grad=False)
 
     elif opti_var == 'shape':
         shape_unknown = torch.tensor(parameter_unknown,
@@ -769,8 +770,9 @@ def cost_fct(parameter_unknown,
     else:
         raise ValueError('Optimisation variable unknown!')
 
-    # check if shape and bed_h same length
-    assert len(bed_h) == len(shape), 'Parameters not the same length!!!'
+    if used_geometry == 'parabolic':
+        # check if shape and bed_h same length
+        assert len(bed_h) == len(shape), 'Parameters not the same length!!!'
 
     # forward run of model
     try:
@@ -800,7 +802,8 @@ def cost_fct(parameter_unknown,
     # calculate terms of cost function
     c_terms, max_diff = get_cost_terms(reg_parameter, ref_surf, ref_width, dx,
                                        bed_h, shape, model_surf, model_width,
-                                       torch_type, model_thick, ice_mask)
+                                       torch_type, model_thick, ice_mask,
+                                       used_geometry)
 
     # shortcut when regularisation parameters are searched
     if get_c_terms:
@@ -916,7 +919,8 @@ def get_cost_terms(reg_parameter,
                    model_width,
                    torch_type,
                    model_thick,
-                   ice_mask):
+                   ice_mask,
+                   used_geometry):
     # calculate cost terms
     costs = torch.zeros(6,
                         dtype=torch_type)
@@ -933,9 +937,12 @@ def get_cost_terms(reg_parameter,
     ref_width = to_torch_tensor(ref_width, torch_type)
     costs[2] = reg_parameter[2] * ((ref_width - model_width)).pow(2).sum()
 
-    # smoothnes of shape parameter
-    dshape_dx = (shape[1:] - shape[:-1]) / dx
-    costs[3] = reg_parameter[3] * dshape_dx.pow(2).sum()
+    if used_geometry == 'parabolic':
+        # smoothnes of shape parameter
+        dshape_dx = (shape[1:] - shape[:-1]) / dx
+        costs[3] = reg_parameter[3] * dshape_dx.pow(2).sum()
+    else:
+        costs[3] = 0.
 
     # guessed glacier bed higher than measured surface
     costs[4] = reg_parameter[4] * torch.where(bed_h > ref_surf,
