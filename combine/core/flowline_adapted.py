@@ -1161,15 +1161,16 @@ class FluxBasedModel(FlowlineModel):
         dtype = self.fls[0].torch_type
         n = self.glen_n
 
-        w = fl.widths * fl.map_dx
         H = fl.thick
         S = fl.surface_h
         # CS = fl.section
 
         # Calculate area of cross section in accordance to flowlinetype
         if fl.fl_type == 'RectangularFlowline':
+            w = fl.widths * fl.map_dx
             CS = H * w
         elif fl.fl_type == 'ParabolicFlowline':
+            w = fl.widths * fl.map_dx
             CS = 2./3. * H * w
         elif fl.fl_type == 'TrapezoidalFlowline':
             w = fl.widths_m

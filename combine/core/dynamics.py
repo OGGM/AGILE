@@ -198,20 +198,34 @@ def run_flowline_forward_core(surface_h, bed_h, shape, map_dx, torch_type,
                                           widths=shape,
                                           map_dx=map_dx,
                                           torch_type=torch_type)
-    elif used_bed_geometry == 'trapezoidol':
+    elif used_bed_geometry == 'trapezoid':
         # calculate desired ice thickness at the end
+        ref_surf = torch.tensor(ref_surf,
+                                dtype=torch_type,
+                                requires_grad=False)
         ice_thick_end = ref_surf - bed_h
 
         # calculate w0 with desired width
+        ref_width = torch.tensor(ref_width,
+                                 dtype=torch_type,
+                                 requires_grad=False)
+        lambdas = torch.tensor(lambdas,
+                               dtype=torch_type,
+                               requires_grad=False)
         w0 = ref_width - lambdas * ice_thick_end
 
         # only positive w0 are allowed
         # TODO: check the maximum ice thickness
-        w0 = np.clip(w0, 0, np.Inf)
+        w0 = torch.clamp(w0, min=0.)
 
         # calculate the model with out of the start ice thickness
+        surface_h = torch.tensor(surface_h,
+                                 dtype=torch_type,
+                                 requires_grad=False)
         ice_thick_start = surface_h - bed_h
         width_start = w0 + lambdas * ice_thick_start
+        # TODO: Check what I do here!!!
+        width_start = torch.clamp(width_start, min=0.1)
 
         flowline = TrapezoidalBedFlowline(map_dx=map_dx,
                                           surface_h=surface_h,

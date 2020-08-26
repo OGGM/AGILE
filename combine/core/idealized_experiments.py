@@ -153,7 +153,7 @@ def create_measurements(geometry,
                                        bed_h=geometry['bed_h'],
                                        bed_shape=geometry['bed_shapes'],
                                        map_dx=geometry['map_dx'])
-    elif bed_geometry == 'trapezoidol':
+    elif bed_geometry == 'trapezoid':
         oggm_fl = TrapezoidalBedFlowline(surface_h=geometry['bed_h'],
                                          bed_h=geometry['bed_h'],
                                          widths=geometry['w0'],
@@ -223,6 +223,10 @@ def create_measurements(geometry,
         measurements['shape_known'] = ref_model.fls[0].bed_shape[~ice_mask]
         measurements['shape_unknown'] = ref_model.fls[0].bed_shape[ice_mask]
         measurements['shape_all'] = ref_model.fls[0].bed_shape
+    else:
+        measurements['shape_known'] = None
+        measurements['shape_unknown'] = None
+        measurements['shape_all'] = None
 
     if (glacier_state == 'equilibrium') or (glacier_state == 'advancing'):
         measurements['spinup_sfc'] = np.zeros(len(measurements['bed_all']))
@@ -310,7 +314,7 @@ def get_first_guess(measurements,
         if bed_geometry == 'rectangular':
             flo.is_rectangular = np.ones(flo.nx).astype(np.bool)
 
-        elif bed_geometry == 'parabolic' or bed_geometry == 'trapezoidol':
+        elif bed_geometry == 'parabolic' or bed_geometry == 'trapezoid':
             flo.is_rectangular = np.zeros(flo.nx).astype(np.bool)
 
         else:
@@ -341,10 +345,12 @@ def get_first_guess(measurements,
                                             ocls[-1]['width']**2,
                                             4 * ocls[-1]['thick'] / 10**2)
         else:
-            first_guess['shape'] = measurements['shape_unknown']
+            if bed_geometry == 'parabolic':
+                first_guess['shape'] = measurements['shape_unknown']
 
-        if bed_geometry == 'trapezoidol':
-            first_guess['w0'] = np.clip(ocls[-1]['width'] - lambdas *
+        if bed_geometry == 'trapezoid':
+            first_guess['w0'] = np.clip(ocls[-1]['width'] -
+                                        lambdas[:len(ocls[-1]['thick'])] *
                                         ocls[-1]['thick'],
                                         0,
                                         np.Inf)
@@ -562,7 +568,7 @@ def get_spinup_sfc(measurements,
                                        bed_h=first_guess['bed_h'],
                                        bed_shape=first_guess['shape'],
                                        map_dx=geometry['map_dx'])
-    elif bed_geometry == 'trapezoidol':
+    elif bed_geometry == 'trapezoid':
         oggm_fl = TrapezoidalBedFlowline(surface_h=first_guess['bed_h'],
                                          bed_h=first_guess['bed_h'],
                                          widths=first_guess['w0'],
