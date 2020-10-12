@@ -326,6 +326,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
             lambdas=lambdas
             )
 
+        print('---DONE---')
+
         if show_plot:
             result_plot = plot_result(res,
                                       measurements,

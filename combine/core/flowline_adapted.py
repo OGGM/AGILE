@@ -532,7 +532,7 @@ class FlowlineModel(object):
     def reset_flowlines(self, flowlines, inplace=True):
         """Reset the initial model flowlines"""
 
-        #if not inplace:
+        # if not inplace:
         #    flowlines = copy.deepcopy(flowlines)
 
         try:
