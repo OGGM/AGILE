@@ -485,34 +485,35 @@ def plot_result(res,
                          height=single_plot_height,
                          xaxis='top')
 
-    # plot for shape difference
-    diff_estimated_shape = hv.Curve((geometry['distance_along_glacier'],
-                                     np.append(shape_res,
+    if bed_geometry == 'parabolic':
+        # plot for shape difference
+        diff_estimated_shape = hv.Curve((geometry['distance_along_glacier'],
+                                         np.append(shape_res,
+                                                   measurements['shape_known'])
+                                         - measurements['shape_all']),
+                                        'distance',
+                                        'diff shape',
+                                        label='diff estimated shape')
+
+        diff_first_guess_shape = hv.Curve((geometry['distance_along_glacier'],
+                                           np.append(first_guess['shape'],
                                                measurements['shape_known']) -
-                                     measurements['shape_all']),
-                                    'distance',
-                                    'diff shape',
-                                    label='diff estimated shape')
+                                           measurements['shape_all']),
+                                          'distance',
+                                          'diff shape',
+                                          label='first guess shape')
 
-    diff_first_guess_shape = hv.Curve((geometry['distance_along_glacier'],
-                                       np.append(first_guess['shape'],
-                                                 measurements['shape_known']) -
-                                       measurements['shape_all']),
-                                      'distance',
-                                      'diff shape',
-                                      label='first guess shape')
+        zero_line_shape = hv.Curve((geometry['distance_along_glacier'],
+                                    np.zeros(len(
+                                        geometry['distance_along_glacier']))),
+                                   'distance',
+                                   'diff shape').opts(line_color='black')
 
-    zero_line_shape = hv.Curve((geometry['distance_along_glacier'],
-                                np.zeros(len(
-                                    geometry['distance_along_glacier']))),
-                               'distance',
-                               'diff shape').opts(line_color='black')
-
-    shape_plot = (zero_line_shape *
-                  diff_first_guess_shape *
-                  diff_estimated_shape
-                  ).opts(width=plot_width,
-                         height=single_plot_height)
+        shape_plot = (zero_line_shape *
+                      diff_first_guess_shape *
+                      diff_estimated_shape
+                      ).opts(width=plot_width,
+                             height=single_plot_height)
 
     if opti_parameter == 'bed_h':
         return bed_h_plot.opts(opts.Curve(line_width=3))
