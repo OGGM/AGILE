@@ -115,22 +115,36 @@ def define_geometry(used_bed_h_geometry='linear',
     return geometry
 
 
-def define_mb_model(mb_type='linear',
-                    mb_opts={'ELA': np.array([3000.]),
+def define_mb_model(mb_opts={'ELA': np.array([3000.]),
                              'grad': np.array([4.])}):
-    if mb_type == 'linear':
-        # define linear mass balance
-        ELA = mb_opts['ELA']
-        mb_gradient = mb_opts['grad']
-        if len(ELA) == 1:
-            mb_model = LinearMassBalance(ELA, grad=mb_gradient)
-        else:
-            mb_model = []
-            for i in np.arange(len(ELA)):
-                mb_model.append(LinearMassBalance(ELA[i],
-                                                  grad=mb_gradient[i]))
+    '''
+    generate one or more LinearMassBalance profils
+
+    Parameters
+    ----------
+    mb_opts : dict of ELA and grad, optional
+        ELA defines the equilibrium line altitude and grad defines the
+        gradient of the mass-balance-profile. The length of 'ELA' and 'grad'
+        must be the same.
+        The default is {'ELA': np.array([3000.]), 'grad': np.array([4.])}.
+
+    Returns
+    -------
+    mb_model : LinearMassBalance or list of LinearMassBalances
+        If one ELA and grad is given only one LinearMassBalance is returned,
+        otherwise a list with the same length as ELA and grad.
+
+    '''
+    # define linear mass balance
+    ELA = mb_opts['ELA']
+    mb_gradient = mb_opts['grad']
+    if len(ELA) == 1:
+        mb_model = LinearMassBalance(ELA, grad=mb_gradient)
     else:
-        raise ValueError('Unknown mass balance type!')
+        mb_model = []
+        for i in np.arange(len(ELA)):
+            mb_model.append(LinearMassBalance(ELA[i],
+                                              grad=mb_gradient[i]))
 
     return mb_model
 

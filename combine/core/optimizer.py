@@ -121,7 +121,6 @@ def optimize_bed_h_and_shape(bed_h_guess,
 def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                    used_along_glacier_geometry='linear',
                                    bed_geometry='parabolic',
-                                   mb_type='linear',
                                    mb_opts={'ELA': np.array([3000.]),
                                             'grad': np.array([4.])},
                                    glacier_state='equilibrium',
@@ -130,6 +129,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                    first_guess_const=None,
                                    opti_parameter='bed_h and shape at once',
                                    use_datalogger=True,
+                                   save_file=True,
                                    reg_parameters=None,
                                    wanted_c_terms=None,
                                    grad_scaling={'bed_h': 1,
@@ -166,7 +166,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
 
     # define mass balance profile
     print('\n- Define mass balance model: ')
-    mb_model = define_mb_model(mb_type, mb_opts)
+    mb_model = define_mb_model(mb_opts)
     print('---DONE---')
 
     # create some measurements
@@ -226,6 +226,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                                     lambdas=lambdas,
                                                     torch_type=torch_type)
         print('---DONE---')
+
     # define regularisation parameters
     if reg_parameters is None:
         print('\n- Calculate regularization parameters: ')
@@ -259,6 +260,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
     else:
         raise ValueError('Unknown optimisation parameter!')
 
+    # start minimize
     if ((opti_parameter == 'bed_h') or (opti_parameter == 'shape') or
        (opti_parameter == 'bed_h and shape at once')):
         cost_fct = creat_cost_fct(
