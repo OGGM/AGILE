@@ -285,125 +285,142 @@ def create_measurements(geometry,
 
 
 def get_first_guess(measurements,
-                    method='oggm',
                     bed_geometry='rectangular',
-                    const={'bed_h': None, 'shape': None},
                     opti_parameter='bed_h',
                     lambdas=None):
-    first_guess = {'bed_h': None, 'shape': None}
-    get_bed_h = get_shape = False
-    if opti_parameter == 'bed_h':
-        get_bed_h = True
-    elif opti_parameter == 'shape':
-        get_shape = True
-    elif opti_parameter == 'bed_h and shape':
-        get_bed_h = get_shape = True
+    '''
+    Creates a first guess using the inversion of OGGM.
+
+    Parameters
+    ----------
+    measurements : dict
+        Containing measurements of the glacier surface.
+    bed_geometry : string, optional
+        Defines the bed geometry, the options are: 'rectangular', 'parabolic'
+        and 'trapezoid'. The default is 'rectangular'.
+    opti_parameter : string, optional
+        Defines the optimisation parameter. Depending on the bed geometry this
+        could be one ore two.
+        Options for 'rectangular': 'bed_h'.
+        Options for 'parabolic': 'bed_h', 'shape' or 'bed_h and shape'.
+        Options for 'trapezoid': TODO
+        The default is 'bed_h'.
+    lambdas : numpy.array, optional
+        Is needed for trapezoidol. Think of better solution for this. The
+        default is None.
+
+    Returns
+    -------
+    first_guess : dict
+        Containing first guess parameters.
+
+    '''
+    # use the FluxModel of the measurements to get the 'coordinates' of the
+    # flowline to create a new flowline for the inversion (see below)
+    model = measurements['model']
+
+    # use demo files to initialise the inversion
+    cfg.set_intersects_db(get_demo_file('rgi_intersect_oetztal.shp'))
+    cfg.PATHS['dem_file'] = get_demo_file('hef_srtm.tif')
+    cfg.PATHS['climate_file'] = get_demo_file('histalp_merged_hef.nc')
+
+    hef_file = get_demo_file('Hintereisferner_RGI5.shp')
+    entity = gpd.read_file(hef_file).iloc[0]
+
+    # create a temporary directory for inversion
+    tmpdir = utils.gettempdir(dirname='OGGM_Inversion', reset=True)
+    gdir = GlacierDirectory(entity, base_dir=tmpdir, reset=True)
+    define_glacier_region(gdir)
+
+    # use the flowline of the 'measurement' run to create a new flowline
+    # only where there is ice along the flowline
+    fl = model.fls[0]
+    pg = np.where(fl.thick > 10e-2)
+    ice_index = pg[0]
+    line = shpg.LineString([fl.line.coords[int(p)] for p in ice_index])
+    sh = fl.surface_h[ice_index]
+    # *2 because of gdir.grid.dx, default dx for hef demo is double of the used
+    # flowline dx
+    flo = centerlines.Centerline(line, dx=fl.dx * 2,
+                                 surface_h=sh)
+    flo.widths = fl.widths[ice_index] * 2  # * 2 because of gdir.grid.dx
+
+    # set the geometry along the new flowline
+    if bed_geometry == 'rectangular':
+        flo.is_rectangular = np.ones(flo.nx).astype(np.bool)
+    elif bed_geometry == 'parabolic' or bed_geometry == 'trapezoid':
+        flo.is_rectangular = np.zeros(flo.nx).astype(np.bool)
     else:
-        raise ValueError('Unknown regularisation parameter!')
+        raise ValueError('unknown bed shape!')
 
-    if method == 'plus const':
-        if get_bed_h:
-            bed_unknown = measurements['bed_unknown']
-            if const['bed_h'] is None:
-                const['bed_h'] = np.repeat(np.mean(bed_unknown) / 10,
-                                           len(bed_unknown))
-            elif len(const['bed_h']) == 1:
-                const['bed_h'] = np.repeat(const['bed_h'],
-                                           len(bed_unknown))
+    # save the new flowline in the temporary directory
+    gdir.write_pickle(copy.deepcopy([flo]), 'inversion_flowlines')
 
-            first_guess['bed_h'] = bed_unknown + const['bed_h']
+    # get the apparent mass balance parameters (assuming glacier is in
+    # equilibrium, even this is not true)
+    climate.apparent_mb_from_linear_mb(gdir,
+                                       mb_gradient=model.mb_model.grad)
+    mb_parameters = gdir.read_pickle('linear_mb_params')
+    print('estimated ELA = ' + str(mb_parameters['ela_h']) +
+          ' , grad = ' + str(mb_parameters['grad']))
+
+    # do the OGGM inversion
+    inversion.prepare_for_inversion(gdir)
+    inversion.mass_conservation_inversion(gdir)
+    inversion.filter_inversion_output(gdir)
+
+    # read the result of OGGM inversion
+    ocls = gdir.read_pickle('inversion_output')
+
+    # help functions to read out first guess
+    def read_bed_h(ocls):
+        return ocls[-1]['hgt'] - ocls[-1]['thick']
+
+    def read_shape(ocls):
+        return np.where(ocls[-1]['width'] >= 10,
+                        4 * ocls[-1]['thick'] /
+                        ocls[-1]['width']**2,
+                        4 * ocls[-1]['thick'] / 10**2)
+
+    def read_w0(ocls, lambdas):
+        return np.clip(ocls[-1]['width'] -
+                       lambdas[:len(ocls[-1]['thick'])] *
+                       ocls[-1]['thick'],
+                       0,
+                       np.Inf)
+
+    # depending on bed_geometry and opti_parameter get first guess
+    first_guess = {}
+
+    if bed_geometry == 'rectangular':
+        if opti_parameter == 'bed_h':
+            first_guess['bed_h'] = read_bed_h(ocls)
         else:
-            first_guess['bed_h'] = bed_unknown
+            raise ValueError('Unkonw optimisation parameter for rectangular!')
 
-        if get_shape:
-            shape_unknown = measurements['shape_unknown']
-            if const['shape'] is None:
-                const['shape'] = np.repeat(np.mean(shape_unknown) / 10,
-                                           len(shape_unknown))
-            elif len(const['shape']) == 1:
-                const['shape'] = np.repeat(const['shape'],
-                                           len(shape_unknown))
-
-            first_guess['shape'] = shape_unknown + const['shape']
+    elif bed_geometry == 'parabolic':
+        if opti_parameter == 'bed_h':
+            first_guess['bed_h'] = read_bed_h(ocls)
+        elif opti_parameter == 'shape':
+            first_guess['shape'] = read_shape(ocls)
+        elif opti_parameter == 'bed_h and shape':
+            first_guess['bed_h'] = read_bed_h(ocls)
+            first_guess['shape'] = read_shape(ocls)
         else:
-            first_guess['shape'] = shape_unknown
+            raise ValueError('Unkonw optimisation parameter for parabolic!')
 
-        return first_guess
-
-    elif method == 'oggm':
-        model = measurements['model']
-        # Init
-        cfg.set_intersects_db(get_demo_file('rgi_intersect_oetztal.shp'))
-        cfg.PATHS['dem_file'] = get_demo_file('hef_srtm.tif')
-        cfg.PATHS['climate_file'] = get_demo_file('histalp_merged_hef.nc')
-
-        hef_file = get_demo_file('Hintereisferner_RGI5.shp')
-        entity = gpd.read_file(hef_file).iloc[0]
-
-        tmpdir = utils.gettempdir(dirname='OGGM_Inversion', reset=True)
-        gdir = GlacierDirectory(entity, base_dir=tmpdir, reset=True)
-        define_glacier_region(gdir)
-
-        fl = model.fls[0]
-        pg = np.where(fl.thick > 10e-2)
-        ice_index = pg[0]
-        line = shpg.LineString([fl.line.coords[int(p)] for p in ice_index])
-        sh = fl.surface_h[ice_index]
-        # *2 because of gdir.grid.dx
-        flo = centerlines.Centerline(line, dx=fl.dx * 2,
-                                     surface_h=sh)
-        flo.widths = fl.widths[ice_index] * 2  # * 2 because of gdir.grid.dx
-        if bed_geometry == 'rectangular':
-            flo.is_rectangular = np.ones(flo.nx).astype(np.bool)
-
-        elif bed_geometry == 'parabolic' or bed_geometry == 'trapezoid':
-            flo.is_rectangular = np.zeros(flo.nx).astype(np.bool)
-
+    elif bed_geometry == 'trapezoidol':
+        if opti_parameter == 'bed_h':
+            first_guess['bed_h'] = read_bed_h(ocls)
+        elif opti_parameter == 'w0':
+            first_guess['w0'] = read_w0(ocls, lambdas)
+        elif opti_parameter == 'bed_h and w0':
+            first_guess['bed_h'] = read_bed_h(ocls)
+            first_guess['w0'] = read_w0(ocls, lambdas)
         else:
-            raise ValueError('unknown bed shape!')
+            raise ValueError('Unkonw optimisation parameter for trapezoidol!')
 
-        gdir.write_pickle(copy.deepcopy([flo]), 'inversion_flowlines')
-
-        climate.apparent_mb_from_linear_mb(gdir,
-                                           mb_gradient=model.mb_model.grad)
-        mb_parameters = gdir.read_pickle('linear_mb_params')
-        print('estimated ELA = ' + str(mb_parameters['ela_h']) +
-              ' , grad = ' + str(mb_parameters['grad']))
-
-        inversion.prepare_for_inversion(gdir)
-        inversion.mass_conservation_inversion(gdir)
-        inversion.filter_inversion_output(gdir)
-
-        ocls = gdir.read_pickle('inversion_output')
-
-        if get_bed_h:
-            first_guess['bed_h'] = ocls[-1]['hgt'] - ocls[-1]['thick']
-        else:
-            first_guess['bed_h'] = measurements['bed_unknown']
-
-        if get_shape:
-            first_guess['shape'] = np.where(ocls[-1]['width'] >= 10,
-                                            4 * ocls[-1]['thick'] /
-                                            ocls[-1]['width']**2,
-                                            4 * ocls[-1]['thick'] / 10**2)
-        else:
-            if bed_geometry == 'parabolic':
-                first_guess['shape'] = measurements['shape_unknown']
-
-        if bed_geometry == 'trapezoid':
-            first_guess['w0'] = np.clip(ocls[-1]['width'] -
-                                        lambdas[:len(ocls[-1]['thick'])] *
-                                        ocls[-1]['thick'],
-                                        0,
-                                        np.Inf)
-
-        return first_guess
-    elif method == 'perfect':
-        first_guess['bed_h'] = measurements['bed_unknown']
-        first_guess['shape'] = measurements['shape_unknown']
-        return first_guess
-    else:
-        raise ValueError('Unknown first guess method!')
+    return first_guess
 
 
 def get_reg_parameters(opti_var,
