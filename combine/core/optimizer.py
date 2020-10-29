@@ -124,8 +124,6 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                    mb_opts={'ELA': np.array([3000.]),
                                             'grad': np.array([4.])},
                                    glacier_state='equilibrium',
-                                   first_guess_method='oggm',
-                                   first_guess_const=None,
                                    opti_parameter='bed_h and shape at once',
                                    use_datalogger=True,
                                    save_file=True,
@@ -194,9 +192,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
 
     print('\n- Get first guess: ')
     first_guess = get_first_guess(measurements,
-                                  method=first_guess_method,
                                   bed_geometry=bed_geometry,
-                                  const=first_guess_const,
                                   opti_parameter=opti_parameter_first_guess,
                                   lambdas=lambdas)
     print('---DONE---')
