@@ -124,7 +124,6 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                    mb_opts={'ELA': np.array([3000.]),
                                             'grad': np.array([4.])},
                                    glacier_state='equilibrium',
-                                   add_measurement_noise=False,
                                    first_guess_method='oggm',
                                    first_guess_const=None,
                                    opti_parameter='bed_h and shape at once',
@@ -174,8 +173,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
     measurements = create_measurements(geometry,
                                        mb_model,
                                        bed_geometry=bed_geometry,
-                                       glacier_state=glacier_state,
-                                       add_noise=add_measurement_noise)
+                                       glacier_state=glacier_state)
 
     if (glacier_state == 'retreating' or
        glacier_state == 'retreating with unknow spinup'):
