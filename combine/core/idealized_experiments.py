@@ -118,7 +118,7 @@ def define_geometry(used_bed_h_geometry='linear',
 def define_mb_model(mb_opts={'ELA': np.array([3000.]),
                              'grad': np.array([4.])}):
     '''
-    generate one or more LinearMassBalance profils
+    generate one or more OGGM LinearMassBalance models
 
     Parameters
     ----------
@@ -141,6 +141,8 @@ def define_mb_model(mb_opts={'ELA': np.array([3000.]),
     if len(ELA) == 1:
         mb_model = LinearMassBalance(ELA, grad=mb_gradient)
     else:
+        if len(ELA) != len(mb_gradient):
+            raise ValueError('The length of ELA and grad must be the same!!!')
         mb_model = []
         for i in np.arange(len(ELA)):
             mb_model.append(LinearMassBalance(ELA[i],
@@ -152,8 +154,41 @@ def define_mb_model(mb_opts={'ELA': np.array([3000.]),
 def create_measurements(geometry,
                         mb_model,
                         bed_geometry='rectangular',
-                        glacier_state='equilibrium',
-                        add_noise=False):
+                        glacier_state='equilibrium'):
+    '''
+    Creating artifical measurements for idealized experiments using the OGGM
+    FluxModel.
+
+    Parameters
+    ----------
+    geometry : dict
+        Describing the geometry of the glacier. Depending on the different
+        bed geometrys (see parameter bed_geometry) it must contain different
+        variables describing it.
+    mb_model : OGGM MassBalanceModel or list of OGGM MassBalanceModels
+        For the glacier states 'equilibrium' or 'advancing' defines the
+        driving mass balance. For retreating two mass balance models are
+        needed.
+    bed_geometry : string, optional
+        Defines the bed geometry, the options are: 'rectangular', 'parabolic'
+        and 'trapezoid'. The default is 'rectangular'.
+    glacier_state : string, optional
+        Defines the glacier state at the end, the options are: 'equilibrium',
+        'advancing' or 'retreating'. For 'equilibrium' the glacier is runs
+        until it reaches equilibrium, for 'advancing' the glacier runs half the
+        time before it reaches equilibrium and in the case of 'retreating'
+        the glacier runs until equilibrium with the first MassBalanceModel and
+        then runs half the time until it reaches the equilibrium with the
+        second MassBalanceModelmb_model. The default is 'equilibrium'.
+
+    Returns
+    -------
+    measurements : dict
+        Dictionary containing the artifical measurements from the OGGM model
+        run output. Contains a ice mask indicating ice with a thickness larger
+        then 0.01 m.
+
+    '''
     measurements = {}
 
     # Create glacier and let it run
@@ -212,22 +247,15 @@ def create_measurements(geometry,
     else:
         raise ValueError('Unknown glacier state!')
 
-    # to add some noise to the measurements
-    sfc_h_noise = np.zeros(geometry['nx'])
-    widths_noise = np.zeros(geometry['nx'])
-
-    if add_noise:
-        raise NotImplementedError('measurement noise not ready yet!')
-
     # safe model
     measurements['model'] = ref_model
 
     # get 'measurements' of glacier
-    measurements['sfc_h'] = ref_model.fls[0].surface_h + sfc_h_noise
-    measurements['widths'] = ref_model.fls[0].widths_m + widths_noise
+    measurements['sfc_h'] = ref_model.fls[0].surface_h
+    measurements['widths'] = ref_model.fls[0].widths_m
     measurements['yrs_to_run'] = ref_model.yr
 
-    # find ice and ice free points
+    # find ice and ice free points, with a thickness larger than 0.01 m
     ice_mask = np.where(ref_model.fls[0].thick > 10e-2, True, False)
     measurements['ice_mask'] = ice_mask
     measurements['bed_known'] = ref_model.fls[0].bed_h[~ice_mask]
