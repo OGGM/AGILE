@@ -122,8 +122,6 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                             'grad': np.array([4.])},
                                    glacier_state='equilibrium',
                                    opti_parameter='bed_h and shape at once',
-                                   use_datalogger=True,
-                                   save_file=True,
                                    reg_parameters=None,
                                    wanted_c_terms=None,
                                    grad_scaling={'bed_h': 1,
@@ -189,17 +187,17 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
     print('---DONE---')
 
     # create Datalogger
-    if use_datalogger:
-        dl = DataLogger_bed_h_and_shape(
-            true_bed=measurements['bed_unknown'],
-            exact_surf=measurements['sfc_h'],
-            ref_surf=measurements['sfc_h'],
-            first_guessed_bed=first_guess['bed_h'],
-            true_shape=measurements['shape_unknown'],
-            first_guessed_shape=first_guess['shape'])
-        dl.geometry = geometry
-        dl.measurements = measurements
+    dl = DataLogger_bed_h_and_shape(
+        true_bed=measurements['bed_unknown'],
+        exact_surf=measurements['sfc_h'],
+        ref_surf=measurements['sfc_h'],
+        first_guessed_bed=first_guess['bed_h'],
+        true_shape=measurements['shape_unknown'],
+        first_guessed_shape=first_guess['shape'])
+    dl.geometry = geometry
+    dl.measurements = measurements
 
+    # TODO: This option is not tested or working
     if glacier_state == 'retreating with unknow spinup':
         print('\n- Calculate spinup surface:')
         measurements['spinup_sfc'] = get_spinup_sfc(measurements,
