@@ -623,8 +623,7 @@ def creat_cost_fct(bed_h,
                    grad_scaling={'bed_h': 1,
                                  'shape': 1},
                    grad_smoothing={'bed_h': 'no',
-                                   'shape': 'no'},
-                   lambdas=None):
+                                   'shape': 'no'}):
     '''
     Creates a cost function for optimizing bed height or for optimizing bed
     shape
@@ -648,8 +647,7 @@ def creat_cost_fct(bed_h,
                         data_logger,
                         get_c_terms,
                         grad_scaling,
-                        grad_smoothing,
-                        lambdas)
+                        grad_smoothing)
 
     return c_fun
 
@@ -673,8 +671,7 @@ def cost_fct(parameter_unknown,
              grad_scaling={'bed_h': 1,
                            'shape': 1},
              grad_smoothing={'bed_h': 'no',
-                             'shape': 'no'},
-             lambdas=None):
+                             'shape': 'no'}):
     # check which data type should be used for calculation
     if torch_type == 'double':
         torch_type = torch.double
@@ -786,8 +783,7 @@ def cost_fct(parameter_unknown,
             yrs_to_run,
             used_geometry,
             ref_surf,
-            ref_width,
-            lambdas)
+            ref_width)
 
         model_surf = model_flowline.surface_h
         model_width = model_flowline.widths_m
@@ -973,7 +969,6 @@ def creat_spinup_cost_fct(measurements,
                           first_guess,
                           used_geometry,
                           geometry,
-                          lambdas,
                           torch_type):
     '''
     Creates a cost function for optimizing t bias for the spinup
@@ -986,7 +981,6 @@ def creat_spinup_cost_fct(measurements,
                                first_guess,
                                used_geometry,
                                geometry,
-                               lambdas,
                                torch_type)
 
     return c_fun
@@ -998,7 +992,6 @@ def spinup_cost_fct(t_bias,
                     first_guess,
                     used_geometry,
                     geometry,
-                    lambdas,
                     torch_type='double'):
     # check which data type should be used for calculation
     if torch_type == 'double':
@@ -1023,8 +1016,7 @@ def spinup_cost_fct(t_bias,
             yrs_to_run='equilibrium',
             used_geometry=used_geometry,
             ref_surf=measurements['sfc_h'],
-            ref_width=measurements['widths'],
-            lambdas=lambdas)
+            ref_width=measurements['widths'])
     model_volume = model_flowline.volume_m3
 
     ref_volume = to_torch_tensor(measurements['spinup_volume'], torch_type)

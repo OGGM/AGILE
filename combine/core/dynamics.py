@@ -185,7 +185,7 @@ def create_glacier(gdir, run_spinup=True):
 
 def run_flowline_forward_core(surface_h, bed_h, shape, map_dx, torch_type,
                               mb_model, yrs_to_run, used_bed_geometry,
-                              ref_surf, ref_width, lambdas=None):
+                              ref_surf, ref_width):
     if used_bed_geometry == 'parabolic':
         flowline = ParabolicBedFlowline(surface_h=surface_h,
                                         bed_h=bed_h,
@@ -205,11 +205,15 @@ def run_flowline_forward_core(surface_h, bed_h, shape, map_dx, torch_type,
                                 requires_grad=False)
         ice_thick_end = ref_surf - bed_h
 
+        # TODO: change from automatic w0 calculation to two optimisation
+        # variables
         # calculate w0 with desired width
         ref_width = torch.tensor(ref_width,
                                  dtype=torch_type,
                                  requires_grad=False)
-        lambdas = torch.tensor(lambdas,
+        # lambda is set constant 1
+        # (see https://docs.oggm.org/en/latest/ice-dynamics.html#trapezoidal)
+        lambdas = torch.tensor(1.,
                                dtype=torch_type,
                                requires_grad=False)
         w0 = ref_width - lambdas * ice_thick_end

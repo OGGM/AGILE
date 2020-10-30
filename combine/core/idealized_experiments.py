@@ -195,8 +195,8 @@ def create_measurements(geometry,
     ----------
     geometry : dict
         Describing the geometry of the glacier. Depending on the different
-        bed geometrys (see parameter bed_geometry) it must contain different
-        variables describing it.
+        bed geometrys it must contain different
+        variables describing it (see Docstring of function define_geometry).
     mb_model : OGGM MassBalanceModel or list of OGGM MassBalanceModels
         For the glacier states 'equilibrium' or 'advancing' defines the
         driving mass balance. For retreating two mass balance models are
@@ -235,10 +235,12 @@ def create_measurements(geometry,
                                        bed_shape=geometry['bed_shapes'],
                                        map_dx=geometry['map_dx'])
     elif bed_geometry == 'trapezoid':
+        # for trapezoidal bed lambda is always set to 1
+        # (see https://docs.oggm.org/en/latest/ice-dynamics.html#trapezoidal)
         oggm_fl = TrapezoidalBedFlowline(surface_h=geometry['bed_h'],
                                          bed_h=geometry['bed_h'],
                                          widths=geometry['w0'],
-                                         lambdas=geometry['lambdas'],
+                                         lambdas=np.zeros(geometry['nx']) + 1.,
                                          map_dx=geometry['map_dx'],
                                          )
     else:
@@ -318,8 +320,7 @@ def create_measurements(geometry,
 
 def get_first_guess(measurements,
                     bed_geometry='rectangular',
-                    opti_parameter='bed_h',
-                    lambdas=None):
+                    opti_parameter='bed_h'):
     '''
     Creates a first guess using the inversion of OGGM.
 
@@ -337,9 +338,6 @@ def get_first_guess(measurements,
         Options for 'parabolic': 'bed_h', 'shape' or 'bed_h and shape'.
         Options for 'trapezoid': TODO
         The default is 'bed_h'.
-    lambdas : numpy.array, optional
-        Is needed for trapezoidol. Think of better solution for this. The
-        default is None.
 
     Returns
     -------
@@ -414,10 +412,12 @@ def get_first_guess(measurements,
                         ocls[-1]['width']**2,
                         4 * ocls[-1]['thick'] / 10**2)
 
-    def read_w0(ocls, lambdas):
-        return np.clip(ocls[-1]['width'] -
-                       lambdas[:len(ocls[-1]['thick'])] *
-                       ocls[-1]['thick'],
+    def read_w0(ocls):
+        # TODO: check that w0 is positive
+        # for trapazeoidal bed shape lambda is set to 1, to still see it in the
+        # equation there is the multiplication with 1.
+        # (see https://docs.oggm.org/en/latest/ice-dynamics.html#trapezoidal)
+        return np.clip(ocls[-1]['width'] - 1. * ocls[-1]['thick'],
                        0,
                        np.Inf)
 
@@ -445,10 +445,10 @@ def get_first_guess(measurements,
         if opti_parameter == 'bed_h':
             first_guess['bed_h'] = read_bed_h(ocls)
         elif opti_parameter == 'w0':
-            first_guess['w0'] = read_w0(ocls, lambdas)
+            first_guess['w0'] = read_w0(ocls)
         elif opti_parameter == 'bed_h and w0':
             first_guess['bed_h'] = read_bed_h(ocls)
-            first_guess['w0'] = read_w0(ocls, lambdas)
+            first_guess['w0'] = read_w0(ocls)
         else:
             raise ValueError('Unkonw optimisation parameter for trapezoidol!')
 
@@ -463,8 +463,7 @@ def get_reg_parameters(opti_var,
                        bed_geometry,
                        first_guess,
                        glacier_state,
-                       wanted_c_terms=None,
-                       lambdas=None):
+                       wanted_c_terms=None):
     if opti_var == 'bed_h':
         bed_h = measurements['bed_known']
         shape = measurements['shape_all']
@@ -498,8 +497,7 @@ def get_reg_parameters(opti_var,
         opti_var=opti_var,
         torch_type=torch_type,
         used_geometry=bed_geometry,
-        get_c_terms=True,
-        lambdas=lambdas)
+        get_c_terms=True)
 
     c_terms = cost_fct(first_guess_cost_fct)
 
@@ -624,7 +622,6 @@ def get_spinup_sfc(measurements,
                    minimize_options,
                    bed_geometry,
                    geometry,
-                   lambdas,
                    torch_type='double'):
     # cost function to find tbias for spinup
     cost_fct = creat_spinup_cost_fct(measurements,
@@ -632,7 +629,6 @@ def get_spinup_sfc(measurements,
                                      first_guess,
                                      bed_geometry,
                                      geometry,
-                                     lambdas,
                                      torch_type)
 
     # first guess for tbias is 0
