@@ -119,8 +119,8 @@ def optimize_bed_h_and_shape(bed_h_guess,
 
 
 def idealized_inversion_experiment(used_bed_h_geometry='linear',
-                                   used_along_glacier_geometry='linear',
-                                   bed_geometry='parabolic',
+                                   used_along_glacier_geometry='constant',
+                                   bed_geometry='rectangular',
                                    mb_opts={'ELA': np.array([3000.]),
                                             'grad': np.array([4.])},
                                    glacier_state='equilibrium',

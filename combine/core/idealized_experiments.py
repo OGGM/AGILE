@@ -23,8 +23,42 @@ from oggm import cfg
 
 
 def define_geometry(used_bed_h_geometry='linear',
-                    used_along_glacier_geometry='linear',
-                    bed_geometry='parabolic'):
+                    used_along_glacier_geometry='constant',
+                    bed_geometry='rectangular'):
+    '''
+    Defines the glacier domain for idealized experiments.
+
+    Parameters
+    ----------
+    used_bed_h_geometry : string, optional
+        Defines the geometry of the glacier bed height.
+        Options: 'linear', 'cliff' or 'random'
+        The default is 'linear'.
+    used_along_glacier_geometry : string, optional
+        Defines the geometry along the glacier.
+        Options: 'constant' or 'random'
+        The default is 'constant'.
+    bed_geometry : string, optional
+        Defines the shape of the glacier.
+        Options: 'rectangular', 'parabolic' or 'trapezoidal'.
+        The default is 'rectangular'.
+
+    Returns
+    -------
+    geometry : dict
+        Contains geometry information for the glacier domain:
+            'nx': Number of grid points along the glacier
+            'map_dx': grid point spacing in m
+            'distance_along_glacier': coordinates along the glacier
+            'top_height': highest point of glacier
+            'bottom_height': lowest point of glacier
+            'bed_h': glacier bed height at each grid point
+            depending on bed_geometry one variable describing the shape:
+            for 'rectangular': 'width'
+            for 'parabolic': 'shape'
+            for 'trapezoidal': 'w0'
+
+    '''
     geometry = {}
     # number of steps from bottem to top of glacier
     geometry['nx'] = 100
@@ -84,14 +118,13 @@ def define_geometry(used_bed_h_geometry='linear',
     else:
         raise ValueError('Unknown bed height geometry!')
 
-    if used_along_glacier_geometry == 'linear':
+    if used_along_glacier_geometry == 'constant':
         if bed_geometry == 'rectangular':
             geometry['widths'] = np.zeros(geometry['nx']) + 1.
         elif bed_geometry == 'parabolic':
             geometry['bed_shapes'] = np.zeros(geometry['nx']) + 1.
         elif bed_geometry == 'trapezoid':
             geometry['w0'] = np.zeros(geometry['nx']) + 1.
-            geometry['lambdas'] = np.zeros(geometry['nx']) + 1.
         else:
             raise ValueError('Unkonwn bed shape!')
     elif used_along_glacier_geometry == 'random':
@@ -106,7 +139,6 @@ def define_geometry(used_bed_h_geometry='linear',
             geometry['bed_shapes'] = random_shape
         elif bed_geometry == 'trapezoid':
             geometry['w0'] = random_shape
-            geometry['lambdas'] = np.zeros(geometry['nx']) + 1.
         else:
             raise ValueError('Unkonwn bed shape!')
     else:
