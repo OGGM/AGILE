@@ -122,8 +122,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                             'grad': np.array([4.])},
                                    glacier_state='equilibrium',
                                    opti_parameter='bed_h',
-                                   two_opti_parameters=None, # separated, at once
-                                   main_iterations_separeted=100,
+                                   two_parameter_option=None, # separated, at once
+                                   main_iterations_separeted=1,
                                    reg_parameters=None,
                                    wanted_c_terms=None,
                                    grad_scaling={'bed_h': 1,
@@ -208,7 +208,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
     dl = DataLogger(
         bed_geometry=bed_geometry,
         opti_parameter=opti_parameter,
-        two_opti_parameters=two_opti_parameters,
+        two_parameter_option=two_parameter_option,
         main_iterations_separeted=main_iterations_separeted,
         geometry=geometry,
         measurements=measurements,
@@ -219,6 +219,40 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
         minimize_options=minimize_options,
         solver=solver,
         glacier_state=glacier_state)
+
+    # start how new cost fct can look like
+    for loop in np.arange(main_iterations_separeted):
+        dl.main_iterations.append(loop + 1)
+        dl.main_iteration_callback()
+
+        for loop_opti_var in all_opti_vars:
+            if loop_opti_var == 2:
+                guess_parameter = 2# if the first time it is the first guess
+                known_parameter = 2
+                geometry_var = 2
+
+            cost_fct = create_cost_fct(
+                known_parameter=known_parameter,
+                geometry_var=geometry_var,
+                bed_geometry=bed_geometry,
+                measurements=measurements,
+                reg_parameters=reg_parameters,
+                dx=dx,
+                mb_model=mb_model,
+                opti_var=opti_var,
+                two_parameter_option=two_opti_parameters,
+                datalogger=dl)
+
+            res = minimize(fun=cost_fct,
+                           x0=guess_parameter,
+                           method=solver,
+                           jac=True,
+                           # bounds=bounds,
+                           options=minimize_options,
+                           callback=dl.callback_fct)
+
+    # save results to netcdf file
+    dl.create_and_save_dataset()
 
     # define initial values
     if opti_parameter == 'bed_h':

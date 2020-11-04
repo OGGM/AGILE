@@ -17,7 +17,7 @@ import os
 
 class DataLogger(object):
 
-    def __init__(self, bed_geometry, opti_parameter, two_opti_parameters,
+    def __init__(self, bed_geometry, opti_parameter, two_parameter_option,
                  main_iterations_separeted, geometry, measurements,
                  first_guess, reg_parameters, used_bed_h_geometry,
                  used_along_glacier_geometry, minimize_options, solver,
@@ -77,10 +77,10 @@ class DataLogger(object):
                 self.opti_var_1 = 'bed_h'
                 self.opti_var_2 = 'bed_shape'
 
-                if two_opti_parameters not in two_opti_parameter_options:
+                if two_parameter_option not in two_opti_parameter_options:
                     raise ValueError('Unknown optimisation option for two '
                                      'parameters!')
-                self.two_opti_parameters = two_opti_parameters
+                self.two_parameter_option = two_parameter_option
                 self.main_iterations_separeted = main_iterations_separeted
 
                 # variable to keep track of the main iterations
@@ -106,10 +106,10 @@ class DataLogger(object):
                 self.opti_var_1 = 'bed_h'
                 self.opti_var_2 = 'w0'
 
-                if two_opti_parameters not in two_opti_parameter_options:
+                if two_parameter_option not in two_opti_parameter_options:
                     raise ValueError('Unknown optimisation option for two '
                                      'parameters!')
-                self.two_opti_parameters = two_opti_parameters
+                self.two_parameter_option = two_parameter_option
                 self.main_iterations_separeted = main_iterations_separeted
 
                 # variable to keep track of the main iterations
