@@ -20,6 +20,10 @@ def RMSE(a1, a2, ice_mask=None):
     return np.sqrt((dev**2).mean())
 
 
+def max_dif(a1, a2):
+    return np.max(np.abs(a1 - a2))
+
+
 def percentiles(a1, a2, ice_mask, q=[5, 25, 50, 75, 95]):
     if ice_mask is None:
         dev = a1 - a2

@@ -5,7 +5,7 @@ from scipy.optimize import minimize
 from combine.core.idealized_experiments import define_geometry,\
     define_mb_model, create_measurements, get_first_guess, get_reg_parameters,\
     plot_result, get_spinup_sfc
-from combine.core.data_logging import DataLogger_bed_h_and_shape
+from combine.core.data_logging import DataLogger
 
 
 def optimize_bed_h_and_shape(bed_h_guess,
@@ -121,7 +121,9 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                    mb_opts={'ELA': np.array([3000.]),
                                             'grad': np.array([4.])},
                                    glacier_state='equilibrium',
-                                   opti_parameter='bed_h and shape at once',
+                                   opti_parameter='bed_h',
+                                   two_opti_parameters=None, # separated, at once
+                                   main_iterations_separeted=100,
                                    reg_parameters=None,
                                    wanted_c_terms=None,
                                    grad_scaling={'bed_h': 1,
@@ -135,8 +137,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                                      'disp': True,
                                                      'maxcor': 50,
                                                      'maxls': 50},
+                                   solver='L-BFGS-B',
                                    show_plot=True,
-                                   iterations_separeted=5,
                                    minimize_options_spinup={'maxiter': 10,
                                                             'ftol': 1e-7,
                                                             'gtol': 1e-8,
@@ -169,33 +171,11 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
         mb_model = mb_model[1]
     print('---DONE---')
 
-    # get first guess
-    if opti_parameter == 'bed_h':
-        opti_parameter_first_guess = 'bed_h'
-    elif opti_parameter == 'shape':
-        opti_parameter_first_guess = 'shape'
-    elif ((opti_parameter == 'bed_h and shape at once') or
-          (opti_parameter == 'bed_h and shape separeted')):
-        opti_parameter_first_guess = 'bed_h and shape'
-    else:
-        raise ValueError('Unkown opti parameter!')
-
     print('\n- Get first guess: ')
     first_guess = get_first_guess(measurements,
                                   bed_geometry=bed_geometry,
-                                  opti_parameter=opti_parameter_first_guess)
+                                  opti_parameter=opti_parameter)
     print('---DONE---')
-
-    # create Datalogger
-    dl = DataLogger_bed_h_and_shape(
-        true_bed=measurements['bed_unknown'],
-        exact_surf=measurements['sfc_h'],
-        ref_surf=measurements['sfc_h'],
-        first_guessed_bed=first_guess['bed_h'],
-        true_shape=measurements['shape_unknown'],
-        first_guessed_shape=first_guess['shape'])
-    dl.geometry = geometry
-    dl.measurements = measurements
 
     # TODO: This option is not tested or working
     if glacier_state == 'retreating with unknow spinup':
@@ -212,7 +192,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
     # define regularisation parameters
     if reg_parameters is None:
         print('\n- Calculate regularization parameters: ')
-        reg_parameters = get_reg_parameters(opti_parameter_first_guess,
+        reg_parameters = get_reg_parameters(opti_parameter,
                                             measurements,
                                             geometry,
                                             mb_model,
@@ -222,6 +202,23 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                             glacier_state,
                                             wanted_c_terms)
         print('---DONE---')
+
+    # create Datalogger according to the used bed geometry and save some data,
+    # Datalogger also checks if the inputs work together
+    dl = DataLogger(
+        bed_geometry=bed_geometry,
+        opti_parameter=opti_parameter,
+        two_opti_parameters=two_opti_parameters,
+        main_iterations_separeted=main_iterations_separeted,
+        geometry=geometry,
+        measurements=measurements,
+        first_guess=first_guess,
+        reg_parameters=reg_parameters,
+        used_bed_h_geometry=used_bed_h_geometry,
+        used_along_glacier_geometry=used_along_glacier_geometry,
+        minimize_options=minimize_options,
+        solver=solver,
+        glacier_state=glacier_state)
 
     # define initial values
     if opti_parameter == 'bed_h':
@@ -255,7 +252,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
             yrs_to_run=measurements['yrs_to_run'],
             dx=geometry['map_dx'],
             mb_model=mb_model,
-            opti_var=opti_parameter_first_guess,
+            opti_var=opti_parameter,
             torch_type=torch_type,
             used_geometry=bed_geometry,
             data_logger=dl,
@@ -265,7 +262,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
         print('\n- Start minimising:')
         res = minimize(fun=cost_fct,
                        x0=first_guess_cost_fct,
-                       method='L-BFGS-B',
+                       method=solver,
                        jac=True,
                        # bounds=bounds,
                        options=minimize_options,
