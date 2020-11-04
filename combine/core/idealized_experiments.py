@@ -54,8 +54,8 @@ def define_geometry(used_bed_h_geometry='linear',
             'bottom_height': lowest point of glacier
             'bed_h': glacier bed height at each grid point
             depending on bed_geometry one variable describing the shape:
-            for 'rectangular': 'width'
-            for 'parabolic': 'shape'
+            for 'rectangular': 'widths'
+            for 'parabolic': 'bed_shape'
             for 'trapezoidal': 'w0'
 
     '''
@@ -122,7 +122,7 @@ def define_geometry(used_bed_h_geometry='linear',
         if bed_geometry == 'rectangular':
             geometry['widths'] = np.zeros(geometry['nx']) + 1.
         elif bed_geometry == 'parabolic':
-            geometry['bed_shapes'] = np.zeros(geometry['nx']) + 1.
+            geometry['bed_shape'] = np.zeros(geometry['nx']) + 1.
         elif bed_geometry == 'trapezoid':
             geometry['w0'] = np.zeros(geometry['nx']) + 1.
         else:
@@ -136,7 +136,7 @@ def define_geometry(used_bed_h_geometry='linear',
         if bed_geometry == 'rectangular':
             geometry['widths'] = random_shape
         elif bed_geometry == 'parabolic':
-            geometry['bed_shapes'] = random_shape
+            geometry['bed_shape'] = random_shape
         elif bed_geometry == 'trapezoid':
             geometry['w0'] = random_shape
         else:
@@ -223,7 +223,7 @@ def create_measurements(geometry,
     '''
     measurements = {}
 
-    # Create glacier and let it run
+    # Create a flowline
     if bed_geometry == 'rectangular':
         oggm_fl = RectangularBedFlowline(surface_h=geometry['bed_h'],
                                          bed_h=geometry['bed_h'],
@@ -232,7 +232,7 @@ def create_measurements(geometry,
     elif bed_geometry == 'parabolic':
         oggm_fl = ParabolicBedFlowline(surface_h=geometry['bed_h'],
                                        bed_h=geometry['bed_h'],
-                                       bed_shape=geometry['bed_shapes'],
+                                       bed_shape=geometry['bed_shape'],
                                        map_dx=geometry['map_dx'])
     elif bed_geometry == 'trapezoid':
         # for trapezoidal bed lambda is always set to 1
@@ -246,6 +246,7 @@ def create_measurements(geometry,
     else:
         raise ValueError('Unkown bed shape!')
 
+    # let the model run according to the desired glacier state
     if glacier_state == 'equilibrium':
         ref_model = oggm_FluxModel(oggm_fl, mb_model=mb_model, y0=0.)
         ref_model.run_until_equilibrium()
@@ -281,7 +282,7 @@ def create_measurements(geometry,
     else:
         raise ValueError('Unknown glacier state!')
 
-    # safe model
+    # save model
     measurements['model'] = ref_model
 
     # get 'measurements' of glacier
@@ -292,20 +293,10 @@ def create_measurements(geometry,
     # find ice and ice free points, with a thickness larger than 0.01 m
     ice_mask = np.where(ref_model.fls[0].thick > 10e-2, True, False)
     measurements['ice_mask'] = ice_mask
-    measurements['bed_known'] = ref_model.fls[0].bed_h[~ice_mask]
-    measurements['bed_unknown'] = ref_model.fls[0].bed_h[ice_mask]
-    measurements['bed_all'] = ref_model.fls[0].bed_h
-    if bed_geometry == 'parabolic':
-        measurements['shape_known'] = ref_model.fls[0].bed_shape[~ice_mask]
-        measurements['shape_unknown'] = ref_model.fls[0].bed_shape[ice_mask]
-        measurements['shape_all'] = ref_model.fls[0].bed_shape
-    else:
-        measurements['shape_known'] = None
-        measurements['shape_unknown'] = None
-        measurements['shape_all'] = None
 
+    # define spinup_sfc from which the experiments start
     if (glacier_state == 'equilibrium') or (glacier_state == 'advancing'):
-        measurements['spinup_sfc'] = np.zeros(len(measurements['bed_all']))
+        measurements['spinup_sfc'] = np.zeros(len(measurements['sfc_h']))
     elif glacier_state == 'retreating':
         measurements['spinup_sfc'] = start_model.fls[0].surface_h
     elif glacier_state == 'retreating with unknow spinup':
@@ -335,7 +326,7 @@ def get_first_guess(measurements,
         Defines the optimisation parameter. Depending on the bed geometry this
         could be one ore two.
         Options for 'rectangular': 'bed_h'.
-        Options for 'parabolic': 'bed_h', 'shape' or 'bed_h and shape'.
+        Options for 'parabolic': 'bed_h', 'bed_shape' or 'bed_h and bed_shape'.
         Options for 'trapezoid': TODO
         The default is 'bed_h'.
 
@@ -406,7 +397,7 @@ def get_first_guess(measurements,
     def read_bed_h(ocls):
         return ocls[-1]['hgt'] - ocls[-1]['thick']
 
-    def read_shape(ocls):
+    def read_bed_shape(ocls):
         return np.where(ocls[-1]['width'] >= 10,
                         4 * ocls[-1]['thick'] /
                         ocls[-1]['width']**2,
@@ -428,18 +419,18 @@ def get_first_guess(measurements,
         if opti_parameter == 'bed_h':
             first_guess['bed_h'] = read_bed_h(ocls)
         else:
-            raise ValueError('Unkonw optimisation parameter for rectangular!')
+            raise ValueError('Unknown optimisation parameter for rectangular!')
 
     elif bed_geometry == 'parabolic':
         if opti_parameter == 'bed_h':
             first_guess['bed_h'] = read_bed_h(ocls)
-        elif opti_parameter == 'shape':
-            first_guess['shape'] = read_shape(ocls)
-        elif opti_parameter == 'bed_h and shape':
+        elif opti_parameter == 'bed_shape':
+            first_guess['bed_shape'] = read_bed_shape(ocls)
+        elif opti_parameter == 'bed_h and bed_shape':
             first_guess['bed_h'] = read_bed_h(ocls)
-            first_guess['shape'] = read_shape(ocls)
+            first_guess['bed_shape'] = read_bed_shape(ocls)
         else:
-            raise ValueError('Unkonw optimisation parameter for parabolic!')
+            raise ValueError('Unknown optimisation parameter for parabolic!')
 
     elif bed_geometry == 'trapezoidol':
         if opti_parameter == 'bed_h':
@@ -450,7 +441,10 @@ def get_first_guess(measurements,
             first_guess['bed_h'] = read_bed_h(ocls)
             first_guess['w0'] = read_w0(ocls)
         else:
-            raise ValueError('Unkonw optimisation parameter for trapezoidol!')
+            raise ValueError('Unknown optimisation parameter for trapezoidol!')
+
+    else:
+        raise ValueError('Unknown bed geometry!')
 
     return first_guess
 
@@ -464,6 +458,7 @@ def get_reg_parameters(opti_var,
                        first_guess,
                        glacier_state,
                        wanted_c_terms=None):
+    # TODO: change shape into bed_shape
     if opti_var == 'bed_h':
         bed_h = measurements['bed_known']
         shape = measurements['shape_all']
