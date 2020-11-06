@@ -326,8 +326,8 @@ def get_first_guess(measurements,
         Defines the optimisation parameter. Depending on the bed geometry this
         could be one ore two.
         Options for 'rectangular': 'bed_h'.
-        Options for 'parabolic': 'bed_h', 'bed_shape' or 'bed_h and bed_shape'.
-        Options for 'trapezoid': TODO
+        Options for 'parabolic': 'bed_h', 'bed_shape' or 'bed_h and bed_shape'
+        Options for 'trapezoid': 'bed_h', 'w0' or 'bed_h and w0'
         The default is 'bed_h'.
 
     Returns
