@@ -34,11 +34,10 @@ class DataLogger(object):
         self.ice_mask = self.measurements['ice_mask']
 
         # define some variables needed for all bed_geometries
-        self.grads = np.empty((0, self.geometry['nx']))
         self.costs = np.empty((0, 1))
         self.c_terms = np.empty((0, len(self.reg_parameters)))
-        self.surfs = np.empty((0, self.geometry['nx']))
-        self.true_surfs = measurements['sfc_h']
+        self.sfc_h = np.empty((0, self.geometry['nx']))
+        self.true_sfc_h = measurements['sfc_h']
         self.widths = np.empty((0, self.geometry['nx']))
         self.true_widths = measurements['widths']
         self.solver = solver
@@ -135,6 +134,8 @@ class DataLogger(object):
         self.known_opti_var_1 = self.geometry[self.opti_var_1][~self.ice_mask]
         # variable for saving the iteration output
         self.guessed_opti_var_1 = np.empty((0, self.geometry['nx']))
+        # variable for gradients
+        self.grads_opti_var_1 = np.empty((0, self.geometry['nx']))
 
         # check if second optimisation variable is needed
         if self.opti_var_2 is not None:
@@ -145,6 +146,8 @@ class DataLogger(object):
                 self.geometry[self.opti_var_2][~self.ice_mask]
             # variable for saving the iteration output
             self.guessed_opti_var_2 = np.empty((0, self.geometry['nx']))
+            # variable for gradients
+            self.grads_opti_var_2 = np.empty((0, self.geometry['nx']))
 
         # create info Text for callback_fct
         self.info_text = '''
@@ -253,16 +256,18 @@ Main Iteration number {iteration:d}:'''
         # Filter all "exploratory" model runs to only get "real" iteration
         # steps
         index = self.step_indices
-        self.grads = self.grads[index]
+        self.grads_opti_var_1 = self.grads_opti_var_1[index]
         self.costs = self.costs[index]
         self.c_terms = self.c_terms[index]
-        self.surfs = self.surfs[index]
+        self.sfc_h = self.sfc_h[index]
         self.widths = self.widths[index]
-        self.fct_calls = self.fct_calls[index]
+        # + 1 in index because fct_calls starts with [0] and not empty
+        self.fct_calls = self.fct_calls[index + 1]
         self.opti_var_iteration = self.opti_var_iteration[index]
         self.guessed_opti_var_1 = self.guessed_opti_var_1[index]
         if self.opti_var_2 is not None:
             self.guessed_opti_var_2 = self.guessed_opti_var_2[index]
+            self.grads_opti_var_2 = self.grads_opti_var_2[index]
         if self.main_iterations.size != 0:
             self.current_main_iterations = self.current_main_iterations[index]
 
@@ -284,9 +289,9 @@ Main Iteration number {iteration:d}:'''
                 'cost_terms':
                     (['nr_of_iteration', 'nr_of_reg_parameter'],
                      self.c_terms),
-                'gradients':
+                'gradients_' + self.opti_var_1:
                     (['nr_of_iteration', 'points_with_ice'],
-                     self.grads),
+                     self.grads_opti_var_1),
                 'function_calls':
                     (['nr_of_iteration'],
                      self.fct_calls),
@@ -298,10 +303,10 @@ Main Iteration number {iteration:d}:'''
                      self.ice_mask),
                 'true_surface_h':
                     (['total_distance'],
-                     self.true_surfs),
+                     self.true_sfc_h),
                 'surface_h':
                     (['nr_of_iteration', 'total_distance'],
-                     self.surfs),
+                     self.sfc_h),
                 'true_widths':
                     (['total_distance'],
                      self.true_widths),
@@ -339,6 +344,9 @@ Main Iteration number {iteration:d}:'''
             dataset['guessed_' + self.opti_var_2] = \
                 (['nr_of_iteration', 'points_with_ice'],
                  self.guessed_opti_var_2)
+            dataset['gradients_' + self.opti_var_2] = \
+                (['nr_of_iteration', 'points_with_ice'],
+                 self.grads_opti_var_2)
             dataset.attrs['optimisation of two variables'] = \
                 self.two_opti_parameters
 
