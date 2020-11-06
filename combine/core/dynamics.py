@@ -183,59 +183,65 @@ def create_glacier(gdir, run_spinup=True):
     np.save(gdir.get_filepath('ref_ice_mask'), ref_ice_mask)
 
 
-def run_flowline_forward_core(surface_h, bed_h, shape, map_dx, torch_type,
-                              mb_model, yrs_to_run, used_bed_geometry,
-                              ref_surf, ref_width):
-    if used_bed_geometry == 'parabolic':
-        flowline = ParabolicBedFlowline(surface_h=surface_h,
-                                        bed_h=bed_h,
-                                        bed_shape=shape,
-                                        map_dx=map_dx,
-                                        torch_type=torch_type)
-    elif used_bed_geometry == 'rectangular':
-        flowline = RectangularBedFlowline(surface_h=surface_h,
+def run_flowline_forward_core(bed_h, shape_var, bed_geometry, mb_model,
+                              spinup_sfc_h, yrs_to_run, map_dx, torch_type):
+    '''
+    Performs the forward run of the Flowlinemodel
+
+    Parameters
+    ----------
+    bed_h : :py:class:`torch.Tensor`
+        Height of the glacier bed.
+    shape_var : :py:class:`torch.Tensor`
+        Second variable describing the glacier bed. The meaning depends on the
+        'bed_geometry'. ('rectangular' = width, 'parabolic' = shape_factor,
+                         'trapezoid' = bottom width)
+    bed_geometry : str
+        Defines the bed shape.
+        Options: 'rectangular', 'parabolic' or 'trapezoid'
+    mb_model : :py:class:`oggm.core.massbalance.MassBalanceModel`
+        The mass balance model to use.
+    spinup_sfc_h : :py:class:`numpy.ndarray`
+        Surface height of the glacier at the start of the model run.
+    yrs_to_run : float
+        Years for how long the glacier should be modeled with the given mass
+        balance model.
+    map_dx : float
+        Model grid spacing in meters.
+    torch_type : :py:class:`torch.dtype`
+        Defines type for torch.Tensor.
+
+    Returns
+    -------
+    :py:class:`oggm.Flowline`
+        The flowline at the end of the model run.
+
+    '''
+    # initialise flowline according to bed_geometry
+    if bed_geometry == 'rectangular':
+        flowline = RectangularBedFlowline(surface_h=spinup_sfc_h,
                                           bed_h=bed_h,
-                                          widths=shape,
+                                          widths=shape_var,
                                           map_dx=map_dx,
                                           torch_type=torch_type)
-    elif used_bed_geometry == 'trapezoid':
-        # calculate desired ice thickness at the end
-        ref_surf = torch.tensor(ref_surf,
-                                dtype=torch_type,
-                                requires_grad=False)
-        ice_thick_end = ref_surf - bed_h
-
-        # TODO: change from automatic w0 calculation to two optimisation
-        # variables
-        # calculate w0 with desired width
-        ref_width = torch.tensor(ref_width,
-                                 dtype=torch_type,
-                                 requires_grad=False)
+    elif bed_geometry == 'parabolic':
+        flowline = ParabolicBedFlowline(surface_h=spinup_sfc_h,
+                                        bed_h=bed_h,
+                                        bed_shape=shape_var,
+                                        map_dx=map_dx,
+                                        torch_type=torch_type)
+    elif bed_geometry == 'trapezoid':
         # lambda is set constant 1
         # (see https://docs.oggm.org/en/latest/ice-dynamics.html#trapezoidal)
         lambdas = torch.tensor(1.,
                                dtype=torch_type,
                                requires_grad=False)
-        w0 = ref_width - lambdas * ice_thick_end
 
-        # only positive w0 are allowed
-        # TODO: check the maximum ice thickness
-        w0 = torch.clamp(w0, min=0.)
-
-        # calculate the model with out of the start ice thickness
-        surface_h = torch.tensor(surface_h,
-                                 dtype=torch_type,
-                                 requires_grad=False)
-        ice_thick_start = surface_h - bed_h
-        width_start = w0 + lambdas * ice_thick_start
-        # TODO: Check what I do here!!!
-        width_start = torch.clamp(width_start, min=0.1)
-
-        flowline = TrapezoidalBedFlowline(map_dx=map_dx,
-                                          surface_h=surface_h,
+        flowline = TrapezoidalBedFlowline(surface_h=spinup_sfc_h,
                                           bed_h=bed_h,
-                                          widths=width_start,
+                                          w0=shape_var,
                                           lambdas=lambdas,
+                                          map_dx=map_dx,
                                           torch_type=torch_type)
     else:
         raise ValueError('Unknown bed geometry!')
@@ -244,9 +250,6 @@ def run_flowline_forward_core(surface_h, bed_h, shape, map_dx, torch_type,
                            mb_model=mb_model,
                            y0=0.)
 
-    if yrs_to_run == 'equilibrium':
-        model.run_until_equilibrium()
-    else:
-        model.run_until(yrs_to_run)
+    model.run_until(yrs_to_run)
 
     return model.fls[0]

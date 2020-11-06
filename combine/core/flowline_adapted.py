@@ -73,7 +73,7 @@ class Flowline(Centerline):
             DEM grid spacing in meters
         surface_h: :py:class:`numpy.ndarray`
             elevation [m] of the flowline grid points
-        bed_h: :py:class:`numpy.ndarray`
+        bed_h: :py:class:`torch.Tensor`
             elevation[m] of the bedrock at the flowline grid points
         rgi_id : str
             The glacier's RGI identifier
@@ -95,9 +95,10 @@ class Flowline(Centerline):
 
         self.torch_type = torch_type
 
-        self.bed_h = to_torch_tensor(bed_h,
-                                     self.torch_type,
-                                     requires_grad=True)
+        # check type of bed_h
+        if type(bed_h) != torch.Tensor:
+            raise TypeError('bed_h must be torch.Tensor!!!')
+        self.bed_h = bed_h
 
         surface_h = to_torch_tensor(surface_h, self.torch_type)
         thick = (surface_h - self.bed_h).detach().clone()
@@ -243,12 +244,14 @@ class ParabolicBedFlowline(Flowline):
                                                    water_level=water_level,
                                                    torch_type=torch_type)
 
-        self.bed_shape = to_torch_tensor(bed_shape,
-                                         self.torch_type,
-                                         requires_grad=True)
+        # check type of bed_shape
+        if type(bed_shape) != torch.Tensor:
+            raise TypeError('bed_shape must be torch.Tensor!!!')
+        self.bed_shape = bed_shape
 
         self.fl_type = 'ParabolicFlowline'
 
+        # checks that the shape is not set infinity during optimisation
         if not torch.all(torch.isfinite(self.bed_shape)):
             print(self.bed_shape)
         assert torch.all(torch.isfinite(self.bed_shape))
@@ -259,8 +262,7 @@ class ParabolicBedFlowline(Flowline):
 
     @property
     def section(self):
-        # return 4./3. * torch.sqrt(self.thick.pow(3) / self.bed_shape)
-        return 2./3. * self.widths_m * self.thick  # original
+        return 2./3. * self.widths_m * self.thick
 
     @section.setter
     def section(self, val):
@@ -333,7 +335,7 @@ class TrapezoidalBedFlowline(Flowline):
     """
 
     def __init__(self, line=None, dx=None, map_dx=None, surface_h=None,
-                 bed_h=None, widths=None, lambdas=None, rgi_id=None,
+                 bed_h=None, w0=None, lambdas=None, rgi_id=None,
                  water_level=None, torch_type=torch.float):
         """ Instanciate.
 
@@ -352,16 +354,17 @@ class TrapezoidalBedFlowline(Flowline):
                                                      water_level=water_level,
                                                      torch_type=torch_type)
 
+        if len(lambdas) == 1:
+            lambdas = lambdas.repeat(len(bed_h))
         self._lambdas = to_torch_tensor(lambdas,
                                         self.torch_type)
-        widths = to_torch_tensor(widths, self.torch_type)
 
-        self.fl_type = 'TrapezoidalFlowline'
-
-        self._w0_m = widths * self.map_dx - self._lambdas * self.thick
+        self._w0_m = w0 * self.map_dx
 
         if torch.any(self._w0_m <= 0):
             raise ValueError('Trapezoid beds need to have origin widths > 0.')
+
+        self.fl_type = 'TrapezoidalFlowline'
 
         self._prec = torch.where(self._lambdas == 0)[0]
 
@@ -1248,7 +1251,10 @@ class FluxBasedModel(FlowlineModel):
                                                 self.fls[0].thick)
             self.fls[0].widths = w_new / fl.map_dx
         elif fl.fl_type == 'TrapezoidalFlowline':
-            self.fls[0].section = torch.clamp(CS_new, min=0)
+            H_new = (torch.sqrt(self.fls[0]._w0_m**2 +
+                                2 * self.fls[0]._lambdas * CS_new) -
+                     self.fls[0]._w0_m) / self.fls[0]._lambdas
+            self.fls[0].thick = torch.clamp(H_new, min=0)
 
         # save new section in flowline
         # self.fls[0].section = torch.clamp(CS_new, min=0)
