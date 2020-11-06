@@ -31,6 +31,7 @@ class DataLogger(object):
         self.geometry_bed_h = used_bed_h_geometry
         self.along_glacier_geometry = used_along_glacier_geometry
         self.glacier_state = glacier_state
+        self.ice_mask = self.measurements['ice_mask']
 
         # define some variables needed for all bed_geometries
         self.grads = np.empty((0, self.geometry['nx']))
@@ -50,6 +51,9 @@ class DataLogger(object):
         # save step indices for filtering out steps only needed by the
         # minimisation algorithm
         self.step_indices = np.empty((0, 1))
+        # variable to keep track of the main iterations,
+        # only needed for separated optimisation of two parameters
+        self.main_iterations = np.empty((0, 1))
 
         # help variable for two optimisation variables
         two_opti_parameter_options = ['separated', 'at once']
@@ -68,10 +72,12 @@ class DataLogger(object):
             if opti_parameter == 'bed_h':
                 self.opti_var_1 = 'bed_h'
                 self.opti_var_2 = None
+                self.geometry_var = 'bed_shape'
 
             elif opti_parameter == 'bed_shape':
                 self.opti_var_1 = 'bed_shape'
                 self.opti_var_2 = None
+                self.geometry_var = 'bed_h'
 
             elif opti_parameter == 'bed_h and bed_shape':
                 self.opti_var_1 = 'bed_h'
@@ -83,8 +89,6 @@ class DataLogger(object):
                 self.two_parameter_option = two_parameter_option
                 self.main_iterations_separeted = main_iterations_separeted
 
-                # variable to keep track of the main iterations
-                self.main_iterations = np.empty((0, 1))
                 # variable to keep track in which main iteration the algorithm
                 # is at the current minimisation
                 self.current_main_iterations = np.empty((0, 1))
@@ -97,10 +101,12 @@ class DataLogger(object):
             if opti_parameter == 'bed_h':
                 self.opti_var_1 = 'bed_h'
                 self.opti_var_2 = None
+                self.geometry_var = 'w0'
 
             elif opti_parameter == 'w0':
                 self.opti_var_1 = 'w0'
                 self.opti_var_2 = None
+                self.geometry_var = 'bed_h'
 
             elif opti_parameter == 'bed_h and w0':
                 self.opti_var_1 = 'bed_h'
@@ -112,8 +118,6 @@ class DataLogger(object):
                 self.two_parameter_option = two_parameter_option
                 self.main_iterations_separeted = main_iterations_separeted
 
-                # variable to keep track of the main iterations
-                self.main_iterations = np.empty((0, 1))
                 # variable to keep track in which main iteration the algorithm
                 # is at the current miniisation
                 self.current_main_iterations = np.empty((0, 1))
@@ -128,6 +132,7 @@ class DataLogger(object):
         # save the true and the first guess for optimisation variable 1
         self.true_opti_var_1 = self.geometry[self.opti_var_1]
         self.first_guessed_opti_var_1 = self.first_guess[self.opti_var_1]
+        self.known_opti_var_1 = self.geometry[self.opti_var_1][~self.ice_mask]
         # variable for saving the iteration output
         self.guessed_opti_var_1 = np.empty((0, self.geometry['nx']))
 
@@ -136,6 +141,8 @@ class DataLogger(object):
             # safe the true and the first guess for optimisation variable 2
             self.true_opti_var_2 = self.geometry[self.opti_var_2]
             self.first_guessed_opti_var_2 = self.first_guess[self.opti_var_2]
+            self.known_opti_var_2 = \
+                self.geometry[self.opti_var_2][~self.ice_mask]
             # variable for saving the iteration output
             self.guessed_opti_var_2 = np.empty((0, self.geometry['nx']))
 
@@ -235,13 +242,14 @@ class DataLogger(object):
             print(self.info_text.format(**args))
 
     def main_iteration_callback(self):
-        text = '''
+        if self.two_parameter_option == 'separated':
+            text = '''
 --------------------------------------------------
 Main Iteration number {iteration:d}:'''
-        arg = {'iteration': self.main_iterations[-1]}
-        print(text.format(**arg))
+            arg = {'iteration': self.main_iterations[-1]}
+            print(text.format(**arg))
 
-    def filter_data_from_optimization(self, opti_var):
+    def filter_data_from_optimization(self):
         # Filter all "exploratory" model runs to only get "real" iteration
         # steps
         index = self.step_indices
@@ -287,7 +295,7 @@ Main Iteration number {iteration:d}:'''
                      self.opti_var_iteration),
                 'ice_mask':
                     (['total_distance'],
-                     self.measurements['ice_mask']),
+                     self.ice_mask),
                 'true_surface_h':
                     (['total_distance'],
                      self.true_surfs),

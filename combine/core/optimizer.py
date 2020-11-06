@@ -1,6 +1,6 @@
 import numpy as np
 
-from combine.core.cost_function import creat_cost_fct
+from combine.core.cost_function import create_cost_fct
 from scipy.optimize import minimize
 from combine.core.idealized_experiments import define_geometry,\
     define_mb_model, create_measurements, get_first_guess, get_reg_parameters,\
@@ -40,7 +40,7 @@ def optimize_bed_h_and_shape(bed_h_guess,
         # create cost function for bed height
         shape_all = np.append(shape_guess, shape_known)
 
-        cost_fct_bed_h = creat_cost_fct(
+        cost_fct_bed_h = create_cost_fct(
             bed_h=bed_h_known,
             shape=shape_all,
             spinup_surf=spinup_surf,
@@ -77,7 +77,7 @@ def optimize_bed_h_and_shape(bed_h_guess,
         # create cost function for bed shape
         bed_h_all = np.append(bed_h_guess, bed_h_known)
 
-        cost_fct_shape = creat_cost_fct(
+        cost_fct_shape = create_cost_fct(
             bed_h=bed_h_all,
             shape=shape_known,
             spinup_surf=spinup_surf,
@@ -220,16 +220,74 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
         solver=solver,
         glacier_state=glacier_state)
 
-    # start how new cost fct can look like
+    # create an array with separareted optimisation variables if needed
+    if dl.two_parameter_option == 'separated':
+        if dl.opti_parameter == 'bed_h and bed_shape':
+            opti_var_to_loop_through = ['bed_h', 'bed_shape']
+        elif dl.opti_parameter == 'bed_h and w0':
+            opti_var_to_loop_through = ['bed_h', 'w0']
+        else:
+            raise ValueError('Unknown opti_parameter for separated '
+                             'optimisatoin')
+    elif dl.opti_parameter in ['bed_h', 'bed_shape', 'bed_h and bed_shape',
+                               'w0', 'bed_h and w0']:
+        opti_var_to_loop_through = dl.opti_parameter
+        # set the main iterations to 1, because only needed for separated
+        # optimisation, in the other case the number of iterations is defined
+        # in the minimize_options
+        main_iterations_separeted = 1
+    else:
+        raise ValueError('Unknown opti_parameter!')
+
+    # the next two for loops only has an effect for separated optimisation
     for loop in np.arange(main_iterations_separeted):
-        dl.main_iterations.append(loop + 1)
+        dl.main_iterations = np.append(dl.main_iterations, loop + 1)
         dl.main_iteration_callback()
 
-        for loop_opti_var in all_opti_vars:
-            if loop_opti_var == 2:
-                guess_parameter = 2# if the first time it is the first guess
-                known_parameter = 2
-                geometry_var = 2
+        for loop_opti_var in opti_var_to_loop_through:
+            if dl.two_parameter_option == 'separated':
+                # switch variables, consider first guess in first round
+                # during first main loop use the first guess values
+                if loop == 0:
+                    if loop_opti_var == 'bed_h':
+                        guess_parameter = dl.first_guessed_opti_var_1
+                        known_parameter = dl.known_opti_var_1
+                        geometry_var = np.append(dl.first_guessed_opti_var_2,
+                                                 dl.known_opti_var_2)
+                    else:
+                        guess_parameter = dl.first_guessed_opti_var_2
+                        known_parameter = dl.known_opti_var_2
+                        geometry_var = np.append(dl.guessed_opti_var_1[-1],
+                                                 dl.known_opti_var_1)
+                # if not in first main loop use already guessed variables
+                else:
+                    if loop_opti_var == 'bed_h':
+                        guess_parameter = dl.guessed_opti_var_1[-1]
+                        known_parameter = dl.known_opti_var_1
+                        geometry_var = np.append(dl.guessed_opti_var_2[-1],
+                                                 dl.known_opti_var_2)
+                    else:
+                        guess_parameter = dl.guessed_opti_var_2[-1]
+                        known_parameter = dl.known_opti_var_2
+                        geometry_var = np.append(dl.guessed_opti_var_1[-1],
+                                                 dl.known_opti_var_1)
+
+            # here you have only one optimisation variable or two at once
+            else:
+                if loop_opti_var in ['bed_h', 'bed_shape', 'w0']:
+                    guess_parameter = dl.first_guessed_opti_var_1
+                    known_parameter = dl.known_opti_var_1
+                    # here the second variable is selected (defined when
+                    # creating the datalogger)
+                    geometry_var = dl.geometry[dl.geometry_var]
+                elif loop_opti_var in ['bed_h and bed_shape', 'bed_h and w0']:
+                    guess_parameter = np.append(dl.first_guessed_opti_var_1,
+                                                dl.first_guessed_opti_var_2)
+                    known_parameter = np.append(dl.known_opti_var_1,
+                                                dl.known_opti_var_2)
+                    geometry_var = None
+                else:
+                    raise ValueError('Unknown optimisation variable!')
 
             cost_fct = create_cost_fct(
                 known_parameter=known_parameter,
@@ -237,10 +295,9 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                 bed_geometry=bed_geometry,
                 measurements=measurements,
                 reg_parameters=reg_parameters,
-                dx=dx,
+                dx=geometry['map_dx'],
                 mb_model=mb_model,
-                opti_var=opti_var,
-                two_parameter_option=two_opti_parameters,
+                opti_var=loop_opti_var,
                 datalogger=dl)
 
             res = minimize(fun=cost_fct,
@@ -250,6 +307,9 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                            # bounds=bounds,
                            options=minimize_options,
                            callback=dl.callback_fct)
+
+    # filter out data used by minimize function for exploratory
+    dl.filter_data_from_optimization()
 
     # save results to netcdf file
     dl.create_and_save_dataset()
@@ -275,7 +335,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
     # start minimize
     if ((opti_parameter == 'bed_h') or (opti_parameter == 'shape') or
        (opti_parameter == 'bed_h and shape at once')):
-        cost_fct = creat_cost_fct(
+        cost_fct = create_cost_fct(
             bed_h=bed_h,
             shape=shape,
             spinup_surf=measurements['spinup_sfc'],
@@ -333,7 +393,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
             torch_type=torch_type,
             used_geometry=bed_geometry,
             data_logger=dl,
-            iterations=iterations_separeted,
+            iterations=main_iterations_separeted,
             check_cost_terms=False,
             ice_mask=measurements['ice_mask']
             )
