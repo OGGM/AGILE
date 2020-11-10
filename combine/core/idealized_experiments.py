@@ -509,106 +509,107 @@ def get_reg_parameters(opti_var,
     return reg_parameters
 
 
-def plot_result(res,
-                measurements,
-                geometry,
-                first_guess,
-                opti_parameter,
-                bed_geometry):
-    plot_height = 450
-    plot_width = 800
+def plot_result(dl, plot_height=450, plot_width=800):
+    x = dl.geometry['distance_along_glacier']
 
-    if opti_parameter == 'bed_h':
-        bed_h_res = res.x
-        if bed_geometry == 'parabolic':
-            shape_res = measurements['shape_unknown']
+    # start with first optimisation variable
+    y1_final_guess = np.zeros(len(x))
+    y1_first_guess = np.zeros(len(x))
+
+    y1_final_guess[dl.ice_mask] = dl.guessed_opti_var_1[-1]
+    y1_final_guess[~dl.ice_mask] = dl.geometry[dl.opti_var_1][~dl.ice_mask]
+
+    y1_first_guess[dl.ice_mask] = dl.first_guessed_opti_var_1
+    y1_first_guess[~dl.ice_mask] = dl.geometry[dl.opti_var_1][~dl.ice_mask]
+
+    # if only one
+    if dl.opti_parameter in ['bed_h', 'bed_shape', 'w0']:
+        y2_final_guess = None
+        y2_first_guess = None
+
         single_plot_height = plot_height
-    elif opti_parameter == 'shape':
-        bed_h_res = measurements['bed_unknown']
-        shape_res = res.x
-        single_plot_height = plot_height
-    elif opti_parameter == 'bed_h and shape at once':
-        split_point = int(len(res.x) / 2)
-        bed_h_res = res.x[:split_point]
-        shape_res = res.x[split_point:]
-        single_plot_height = int(plot_height / 2)
-    elif opti_parameter == 'bed_h and shape separeted':
-        bed_h_res = res[0].x
-        shape_res = res[1].x
-        single_plot_height = int(plot_height / 2)
+
+    elif dl.opti_parameter in ['bed_h and bed_shape', 'bed_h and w0']:
+        y2_final_guess = np.zeros(len(x))
+        y2_first_guess = np.zeros(len(x))
+
+        y2_final_guess[dl.ice_mask] = dl.guessed_opti_var_2[-1]
+        y2_final_guess[~dl.ice_mask] = dl.geometry[dl.opti_var_2][~dl.ice_mask]
+
+        y2_first_guess[dl.ice_mask] = dl.first_guessed_opti_var_2
+        y2_first_guess[~dl.ice_mask] = dl.geometry[dl.opti_var_2][~dl.ice_mask]
+
+        single_plot_height = plot_height / 2
+
     else:
         raise ValueError('Unknown optimisation parameter!')
 
-    # plot for bed height difference
-    diff_estimated_bed = hv.Curve((geometry['distance_along_glacier'],
-                                   np.append(bed_h_res,
-                                             measurements['bed_known']) -
-                                   measurements['bed_all']),
-                                  'distance',
-                                  'diff bed_h',
-                                  label='diff estimated bed')
+    # plot for first optimisation variable
+    diff_estimated_opti_1 = hv.Curve((x,
+                                      y1_final_guess -
+                                      dl.geometry[dl.opti_var_1]),
+                                     'distance',
+                                     'diff ' + dl.opti_var_1,
+                                     label='diff estimated ' + dl.opti_var_1)
 
-    diff_first_guess_bed = hv.Curve((geometry['distance_along_glacier'],
-                                     np.append(first_guess['bed_h'],
-                                               measurements['bed_known']) -
-                                     measurements['bed_all']),
+    diff_first_guess_opti_1 = hv.Curve((x,
+                                        y1_first_guess -
+                                        dl.geometry[dl.opti_var_1]),
+                                       'distance',
+                                       'diff ' + dl.opti_var_1,
+                                       label='diff estimated ' + dl.opti_var_1)
+
+    zero_line_opti_1 = hv.Curve((x,
+                                 np.zeros(len(x))),
+                                'distance',
+                                'diff ' + dl.opti_var_1
+                                ).opts(line_color='black')
+
+    opti_1_plot = (zero_line_opti_1 *
+                   diff_first_guess_opti_1 *
+                   diff_estimated_opti_1
+                   ).opts(width=plot_width,
+                          height=single_plot_height,
+                          xaxis='top')
+
+    if y2_final_guess is not None:
+        # plot for first optimisation variable
+        diff_estimated_opti_2 = hv.Curve((x,
+                                          y2_final_guess -
+                                          dl.geometry[dl.opti_var_2]),
+                                         'distance',
+                                         'diff ' + dl.opti_var_2,
+                                         label='diff estimated ' +
+                                         dl.opti_var_2)
+
+        diff_first_guess_opti_2 = hv.Curve((x,
+                                            y2_first_guess -
+                                            dl.geometry[dl.opti_var_2]),
+                                           'distance',
+                                           'diff ' + dl.opti_var_2,
+                                           label='diff estimated ' +
+                                           dl.opti_var_2)
+
+        zero_line_opti_2 = hv.Curve((x,
+                                     np.zeros(len(x))),
                                     'distance',
-                                    'diff bed_h',
-                                    label='first guess bed')
+                                    'diff ' + dl.opti_var_2
+                                    ).opts(line_color='black')
 
-    zero_line_bed_h = hv.Curve((geometry['distance_along_glacier'],
-                                np.zeros(len(
-                                    geometry['distance_along_glacier']))),
-                               'distance',
-                               'diff bed_h').opts(line_color='black')
+        opti_2_plot = (zero_line_opti_2 *
+                       diff_first_guess_opti_2 *
+                       diff_estimated_opti_2
+                       ).opts(width=plot_width,
+                              height=single_plot_height,
+                              xaxis='top')
 
-    bed_h_plot = (zero_line_bed_h *
-                  diff_first_guess_bed *
-                  diff_estimated_bed
-                  ).opts(width=plot_width,
-                         height=single_plot_height,
-                         xaxis='top')
+        final_plot = (opti_1_plot + opti_2_plot).cols(1)
 
-    if bed_geometry == 'parabolic':
-        # plot for shape difference
-        diff_estimated_shape = hv.Curve((geometry['distance_along_glacier'],
-                                         np.append(shape_res,
-                                                   measurements['shape_known'])
-                                         - measurements['shape_all']),
-                                        'distance',
-                                        'diff shape',
-                                        label='diff estimated shape')
-
-        diff_first_guess_shape = hv.Curve((geometry['distance_along_glacier'],
-                                           np.append(first_guess['shape'],
-                                               measurements['shape_known']) -
-                                           measurements['shape_all']),
-                                          'distance',
-                                          'diff shape',
-                                          label='first guess shape')
-
-        zero_line_shape = hv.Curve((geometry['distance_along_glacier'],
-                                    np.zeros(len(
-                                        geometry['distance_along_glacier']))),
-                                   'distance',
-                                   'diff shape').opts(line_color='black')
-
-        shape_plot = (zero_line_shape *
-                      diff_first_guess_shape *
-                      diff_estimated_shape
-                      ).opts(width=plot_width,
-                             height=single_plot_height)
-
-    if opti_parameter == 'bed_h':
-        return bed_h_plot.opts(opts.Curve(line_width=3))
-    elif opti_parameter == 'shape':
-        return shape_plot.opts(opts.Curve(line_width=3))
-    elif ((opti_parameter == 'bed_h and shape at once') or
-          (opti_parameter == 'bed_h and shape separeted')):
-        return_plot = (bed_h_plot + shape_plot).cols(1)
-        return return_plot.opts(opts.Curve(line_width=3))
     else:
-        raise ValueError('Unknown optimisation parameter!')
+        final_plot = opti_1_plot
+
+    # show plot
+    final_plot.opts(opts.Curve(line_width=3))
 
 
 def get_spinup_sfc(measurements,

@@ -126,10 +126,6 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                    main_iterations_separeted=1,
                                    reg_parameters=None,
                                    wanted_c_terms=None,
-                                   grad_scaling={'bed_h': 1,
-                                                 'shape': 1},
-                                   grad_smoothing={'bed_h': 'no',
-                                                   'shape': 'no'},
                                    torch_type='double',
                                    minimize_options={'maxiter': 10,
                                                      'ftol': 1e-7,
@@ -189,20 +185,6 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                                     torch_type=torch_type)
         print('---DONE---')
 
-    # define regularisation parameters
-    if reg_parameters is None:
-        print('\n- Calculate regularization parameters: ')
-        reg_parameters = get_reg_parameters(opti_parameter,
-                                            measurements,
-                                            geometry,
-                                            mb_model,
-                                            torch_type,
-                                            bed_geometry,
-                                            first_guess,
-                                            glacier_state,
-                                            wanted_c_terms)
-        print('---DONE---')
-
     # create Datalogger according to the used bed geometry and save some data,
     # Datalogger also checks if the inputs work together
     dl = DataLogger(
@@ -219,6 +201,21 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
         minimize_options=minimize_options,
         solver=solver,
         glacier_state=glacier_state)
+
+    # define regularisation parameters
+    if reg_parameters is None:
+        print('\n- Calculate regularization parameters: ')
+        reg_parameters = get_reg_parameters(opti_parameter,
+                                            measurements,
+                                            geometry,
+                                            mb_model,
+                                            torch_type,
+                                            bed_geometry,
+                                            first_guess,
+                                            glacier_state,
+                                            wanted_c_terms)
+        dl.reg_parameters = reg_parameters
+        print('---DONE---')
 
     # create an array with separareted optimisation variables if needed
     if dl.two_parameter_option == 'separated':
@@ -295,7 +292,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                 bed_geometry=bed_geometry,
                 measurements=measurements,
                 reg_parameters=reg_parameters,
-                dx=geometry['map_dx'],
+                dx=dl.geometry['map_dx'],
                 mb_model=mb_model,
                 opti_var=loop_opti_var,
                 datalogger=dl)
@@ -314,6 +311,11 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
     # save results to netcdf file
     dl.create_and_save_dataset()
 
+    # show a plot if wanted
+    if show_plot:
+        plot_result(dl)
+
+    '''
     # define initial values
     if opti_parameter == 'bed_h':
         bed_h = measurements['bed_known']
@@ -410,4 +412,4 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
 
             return dl, res, result_plot
 
-        return dl, res
+        return dl, res'''
