@@ -2,7 +2,7 @@ import numpy as np
 from scipy.optimize import minimize
 import holoviews as hv
 from holoviews import opts
-from combine.core.cost_function import creat_cost_fct, creat_spinup_cost_fct
+from combine.core.cost_function import create_cost_fct, creat_spinup_cost_fct
 from combine.core.arithmetics import magnitude
 from oggm.core.massbalance import LinearMassBalance
 from oggm.core.flowline import FluxBasedModel as oggm_FluxModel
@@ -453,48 +453,107 @@ def get_reg_parameters(opti_var,
                        measurements,
                        geometry,
                        mb_model,
-                       torch_type,
                        bed_geometry,
                        first_guess,
-                       glacier_state,
+                       torch_type='double',
                        wanted_c_terms=None):
-    # TODO: change shape into bed_shape
-    if opti_var == 'bed_h':
-        bed_h = measurements['bed_known']
-        shape = measurements['shape_all']
-        first_guess_cost_fct = first_guess['bed_h']
-    elif opti_var == 'shape':
-        bed_h = measurements['bed_all']
-        shape = measurements['shape_known']
-        first_guess_cost_fct = first_guess['shape']
-    elif opti_var == 'bed_h and shape':
-        bed_h = measurements['bed_known']
-        shape = measurements['shape_known']
-        first_guess_cost_fct = np.append(first_guess['bed_h'],
-                                         first_guess['shape'])
+    '''
+    Calculates the regularisation parameters by scaling the magnitude of each
+    term of the cost function. How the scaling should look like can be defined
+    with the wanted_c_terms variable (e.g. wanted_c_terms=[1., 10., 1., 1.]
+    equals that the magnitude of the second cost term is 1/10 of the other
+    terms)
+
+    Parameters
+    ----------
+    opti_var : str
+        Defines the optimisation parameter. Depending on the bed geometry this
+        could be one ore two.
+        Options for 'rectangular': 'bed_h'.
+        Options for 'parabolic': 'bed_h', 'bed_shape' or 'bed_h and bed_shape'
+        Options for 'trapezoid': 'bed_h', 'w0' or 'bed_h and w0'
+    measurements : dict
+        Dictionary containing the measurements from:
+            'spinup_sfc_h' : the spinup surface height (start ice height)
+            'sfc_h': the desired ice surface height at the end
+            'widths': the desired widths at the end
+            'yrs_to_run': the number of years the model should run
+            'ice_mask': indicates where ice is located at the end (TRUE = ice)
+    geometry : dict
+        Describing the geometry of the glacier. Depending on the different
+        bed geometrys it must contain different
+        variables describing it (see Docstring of function define_geometry).
+    mb_model : :py:class:`oggm.core.massbalance.MassBalanceModel`
+        The mass balance model to use.
+    bed_geometry : str
+        Defines the bed shape.
+        Options: 'rectangular', 'parabolic' or 'trapezoid'
+    first_guess : dict
+        Containing first guess parameters.
+    torch_type : str, optional
+        Defines type for torch.Tensor. If 'double' use torch.double, otherwise
+        use torch.float. The default is 'double'.
+    wanted_c_terms : :py:class:`numpy.ndarray`, optional
+        Can scale the individual cost terms,
+        e.g. wanted_c_terms=[1., 10., 1., 1.] equals that the magnitude of the
+        second cost term is 1/10 of the other terms. The default is None.
+
+    Returns
+    -------
+    reg_parameters : :py:class:`numpy.ndarray`
+        Regularisation parameters for the individual terms of the cost
+        function.
+
+    '''
+
+    if opti_var in ['bed_h', 'bed_shape', 'w0']:
+        guess_parameter = first_guess[opti_var]
+        known_parameter = geometry[opti_var][~measurements['ice_mask']]
+        # here the second geomety variable is selected
+        if opti_var == 'bed_h':
+            if bed_geometry == 'rectangular':
+                geometry_var = geometry['widths']
+            elif bed_geometry == 'parabolic':
+                geometry_var = geometry['bed_shape']
+            elif bed_geometry == 'trapezoidol':
+                geometry_var = geometry['w0']
+            else:
+                raise ValueError('Unknown bed geometry!')
+        else:
+            geometry_var = geometry['bed_h']
+    elif opti_var in ['bed_h and bed_shape', 'bed_h and w0']:
+        if opti_var == 'bed_h and bed_shape':
+            opti_var_2 = 'bed_shape'
+        else:
+            opti_var_2 = 'w0'
+
+        guess_parameter = np.append(first_guess['bed_h'],
+                                    first_guess[opti_var_2])
+        known_parameter = np.append(
+            geometry['bed_h'][~measurements['ice_mask']],
+            geometry[opti_var_2][~measurements['ice_mask']])
+        geometry_var = None
+    else:
+        raise ValueError('Unknown optimisation variable!')
 
     if wanted_c_terms is None:
         reg_parameters = np.array([1., 1., 1., 1., 1., 1.])
     else:
         reg_parameters = wanted_c_terms
 
-    cost_fct = creat_cost_fct(
-        bed_h=bed_h,
-        shape=shape,
-        spinup_surf=measurements['spinup_sfc'],
-        reg_parameter=reg_parameters,
-        ref_surf=measurements['sfc_h'],
-        ref_width=measurements['widths'],
-        ice_mask=measurements['ice_mask'],
-        yrs_to_run=measurements['yrs_to_run'],
-        dx=geometry['map_dx'],
-        mb_model=mb_model,
-        opti_var=opti_var,
-        torch_type=torch_type,
-        used_geometry=bed_geometry,
-        get_c_terms=True)
+    cost_fct = create_cost_fct(
+                known_parameter=known_parameter,
+                geometry_var=geometry_var,
+                bed_geometry=bed_geometry,
+                measurements=measurements,
+                reg_parameters=reg_parameters,
+                dx=geometry['map_dx'],
+                mb_model=mb_model,
+                opti_var=opti_var,
+                datalogger=None,
+                only_get_c_terms=True)
 
-    c_terms = cost_fct(first_guess_cost_fct)
+    c_terms = cost_fct(guess_parameter)
 
     desired_mag = magnitude(c_terms[0])
     for i, c_term in enumerate(c_terms):
@@ -517,10 +576,10 @@ def plot_result(dl, plot_height=450, plot_width=800):
     y1_first_guess = np.zeros(len(x))
 
     y1_final_guess[dl.ice_mask] = dl.guessed_opti_var_1[-1]
-    y1_final_guess[~dl.ice_mask] = dl.geometry[dl.opti_var_1][~dl.ice_mask]
+    y1_final_guess[~dl.ice_mask] = dl.known_opti_var_1
 
     y1_first_guess[dl.ice_mask] = dl.first_guessed_opti_var_1
-    y1_first_guess[~dl.ice_mask] = dl.geometry[dl.opti_var_1][~dl.ice_mask]
+    y1_first_guess[~dl.ice_mask] = dl.known_opti_var_1
 
     # if only one
     if dl.opti_parameter in ['bed_h', 'bed_shape', 'w0']:
@@ -534,10 +593,10 @@ def plot_result(dl, plot_height=450, plot_width=800):
         y2_first_guess = np.zeros(len(x))
 
         y2_final_guess[dl.ice_mask] = dl.guessed_opti_var_2[-1]
-        y2_final_guess[~dl.ice_mask] = dl.geometry[dl.opti_var_2][~dl.ice_mask]
+        y2_final_guess[~dl.ice_mask] = dl.known_opti_var_2
 
         y2_first_guess[dl.ice_mask] = dl.first_guessed_opti_var_2
-        y2_first_guess[~dl.ice_mask] = dl.geometry[dl.opti_var_2][~dl.ice_mask]
+        y2_first_guess[~dl.ice_mask] = dl.known_opti_var_2
 
         single_plot_height = plot_height / 2
 

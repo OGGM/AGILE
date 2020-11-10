@@ -21,7 +21,7 @@ class DataLogger(object):
                  main_iterations_separeted, geometry, measurements,
                  first_guess, reg_parameters, used_bed_h_geometry,
                  used_along_glacier_geometry, minimize_options, solver,
-                 glacier_state):
+                 glacier_state, mb_model):
         # first save all initial data for idealized experiment
         self.bed_geometry = bed_geometry
         self.opti_parameter = opti_parameter
@@ -32,6 +32,7 @@ class DataLogger(object):
         self.along_glacier_geometry = used_along_glacier_geometry
         self.glacier_state = glacier_state
         self.ice_mask = self.measurements['ice_mask']
+        self.mb_model = mb_model
 
         # define some variables needed for all bed_geometries
         self.costs = np.empty((0, 1))
