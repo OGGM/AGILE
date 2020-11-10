@@ -173,6 +173,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                   opti_parameter=opti_parameter)
     print('---DONE---')
 
+    return first_guess
+
     # TODO: This option is not tested or working
     if glacier_state == 'retreating with unknow spinup':
         print('\n- Calculate spinup surface:')
@@ -213,7 +215,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
         used_along_glacier_geometry=used_along_glacier_geometry,
         minimize_options=minimize_options,
         solver=solver,
-        glacier_state=glacier_state)
+        glacier_state=glacier_state,
+        mb_opts=mb_opts)
 
     # create an array with separareted optimisation variables if needed
     if dl.two_parameter_option == 'separated':

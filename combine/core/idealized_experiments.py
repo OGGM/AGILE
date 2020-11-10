@@ -94,10 +94,10 @@ def define_geometry(used_bed_h_geometry='linear',
         geometry['bed_h'] = np.concatenate(
             (np.linspace(geometry['top_height'],
                          cliff_top,
-                         geometry['nx'] / 4),
+                         int(geometry['nx'] / 4)),
              np.linspace(cliff_bottom,
                          geometry['bottom_height'],
-                         geometry['nx'] * 3 / 4)))
+                         int(geometry['nx'] * 3 / 4))))
     elif used_bed_h_geometry == 'random':
         # glacier top height
         geometry['top_height'] = 4000
