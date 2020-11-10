@@ -1104,7 +1104,7 @@ def cost_fct(unknown_parameter,
              mb_model,
              opti_var,
              datalogger,
-             get_c_terms=False,
+             only_get_c_terms=False,
              torch_type='double'):
     '''
     Calculates cost and gradient for the given parameters.
@@ -1177,7 +1177,7 @@ def cost_fct(unknown_parameter,
         return cost, grad
 
     # ice mask is needed for cost calculation and to put parameters together
-    ice_mask = torch.tensor(datalogger.ice_mask,
+    ice_mask = torch.tensor(measurements['ice_mask'],
                             requires_grad=False,
                             dtype=torch.bool)
 
@@ -1297,7 +1297,7 @@ def cost_fct(unknown_parameter,
         torch_type=torch_type)
 
     # shortcut when regularisation parameters are searched
-    if get_c_terms:
+    if only_get_c_terms:
         return c_terms.detach().numpy().astype(np.float64)
 
     # sum up cost function terms
