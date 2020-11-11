@@ -1124,7 +1124,7 @@ def cost_fct(unknown_parameter,
         needed to define the flowline shape.
     bed_geometry : str
         Defines the bed shape.
-        Options: 'rectangular', 'parabolic' or 'trapezoid'
+        Options: 'rectangular', 'parabolic' or 'trapezoidal'
     measurements : dict
         Dictionary containing the measurements from:
             'spinup_sfc_h' : the spinup surface height (start ice height)
@@ -1144,7 +1144,7 @@ def cost_fct(unknown_parameter,
         could be one ore two.
         Options for 'rectangular': 'bed_h'.
         Options for 'parabolic': 'bed_h', 'bed_shape' or 'bed_h and bed_shape'
-        Options for 'trapezoid': 'bed_h', 'w0' or 'bed_h and w0'
+        Options for 'trapezoidal': 'bed_h', 'w0' or 'bed_h and w0'
     datalogger : :py:class:`combine.core.data_logging.DataLogger`
         Datalogger to keep track of the calculations.
     get_c_terms : bool, optional

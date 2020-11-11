@@ -97,7 +97,7 @@ class DataLogger(object):
                 raise ValueError('Unknown optimisation parameter for '
                                  'parabolic!')
 
-        elif bed_geometry == 'trapezoidol':
+        elif bed_geometry == 'trapezoidal':
             if opti_parameter == 'bed_h':
                 self.opti_var_1 = 'bed_h'
                 self.opti_var_2 = None
@@ -124,7 +124,7 @@ class DataLogger(object):
 
             else:
                 raise ValueError('Unknown optimisation parameter for '
-                                 'trapezoidol!')
+                                 'trapezoidal!')
 
         else:
             raise ValueError('Unknown bed geometry!')
@@ -171,7 +171,7 @@ class DataLogger(object):
             self.filename = 'rec_'
         elif bed_geometry == 'parabolic':
             self.filename = 'par_'
-        elif bed_geometry == 'trapezoidol':
+        elif bed_geometry == 'trapezoidal':
             self.filename = 'tra_'
         else:
             raise ValueError('Unknown bed geometry!')

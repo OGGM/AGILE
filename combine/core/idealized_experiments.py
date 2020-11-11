@@ -123,7 +123,7 @@ def define_geometry(used_bed_h_geometry='linear',
             geometry['widths'] = np.zeros(geometry['nx']) + 1.
         elif bed_geometry == 'parabolic':
             geometry['bed_shape'] = np.zeros(geometry['nx']) + 1.
-        elif bed_geometry == 'trapezoid':
+        elif bed_geometry == 'trapezoidal':
             geometry['w0'] = np.zeros(geometry['nx']) + 1.
         else:
             raise ValueError('Unkonwn bed shape!')
@@ -137,7 +137,7 @@ def define_geometry(used_bed_h_geometry='linear',
             geometry['widths'] = random_shape
         elif bed_geometry == 'parabolic':
             geometry['bed_shape'] = random_shape
-        elif bed_geometry == 'trapezoid':
+        elif bed_geometry == 'trapezoidal':
             geometry['w0'] = random_shape
         else:
             raise ValueError('Unkonwn bed shape!')
@@ -203,7 +203,7 @@ def create_measurements(geometry,
         needed.
     bed_geometry : string, optional
         Defines the bed geometry, the options are: 'rectangular', 'parabolic'
-        and 'trapezoid'. The default is 'rectangular'.
+        and 'trapezoidal'. The default is 'rectangular'.
     glacier_state : string, optional
         Defines the glacier state at the end, the options are: 'equilibrium',
         'advancing' or 'retreating'. For 'equilibrium' the glacier is runs
@@ -234,7 +234,7 @@ def create_measurements(geometry,
                                        bed_h=geometry['bed_h'],
                                        bed_shape=geometry['bed_shape'],
                                        map_dx=geometry['map_dx'])
-    elif bed_geometry == 'trapezoid':
+    elif bed_geometry == 'trapezoidal':
         # for trapezoidal bed lambda is always set to 1
         # (see https://docs.oggm.org/en/latest/ice-dynamics.html#trapezoidal)
         oggm_fl = TrapezoidalBedFlowline(surface_h=geometry['bed_h'],
@@ -321,13 +321,13 @@ def get_first_guess(measurements,
         Containing measurements of the glacier surface.
     bed_geometry : string, optional
         Defines the bed geometry, the options are: 'rectangular', 'parabolic'
-        and 'trapezoid'. The default is 'rectangular'.
+        and 'trapezoidal'. The default is 'rectangular'.
     opti_parameter : string, optional
         Defines the optimisation parameter. Depending on the bed geometry this
         could be one ore two.
         Options for 'rectangular': 'bed_h'.
         Options for 'parabolic': 'bed_h', 'bed_shape' or 'bed_h and bed_shape'
-        Options for 'trapezoid': 'bed_h', 'w0' or 'bed_h and w0'
+        Options for 'trapezoidal': 'bed_h', 'w0' or 'bed_h and w0'
         The default is 'bed_h'.
 
     Returns
@@ -369,7 +369,7 @@ def get_first_guess(measurements,
     # set the geometry along the new flowline
     if bed_geometry == 'rectangular':
         flo.is_rectangular = np.ones(flo.nx).astype(np.bool)
-    elif bed_geometry == 'parabolic' or bed_geometry == 'trapezoid':
+    elif bed_geometry in ['parabolic', 'trapezoidal']:
         flo.is_rectangular = np.zeros(flo.nx).astype(np.bool)
     else:
         raise ValueError('unknown bed shape!')
@@ -388,7 +388,8 @@ def get_first_guess(measurements,
     # do the OGGM inversion
     inversion.prepare_for_inversion(gdir)
     inversion.mass_conservation_inversion(gdir)
-    inversion.filter_inversion_output(gdir)
+    # TODO: check what this is doing and if I should use it
+    # inversion.filter_inversion_output(gdir)
 
     # read the result of OGGM inversion
     ocls = gdir.read_pickle('inversion_output')
@@ -432,7 +433,7 @@ def get_first_guess(measurements,
         else:
             raise ValueError('Unknown optimisation parameter for parabolic!')
 
-    elif bed_geometry == 'trapezoidol':
+    elif bed_geometry == 'trapezoidal':
         if opti_parameter == 'bed_h':
             first_guess['bed_h'] = read_bed_h(ocls)
         elif opti_parameter == 'w0':
@@ -441,7 +442,7 @@ def get_first_guess(measurements,
             first_guess['bed_h'] = read_bed_h(ocls)
             first_guess['w0'] = read_w0(ocls)
         else:
-            raise ValueError('Unknown optimisation parameter for trapezoidol!')
+            raise ValueError('Unknown optimisation parameter for trapezoidal!')
 
     else:
         raise ValueError('Unknown bed geometry!')
@@ -471,7 +472,7 @@ def get_reg_parameters(opti_var,
         could be one ore two.
         Options for 'rectangular': 'bed_h'.
         Options for 'parabolic': 'bed_h', 'bed_shape' or 'bed_h and bed_shape'
-        Options for 'trapezoid': 'bed_h', 'w0' or 'bed_h and w0'
+        Options for 'trapezoidal': 'bed_h', 'w0' or 'bed_h and w0'
     measurements : dict
         Dictionary containing the measurements from:
             'spinup_sfc_h' : the spinup surface height (start ice height)
@@ -487,7 +488,7 @@ def get_reg_parameters(opti_var,
         The mass balance model to use.
     bed_geometry : str
         Defines the bed shape.
-        Options: 'rectangular', 'parabolic' or 'trapezoid'
+        Options: 'rectangular', 'parabolic' or 'trapezoidal'
     first_guess : dict
         Containing first guess parameters.
     torch_type : str, optional
@@ -515,7 +516,7 @@ def get_reg_parameters(opti_var,
                 geometry_var = geometry['widths']
             elif bed_geometry == 'parabolic':
                 geometry_var = geometry['bed_shape']
-            elif bed_geometry == 'trapezoidol':
+            elif bed_geometry == 'trapezoidal':
                 geometry_var = geometry['w0']
             else:
                 raise ValueError('Unknown bed geometry!')
@@ -711,7 +712,7 @@ def get_spinup_sfc(measurements,
                                        bed_h=first_guess['bed_h'],
                                        bed_shape=first_guess['shape'],
                                        map_dx=geometry['map_dx'])
-    elif bed_geometry == 'trapezoid':
+    elif bed_geometry == 'trapezoidal':
         oggm_fl = TrapezoidalBedFlowline(surface_h=first_guess['bed_h'],
                                          bed_h=first_guess['bed_h'],
                                          widths=first_guess['w0'],
