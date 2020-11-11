@@ -538,7 +538,7 @@ def get_reg_parameters(opti_var,
         raise ValueError('Unknown optimisation variable!')
 
     if wanted_c_terms is None:
-        reg_parameters = np.array([1., 1., 1., 1., 1., 1.])
+        reg_parameters = np.array([1., 1., 1., 1.])
     else:
         reg_parameters = wanted_c_terms
 
