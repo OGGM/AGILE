@@ -195,10 +195,10 @@ def run_flowline_forward_core(bed_h, shape_var, bed_geometry, mb_model,
     shape_var : :py:class:`torch.Tensor`
         Second variable describing the glacier bed. The meaning depends on the
         'bed_geometry'. ('rectangular' = width, 'parabolic' = shape_factor,
-                         'trapezoid' = bottom width)
+                         'trapezoidal' = bottom width)
     bed_geometry : str
         Defines the bed shape.
-        Options: 'rectangular', 'parabolic' or 'trapezoid'
+        Options: 'rectangular', 'parabolic' or 'trapezoidal'
     mb_model : :py:class:`oggm.core.massbalance.MassBalanceModel`
         The mass balance model to use.
     spinup_sfc_h : :py:class:`numpy.ndarray`
@@ -230,10 +230,10 @@ def run_flowline_forward_core(bed_h, shape_var, bed_geometry, mb_model,
                                         bed_shape=shape_var,
                                         map_dx=map_dx,
                                         torch_type=torch_type)
-    elif bed_geometry == 'trapezoid':
+    elif bed_geometry == 'trapezoidal':
         # lambda is set constant 1
         # (see https://docs.oggm.org/en/latest/ice-dynamics.html#trapezoidal)
-        lambdas = torch.tensor(1.,
+        lambdas = torch.tensor([1.],
                                dtype=torch_type,
                                requires_grad=False)
 

@@ -173,7 +173,6 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                   opti_parameter=opti_parameter)
     print('---DONE---')
 
-    return first_guess
 
     # TODO: This option is not tested or working
     if glacier_state == 'retreating with unknow spinup':

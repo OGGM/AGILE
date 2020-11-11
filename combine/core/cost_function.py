@@ -1039,7 +1039,7 @@ def create_cost_fct(known_parameter,
                     mb_model,
                     opti_var,
                     datalogger,
-                    get_c_terms=False,
+                    only_get_c_terms=False,
                     torch_type='double'):
     '''
     Creating a cost function for the given parameters. For a detailed parameter
@@ -1088,7 +1088,7 @@ def create_cost_fct(known_parameter,
                         mb_model,
                         opti_var,
                         datalogger,
-                        get_c_terms,
+                        only_get_c_terms,
                         torch_type)
 
     return c_fun
@@ -1219,17 +1219,18 @@ def cost_fct(unknown_parameter,
                              requires_grad=False)
 
     elif opti_var in ['bed_h and bed_shape', 'bed_h and w0']:
-        split_point = int(len(unknown_parameter) / 2)
+        split_point_unknown = int(len(unknown_parameter) / 2)
+        split_point_known = int(len(known_parameter) / 2)
 
-        bed_unknown = unknown_parameter[:split_point]
-        bed_unknown = torch.tensor(bed_unknown,
+        bed_h_unknown = unknown_parameter[:split_point_unknown]
+        bed_h_unknown = torch.tensor(bed_h_unknown,
+                                     dtype=torch_type,
+                                     requires_grad=True)
+
+        bed_h_known = known_parameter[:split_point_known]
+        bed_h_known = torch.tensor(bed_h_known,
                                    dtype=torch_type,
-                                   requires_grad=True)
-
-        bed_known = known_parameter[:split_point]
-        bed_known = torch.tensor(bed_known,
-                                 dtype=torch_type,
-                                 requires_grad=False)
+                                   requires_grad=False)
 
         bed_h = torch.empty(sum(list(bed_h_unknown.size() +
                                      bed_h_known.size())),
@@ -1238,12 +1239,12 @@ def cost_fct(unknown_parameter,
         bed_h[ice_mask] = bed_h_unknown
         bed_h[~ice_mask] = bed_h_known
 
-        shape_var_unknown = unknown_parameter[split_point:]
+        shape_var_unknown = unknown_parameter[split_point_unknown:]
         shape_var_unknown = torch.tensor(shape_var_unknown,
                                          dtype=torch_type,
                                          requires_grad=True)
 
-        shape_var_known = known_parameter[split_point:]
+        shape_var_known = known_parameter[split_point_known:]
         shape_var_known = torch.tensor(shape_var_known,
                                        dtype=torch_type,
                                        requires_grad=False)
@@ -1311,11 +1312,11 @@ def cost_fct(unknown_parameter,
 
     # get gradient/s and convert to numpy array
     if opti_var == 'bed_h':
-        grad = bed_unknown.grad.detach().numpy().astype(np.float64)
+        grad = bed_h_unknown.grad.detach().numpy().astype(np.float64)
     elif opti_var in ['bed_shape', 'w0']:
         grad = shape_var_unknown.grad.detach().numpy().astype(np.float64)
     elif opti_var in ['bed_h and bed_shape', 'bed_h and w0']:
-        grad_bed_h = bed_unknown.grad.detach().numpy().astype(np.float64)
+        grad_bed_h = bed_h_unknown.grad.detach().numpy().astype(np.float64)
         grad_shape_var = \
             shape_var_unknown.grad.detach().numpy().astype(np.float64)
         grad = np.append(grad_bed_h, grad_shape_var)
@@ -1336,14 +1337,14 @@ def cost_fct(unknown_parameter,
     save_data_in_datalogger(datalogger.widths, model_widths)
     save_data_in_datalogger(datalogger.opti_var_iteration, opti_var)
     if opti_var == 'bed_h':
-        save_data_in_datalogger(datalogger.guessed_opti_var_1, bed_unknown)
+        save_data_in_datalogger(datalogger.guessed_opti_var_1, bed_h_unknown)
         save_data_in_datalogger(datalogger.grads_opti_var_1, grad)
     elif opti_var in ['bed_shape', 'w0']:
         save_data_in_datalogger(datalogger.guessed_opti_var_1,
                                 shape_var_unknown)
         save_data_in_datalogger(datalogger.grads_opti_var_1, grad)
     elif opti_var in ['bed_h and bed_shape', 'bed_h and w0']:
-        save_data_in_datalogger(datalogger.guessed_opti_var_1, bed_unknown)
+        save_data_in_datalogger(datalogger.guessed_opti_var_1, bed_h_unknown)
         save_data_in_datalogger(datalogger.grads_opti_var_1, grad_bed_h)
         save_data_in_datalogger(datalogger.guessed_opti_var_2,
                                 shape_var_unknown)
