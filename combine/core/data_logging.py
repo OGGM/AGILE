@@ -27,12 +27,16 @@ class DataLogger(object):
         self.opti_parameter = opti_parameter
         self.geometry = geometry
         self.measurements = measurements
+        self.first_guess = first_guess
         self.reg_parameters = reg_parameters
         self.geometry_bed_h = used_bed_h_geometry
         self.along_glacier_geometry = used_along_glacier_geometry
         self.glacier_state = glacier_state
         self.ice_mask = self.measurements['ice_mask']
         self.mb_opts = mb_opts
+        self.two_parameter_option = two_parameter_option
+        self.solver = solver
+        self.minimize_options = minimize_options
 
         # define some variables needed for all bed_geometries
         self.costs = np.empty((0, 1))
@@ -41,16 +45,18 @@ class DataLogger(object):
         self.true_sfc_h = measurements['sfc_h']
         self.widths = np.empty((0, self.geometry['nx']))
         self.true_widths = measurements['widths']
-        self.solver = solver
-        self.minimize_options = minimize_options
-        self.current_main_iterations = None
+
+        # variable to keep track in which main iteration the algorithm is at
+        # the current minimisation, only needed for separated optimisation
+        self.current_main_iterations = np.empty((0, 1))
+
         self.computing_time = None
         self.fct_calls = np.array([0])
         # save optimisation variable of current iteration
         self.opti_var_iteration = np.empty((0, 1))
         # save step indices for filtering out steps only needed by the
         # minimisation algorithm
-        self.step_indices = np.empty((0, 1))
+        self.step_indices = np.empty((0, 1), dtype=np.int_)
         # variable to keep track of the main iterations,
         # only needed for separated optimisation of two parameters
         self.main_iterations = np.empty((0, 1))
@@ -86,12 +92,7 @@ class DataLogger(object):
                 if two_parameter_option not in two_opti_parameter_options:
                     raise ValueError('Unknown optimisation option for two '
                                      'parameters!')
-                self.two_parameter_option = two_parameter_option
                 self.main_iterations_separeted = main_iterations_separeted
-
-                # variable to keep track in which main iteration the algorithm
-                # is at the current minimisation
-                self.current_main_iterations = np.empty((0, 1))
 
             else:
                 raise ValueError('Unknown optimisation parameter for '
@@ -115,12 +116,7 @@ class DataLogger(object):
                 if two_parameter_option not in two_opti_parameter_options:
                     raise ValueError('Unknown optimisation option for two '
                                      'parameters!')
-                self.two_parameter_option = two_parameter_option
                 self.main_iterations_separeted = main_iterations_separeted
-
-                # variable to keep track in which main iteration the algorithm
-                # is at the current miniisation
-                self.current_main_iterations = np.empty((0, 1))
 
             else:
                 raise ValueError('Unknown optimisation parameter for '
@@ -130,7 +126,7 @@ class DataLogger(object):
             raise ValueError('Unknown bed geometry!')
 
         # save the true and the first guess for optimisation variable 1
-        self.true_opti_var_1 = self.geometry[self.opti_var_1]
+        self.true_opti_var_1 = self.geometry[self.opti_var_1][self.ice_mask]
         self.first_guessed_opti_var_1 = self.first_guess[self.opti_var_1]
         self.known_opti_var_1 = self.geometry[self.opti_var_1][~self.ice_mask]
         # variable for saving the iteration output
@@ -141,7 +137,8 @@ class DataLogger(object):
         # check if second optimisation variable is needed
         if self.opti_var_2 is not None:
             # safe the true and the first guess for optimisation variable 2
-            self.true_opti_var_2 = self.geometry[self.opti_var_2]
+            self.true_opti_var_2 = \
+                self.geometry[self.opti_var_2][self.ice_mask]
             self.first_guessed_opti_var_2 = self.first_guess[self.opti_var_2]
             self.known_opti_var_2 = \
                 self.geometry[self.opti_var_2][~self.ice_mask]
@@ -211,6 +208,16 @@ class DataLogger(object):
 
         self.filename += '.nc'
 
+    def save_data_in_datalogger(self, var, data):
+        if type(data) == torch.Tensor:
+            data = data.detach().numpy().astype(np.float64)
+        elif type(data) != np.ndarray:
+            data = np.array(data)
+
+        current_var = getattr(self, var)
+        new_var = np.reshape(np.append(current_var, data), (-1, data.size))
+        setattr(self, var, new_var)
+
     def callback_fct(self, x0):
         i = len(self.costs) - 1
         # make sure that there are some results to show (if no calculation was
@@ -220,9 +227,10 @@ class DataLogger(object):
             self.step_indices = np.append(self.step_indices, i)
             # define the arguments for the shown text
             args = {'iteration': len(self.step_indices),
-                    'opti_var': self.opti_var_iteration[-1],
+                    'opti_var': self.opti_var_iteration[-1][0],
                     'fct_call': self.fct_calls[-1],
-                    'cost': self.costs[-1],
+                    'cost': self.costs[-1][0],
+                    'opti_var_1': self.opti_var_1,
                     'opti_var_1_rmse': RMSE(self.guessed_opti_var_1[-1],
                                             self.true_opti_var_1),
                     'opti_var_1_bias': mean_BIAS(self.guessed_opti_var_1[-1],
@@ -234,7 +242,8 @@ class DataLogger(object):
             # include arguments for second optimisation variable
             if self.opti_var_2 is not None:
                 args.update(
-                    {'opti_var_2_rmse': RMSE(self.guessed_opti_var_2[-1],
+                    {'opti_var_2': self.opti_var_2,
+                     'opti_var_2_rmse': RMSE(self.guessed_opti_var_2[-1],
                                              self.true_opti_var_2),
                      'opti_var_2_bias': mean_BIAS(self.guessed_opti_var_2[-1],
                                                   self.true_opti_var_2),
@@ -269,7 +278,7 @@ Main Iteration number {iteration:d}:'''
         if self.opti_var_2 is not None:
             self.guessed_opti_var_2 = self.guessed_opti_var_2[index]
             self.grads_opti_var_2 = self.grads_opti_var_2[index]
-        if self.main_iterations.size != 0:
+        if self.main_iterations.size is not None:
             self.current_main_iterations = self.current_main_iterations[index]
 
     def create_and_save_dataset(self):
@@ -286,7 +295,7 @@ Main Iteration number {iteration:d}:'''
                      self.guessed_opti_var_1),
                 'cost':
                     (['nr_of_iteration'],
-                     self.costs),
+                     np.squeeze(self.costs)),
                 'cost_terms':
                     (['nr_of_iteration', 'nr_of_reg_parameter'],
                      self.c_terms),
@@ -295,22 +304,22 @@ Main Iteration number {iteration:d}:'''
                      self.grads_opti_var_1),
                 'function_calls':
                     (['nr_of_iteration'],
-                     self.fct_calls),
+                     np.squeeze(self.fct_calls)),
                 'optimisation_variable':
                     (['nr_of_iteration'],
-                     self.opti_var_iteration),
+                     np.squeeze(self.opti_var_iteration)),
                 'ice_mask':
                     (['total_distance'],
-                     self.ice_mask),
+                     np.squeeze(self.ice_mask)),
                 'true_surface_h':
                     (['total_distance'],
-                     self.true_sfc_h),
+                     np.squeeze(self.true_sfc_h)),
                 'surface_h':
                     (['nr_of_iteration', 'total_distance'],
                      self.sfc_h),
                 'true_widths':
                     (['total_distance'],
-                     self.true_widths),
+                     np.squeeze(self.true_widths)),
                 'widths':
                     (['nr_of_iteration', 'total_distance'],
                      self.widths)
@@ -339,10 +348,10 @@ Main Iteration number {iteration:d}:'''
             # save additional data from second optimisation variable
             dataset['true_' + self.opti_var_2] = \
                 (['points_with_ice'],
-                 self.true_opti_var_2)
+                 np.squeeze(self.true_opti_var_2))
             dataset['first_guessed_' + self.opti_var_2] = \
                 (['points_with_ice'],
-                 self.first_guessed_opti_var_2)
+                 np.squeeze(self.first_guessed_opti_var_2))
             dataset['guessed_' + self.opti_var_2] = \
                 (['nr_of_iteration', 'points_with_ice'],
                  self.guessed_opti_var_2)
@@ -354,12 +363,11 @@ Main Iteration number {iteration:d}:'''
 
         # save current main iteration (only when optimisaton for two parameters
         # is separated)
-        if self.main_iterations.size != 0:
-            dataset['current_main_iterations'] = \
-                (['nr_of_iteration'],
-                 self.current_main_iterations)
-            dataset.attrs['max number of main iteration'] = \
-                self.main_iterations_separeted
+        dataset['current_main_iterations'] = \
+            (['nr_of_iteration'],
+             np.squeeze(self.current_main_iterations))
+        dataset.attrs['max number of main iteration'] = \
+            self.current_main_iterations[-1]
 
         # save dataset as netcdf
         dataset.to_netcdf(self.filename)

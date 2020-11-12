@@ -122,7 +122,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                             'grad': np.array([4.])},
                                    glacier_state='equilibrium',
                                    opti_parameter='bed_h',
-                                   two_parameter_option=None, # separated, at once
+                                   two_parameter_option='None', # separated, at once
                                    main_iterations_separeted=1,
                                    reg_parameters=None,
                                    wanted_c_terms=None,
@@ -134,7 +134,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                                      'maxcor': 50,
                                                      'maxls': 50},
                                    solver='L-BFGS-B',
-                                   show_plot=True,
+                                   show_plot=False,
                                    minimize_options_spinup={'maxiter': 10,
                                                             'ftol': 1e-7,
                                                             'gtol': 1e-8,
@@ -217,6 +217,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
         glacier_state=glacier_state,
         mb_opts=mb_opts)
 
+    print('\n- Start minimising:')
+
     # create an array with separareted optimisation variables if needed
     if dl.two_parameter_option == 'separated':
         if dl.opti_parameter == 'bed_h and bed_shape':
@@ -228,7 +230,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                              'optimisatoin')
     elif dl.opti_parameter in ['bed_h', 'bed_shape', 'bed_h and bed_shape',
                                'w0', 'bed_h and w0']:
-        opti_var_to_loop_through = dl.opti_parameter
+        opti_var_to_loop_through = [dl.opti_parameter]
         # set the main iterations to 1, because only needed for separated
         # optimisation, in the other case the number of iterations is defined
         # in the minimize_options

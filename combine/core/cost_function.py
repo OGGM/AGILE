@@ -1324,31 +1324,33 @@ def cost_fct(unknown_parameter,
         raise ValueError('Unknown optimisation variable!')
 
     # help function to save data in datalogger as numpy array
-    def save_data_in_datalogger(datalogger_var, data):
-        if type(data) == torch.Tensor:
-            data = data.detach().numpy().astype(np.float64)
+    # def save_data_in_datalogger(datalogger_var, data):
+    #    if type(data) == torch.Tensor:
+    #        data = data.detach().numpy().astype(np.float64)
 
-        datalogger_var = np.append(datalogger_var, data)
+    #    datalogger_var = np.append(datalogger_var, data)
 
     # save data in datalogger
-    save_data_in_datalogger(datalogger.costs, cost)
-    save_data_in_datalogger(datalogger.c_terms, c_terms)
-    save_data_in_datalogger(datalogger.sfc_h, model_sfc_h)
-    save_data_in_datalogger(datalogger.widths, model_widths)
-    save_data_in_datalogger(datalogger.opti_var_iteration, opti_var)
+    datalogger.save_data_in_datalogger('costs', cost)
+    datalogger.save_data_in_datalogger('c_terms', c_terms)
+    datalogger.save_data_in_datalogger('sfc_h', model_sfc_h)
+    datalogger.save_data_in_datalogger('widths', model_widths)
+    datalogger.save_data_in_datalogger('opti_var_iteration', opti_var)
+    datalogger.save_data_in_datalogger('current_main_iterations',
+                                       datalogger.main_iterations)
     if opti_var == 'bed_h':
-        save_data_in_datalogger(datalogger.guessed_opti_var_1, bed_h_unknown)
-        save_data_in_datalogger(datalogger.grads_opti_var_1, grad)
+        datalogger.save_data_in_datalogger('guessed_opti_var_1', bed_h_unknown)
+        datalogger.save_data_in_datalogger('grads_opti_var_1', grad)
     elif opti_var in ['bed_shape', 'w0']:
-        save_data_in_datalogger(datalogger.guessed_opti_var_1,
-                                shape_var_unknown)
-        save_data_in_datalogger(datalogger.grads_opti_var_1, grad)
+        datalogger.save_data_in_datalogger('guessed_opti_var_1',
+                                           shape_var_unknown)
+        datalogger.save_data_in_datalogger('grads_opti_var_1', grad)
     elif opti_var in ['bed_h and bed_shape', 'bed_h and w0']:
-        save_data_in_datalogger(datalogger.guessed_opti_var_1, bed_h_unknown)
-        save_data_in_datalogger(datalogger.grads_opti_var_1, grad_bed_h)
-        save_data_in_datalogger(datalogger.guessed_opti_var_2,
-                                shape_var_unknown)
-        save_data_in_datalogger(datalogger.grads_opti_var_2, grad_shape_var)
+        datalogger.save_data_in_datalogger('guessed_opti_var_1', bed_h_unknown)
+        datalogger.save_data_in_datalogger('grads_opti_var_1', grad_bed_h)
+        datalogger.save_data_in_datalogger('guessed_opti_var_2',
+                                           shape_var_unknown)
+        datalogger.save_data_in_datalogger('grads_opti_var_2', grad_shape_var)
     else:
         raise ValueError('Unknown optimisation variable!')
 
