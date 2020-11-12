@@ -18,7 +18,7 @@ from oggm import utils
 import shapely.geometry as shpg
 import copy
 from oggm import cfg
-# hv.extension('bokeh')
+hv.extension('bokeh')
 # cfg.initialize()
 
 
@@ -668,8 +668,7 @@ def plot_result(dl, plot_height=450, plot_width=800):
     else:
         final_plot = opti_1_plot
 
-    # show plot
-    final_plot.opts(opts.Curve(line_width=3))
+    return final_plot.opts(opts.Curve(line_width=3))
 
 
 def get_spinup_sfc(measurements,
