@@ -405,7 +405,6 @@ def get_first_guess(measurements,
                         4 * ocls[-1]['thick'] / 10**2)
 
     def read_w0(ocls):
-        # TODO: check that w0 is positive
         # for trapazeoidal bed shape lambda is set to 1, to still see it in the
         # equation there is the multiplication with 1.
         # (see https://docs.oggm.org/en/latest/ice-dynamics.html#trapezoidal)

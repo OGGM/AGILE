@@ -50,7 +50,7 @@ class DataLogger(object):
         # the current minimisation, only needed for separated optimisation
         self.current_main_iterations = np.empty((0, 1))
 
-        self.computing_time = None
+        self.computing_time = 'no time recorded'
         self.fct_calls = np.array([0])
         # save optimisation variable of current iteration
         self.opti_var_iteration = np.empty((0, 1))
@@ -59,7 +59,7 @@ class DataLogger(object):
         self.step_indices = np.empty((0, 1), dtype=np.int_)
         # variable to keep track of the main iterations,
         # only needed for separated optimisation of two parameters
-        self.main_iterations = np.empty((0, 1))
+        self.main_iterations = np.empty((0, 1), dtype=np.int_)
 
         # help variable for two optimisation variables
         two_opti_parameter_options = ['separated', 'at once']
@@ -322,7 +322,10 @@ Main Iteration number {iteration:d}:'''
                      np.squeeze(self.true_widths)),
                 'widths':
                     (['nr_of_iteration', 'total_distance'],
-                     self.widths)
+                     self.widths),
+                'total_true_' + self.opti_var_1:
+                    (['total_distance'],
+                     self.geometry[self.opti_var_1])
             },
             coords={
                 'total_distance': self.geometry['distance_along_glacier'],
@@ -333,13 +336,14 @@ Main Iteration number {iteration:d}:'''
             attrs={
                 'reg_parameters': self.reg_parameters,
                 'glacier_state': self.glacier_state,
-                'geometry': self.geometry,
-                'measurements': self.measurements,
-                'mb_opts': self.mb_opts,
+                'domain_points': self.geometry['nx'],
+                'distance_between_points_m': self.geometry['map_dx'],
+                'years_of_model_run': self.measurements['yrs_to_run'],
+                'mb_ELA': self.mb_opts['ELA'],
+                'mb_grad': self.mb_opts['grad'],
                 'geometry_of_bed_h': self.geometry_bed_h,
                 'along_glacier_geometry': self.along_glacier_geometry,
                 'solver': self.solver,
-                'minimize_options': self.minimize_options,
                 'computing_time': self.computing_time
             })
 
@@ -355,11 +359,19 @@ Main Iteration number {iteration:d}:'''
             dataset['guessed_' + self.opti_var_2] = \
                 (['nr_of_iteration', 'points_with_ice'],
                  self.guessed_opti_var_2)
+            dataset['total_true_' + self.opti_var_2] = \
+                (['total_distance'],
+                 self.geometry[self.opti_var_2])
             dataset['gradients_' + self.opti_var_2] = \
                 (['nr_of_iteration', 'points_with_ice'],
                  self.grads_opti_var_2)
             dataset.attrs['optimisation of two variables'] = \
                 self.two_opti_parameters
+
+        # add spinup surface
+        dataset['spinup_sfc_h'] = \
+            (['total_distance'],
+             self.measurements['spinup_sfc'])
 
         # save current main iteration (only when optimisaton for two parameters
         # is separated)
@@ -368,6 +380,11 @@ Main Iteration number {iteration:d}:'''
              np.squeeze(self.current_main_iterations))
         dataset.attrs['max number of main iteration'] = \
             self.current_main_iterations[-1]
+
+        # add options of minimisation function with prefix 'minimize_'
+        for key in self.minimize_options:
+            if key != 'disp':
+                dataset.attrs['minimize_' + key] = self.minimize_options[key]
 
         # save dataset as netcdf
         dataset.to_netcdf(self.filename)
