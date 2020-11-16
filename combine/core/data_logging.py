@@ -37,6 +37,7 @@ class DataLogger(object):
         self.two_parameter_option = two_parameter_option
         self.solver = solver
         self.minimize_options = minimize_options
+        self.main_iterations_separeted = main_iterations_separeted
 
         # define some variables needed for all bed_geometries
         self.costs = np.empty((0, 1))
@@ -92,7 +93,6 @@ class DataLogger(object):
                 if two_parameter_option not in two_opti_parameter_options:
                     raise ValueError('Unknown optimisation option for two '
                                      'parameters!')
-                self.main_iterations_separeted = main_iterations_separeted
 
             else:
                 raise ValueError('Unknown optimisation parameter for '
@@ -116,7 +116,6 @@ class DataLogger(object):
                 if two_parameter_option not in two_opti_parameter_options:
                     raise ValueError('Unknown optimisation option for two '
                                      'parameters!')
-                self.main_iterations_separeted = main_iterations_separeted
 
             else:
                 raise ValueError('Unknown optimisation parameter for '
@@ -204,9 +203,7 @@ class DataLogger(object):
             self.filename += '_and_'
             self.filename += self.opti_var_2
             self.filename += '_'
-            self.filename += self.two_opti_parameters
-
-        self.filename += '.nc'
+            self.filename += self.two_parameter_option
 
     def save_data_in_datalogger(self, var, data):
         if type(data) == torch.Tensor:
@@ -366,7 +363,7 @@ Main Iteration number {iteration:d}:'''
                 (['nr_of_iteration', 'points_with_ice'],
                  self.grads_opti_var_2)
             dataset.attrs['optimisation of two variables'] = \
-                self.two_opti_parameters
+                self.two_parameter_option
 
         # add spinup surface
         dataset['spinup_sfc_h'] = \
@@ -378,13 +375,27 @@ Main Iteration number {iteration:d}:'''
         dataset['current_main_iterations'] = \
             (['nr_of_iteration'],
              np.squeeze(self.current_main_iterations))
-        dataset.attrs['max number of main iteration'] = \
-            self.current_main_iterations[-1]
+        dataset.attrs['max_number_of_main_iteration(separeted)'] = \
+            self.main_iterations_separeted
 
         # add options of minimisation function with prefix 'minimize_'
         for key in self.minimize_options:
             if key != 'disp':
                 dataset.attrs['minimize_' + key] = self.minimize_options[key]
+
+        # add to filename if maxiterations were used
+        if (self.opti_var_2 is None) or \
+           (self.two_parameter_option == 'at once'):
+            if ((len(self.step_indices) + 1) ==
+               self.minimize_options['maxiter']):
+                self.filename += '_maxiter'
+        elif self.two_parameter_option == 'separeted':
+            if np.squeeze(self.current_main_iterations)[-1] == \
+               self.main_iterations_separeted:
+                self.filename += '_maxiter'
+
+        # add file suffix
+        self.filename += '.nc'
 
         # save dataset as netcdf
         dataset.to_netcdf(self.filename)

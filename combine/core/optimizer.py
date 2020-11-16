@@ -6,6 +6,7 @@ from combine.core.idealized_experiments import define_geometry,\
     define_mb_model, create_measurements, get_first_guess, get_reg_parameters,\
     plot_result, get_spinup_sfc
 from combine.core.data_logging import DataLogger
+import time
 
 
 def optimize_bed_h_and_shape(bed_h_guess,
@@ -217,7 +218,10 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
         glacier_state=glacier_state,
         mb_opts=mb_opts)
 
-    print('\n- Start minimising:')
+    print('\n- Start minimising (start timer):')
+
+    # save start time
+    start_time = time.time()
 
     # create an array with separareted optimisation variables if needed
     if dl.two_parameter_option == 'separated':
@@ -307,12 +311,19 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                            options=minimize_options,
                            callback=dl.callback_fct)
 
+    end_time = time.time()
+    print('---Done (stop timer) ---')
+
+    print('\n- Create Dataset and save as NetCDF data')
+
+    dl.computing_time = end_time - start_time
     # filter out data used by minimize function for exploratory
     dl.filter_data_from_optimization()
 
     # save results to netcdf file
     dl.create_and_save_dataset()
 
+    print('---Done---')
     # show a plot if wanted
     if show_plot:
         plot_result(dl)
