@@ -248,7 +248,8 @@ def run_flowline_forward_core(bed_h, shape_var, bed_geometry, mb_model,
 
     model = FluxBasedModel(flowline,
                            mb_model=mb_model,
-                           y0=0.)
+                           y0=0.,
+                           fs=0.)
 
     model.run_until(yrs_to_run)
 

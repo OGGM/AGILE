@@ -1102,7 +1102,7 @@ class RectangularBedDiffusiveFlowlineModel(FlowlineModel):
 class FluxBasedModel(FlowlineModel):
     """The actual model"""
 
-    def __init__(self, flowlines, mb_model=None, y0=0., glen_a=None, fs=0.,
+    def __init__(self, flowlines, mb_model=None, y0=0., glen_a=None, fs=None,
                  fixed_dt=None, min_dt=SEC_IN_DAY, max_dt=31*SEC_IN_DAY,
                  inplace=False, cfl_nr=0.02, **kwargs):
         """ Instanciate.
