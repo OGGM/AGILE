@@ -404,9 +404,9 @@ Main Iteration number {iteration:d}:'''
 
         # check if filename already exists, prevent overwriting
         list_of_files = os.os.listdir()
-        if self.filename in list_of_files:
+        if (self.filename + '.nc') in list_of_files:
             for file_nr in range(10):
-                if (self.filename + str(file_nr)) not in list_of_files:
+                if (self.filename + str(file_nr) + '.nc') not in list_of_files:
                     self.filename += str(file_nr)
                     break
                 if file_nr == 9:
