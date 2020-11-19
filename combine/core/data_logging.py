@@ -10,7 +10,7 @@ import gzip
 from combine.core.arithmetics import RMSE, mean_BIAS, max_dif
 from oggm import cfg
 import os
-
+hv.extension('matplotlib')
 
 # from combine.utils.optimization import LCurveTest
 
@@ -21,7 +21,7 @@ class DataLogger(object):
                  main_iterations_separeted, geometry, measurements,
                  first_guess, reg_parameters, used_bed_h_geometry,
                  used_along_glacier_geometry, minimize_options, solver,
-                 glacier_state, mb_opts):
+                 glacier_state, mb_opts, filename_suffix):
         # first save all initial data for idealized experiment
         self.bed_geometry = bed_geometry
         self.opti_parameter = opti_parameter
@@ -38,6 +38,7 @@ class DataLogger(object):
         self.solver = solver
         self.minimize_options = minimize_options
         self.main_iterations_separeted = main_iterations_separeted
+        self.filename_suffix = filename_suffix
 
         # define some variables needed for all bed_geometries
         self.costs = np.empty((0, 1))
@@ -70,6 +71,7 @@ class DataLogger(object):
             if opti_parameter == 'bed_h':
                 self.opti_var_1 = 'bed_h'
                 self.opti_var_2 = None
+                self.geometry_var = 'widths'
 
             else:
                 raise ValueError('Unknown optimisation parameter for '
@@ -386,19 +388,218 @@ Main Iteration number {iteration:d}:'''
         # add to filename if maxiterations were used
         if (self.opti_var_2 is None) or \
            (self.two_parameter_option == 'at once'):
-            if ((len(self.step_indices) + 1) ==
+            if (len(self.step_indices) ==
                self.minimize_options['maxiter']):
                 self.filename += '_maxiter'
-        elif self.two_parameter_option == 'separeted':
+        elif self.two_parameter_option == 'separated':
             if np.squeeze(self.current_main_iterations)[-1] == \
                self.main_iterations_separeted:
                 self.filename += '_maxiter'
+        else:
+            raise ValueError('Somthing went wrong by checking if maxiter was'
+                             'used!')
 
-        # add file suffix
-        self.filename += '.nc'
+        # add given filename suffix
+        self.filename += self.filename_suffix
+
+        # check if filename already exists, prevent overwriting
+        list_of_files = os.os.listdir()
+        if self.filename in list_of_files:
+            for file_nr in range(10):
+                if (self.filename + str(file_nr)) not in list_of_files:
+                    self.filename += str(file_nr)
+                    break
+                if file_nr == 9:
+                    raise ValueError('There are to many files with the same '
+                                     'name!')
 
         # save dataset as netcdf
-        dataset.to_netcdf(self.filename)
+        dataset.to_netcdf(self.filename + '.nc')
+
+    def save_result_plot(self, plot_height=450, plot_width=800):
+        x = self.geometry['distance_along_glacier']
+
+        # start with first optimisation variable
+        y1_final_guess = np.zeros(len(x))
+        y1_first_guess = np.zeros(len(x))
+
+        y1_final_guess[self.ice_mask] = self.guessed_opti_var_1[-1]
+        y1_final_guess[~self.ice_mask] = self.known_opti_var_1
+
+        y1_first_guess[self.ice_mask] = self.first_guessed_opti_var_1
+        y1_first_guess[~self.ice_mask] = self.known_opti_var_1
+
+        # if only one
+        if self.opti_parameter in ['bed_h', 'bed_shape', 'w0']:
+            y2_final_guess = None
+            y2_first_guess = None
+
+        elif self.opti_parameter in ['bed_h and bed_shape', 'bed_h and w0']:
+            y2_final_guess = np.zeros(len(x))
+            y2_first_guess = np.zeros(len(x))
+
+            y2_final_guess[self.ice_mask] = self.guessed_opti_var_2[-1]
+            y2_final_guess[~self.ice_mask] = self.known_opti_var_2
+
+            y2_first_guess[self.ice_mask] = self.first_guessed_opti_var_2
+            y2_first_guess[~self.ice_mask] = self.known_opti_var_2
+
+        else:
+            raise ValueError('Unknown optimisation parameter!')
+
+        # plot for first optimisation variable
+        diff_estimated_opti_1 = hv.Curve((x,
+                                          y1_final_guess -
+                                          self.geometry[self.opti_var_1]),
+                                         'distance',
+                                         'diff ' + self.opti_var_1,
+                                         label=('diff estimated ' +
+                                                self.opti_var_1))
+
+        diff_first_guess_opti_1 = hv.Curve((x,
+                                            y1_first_guess -
+                                            self.geometry[self.opti_var_1]),
+                                           'distance',
+                                           'diff ' + self.opti_var_1,
+                                           label=('diff first guess ' +
+                                                  self.opti_var_1))
+
+        zero_line_opti_1 = hv.Curve((x,
+                                     np.zeros(len(x))),
+                                    'distance',
+                                    'diff ' + self.opti_var_1
+                                    ).opts(color='black',
+                                           show_grid=True)
+
+        rmse_opti_1 = hv.Curve(([0], [0]),
+                               'distance',
+                               'diff ' + self.opti_var_1,
+                               label='RMSE: {:.4f}'.format(
+                                   RMSE(self.guessed_opti_var_1[-1],
+                                        self.true_opti_var_1))
+                               ).opts(visible=False)
+
+        bias_opti_1 = hv.Curve(([0], [0]),
+                               'distance',
+                               'diff ' + self.opti_var_1,
+                               label='BIAS: {:.4f}'.format(
+                                   mean_BIAS(self.guessed_opti_var_1[-1],
+                                             self.true_opti_var_1))
+                               ).opts(visible=False)
+
+        diff_opti_1 = hv.Curve(([0], [0]),
+                               'distance',
+                               'diff ' + self.opti_var_1,
+                               label='DIFF: {:.4f}'.format(
+                                   max_dif(self.guessed_opti_var_1[-1],
+                                           self.true_opti_var_1))
+                               ).opts(visible=False)
+
+        opti_1_plot = (zero_line_opti_1 *
+                       diff_first_guess_opti_1 *
+                       diff_estimated_opti_1 *
+                       rmse_opti_1 *
+                       bias_opti_1 *
+                       diff_opti_1
+                       ).opts(xaxis='top',
+                              legend_position='best')
+
+        if y2_final_guess is not None:
+            # plot for first optimisation variable
+            diff_estimated_opti_2 = hv.Curve((x,
+                                              y2_final_guess -
+                                              self.geometry[self.opti_var_2]),
+                                             'distance',
+                                             'diff ' + self.opti_var_2,
+                                             label='diff estimated ' +
+                                             self.opti_var_2)
+
+            diff_first_guess_opti_2 = hv.Curve((x,
+                                                y2_first_guess -
+                                                self.geometry[self.opti_var_2]
+                                                ),
+                                               'distance',
+                                               'diff ' + self.opti_var_2,
+                                               label='diff first guess ' +
+                                               self.opti_var_2)
+
+            zero_line_opti_2 = hv.Curve((x,
+                                         np.zeros(len(x))),
+                                        'distance',
+                                        'diff ' + self.opti_var_2
+                                        ).opts(color='black',
+                                               show_grid=True)
+
+            rmse_opti_2 = hv.Curve(([0], [0]),
+                                   'distance',
+                                   'diff ' + self.opti_var_2,
+                                   label='RMSE: {:.4f}'.format(
+                                       RMSE(self.guessed_opti_var_2[-1],
+                                            self.true_opti_var_2))
+                                   ).opts(visible=False)
+
+            bias_opti_2 = hv.Curve(([0], [0]),
+                                   'distance',
+                                   'diff ' + self.opti_var_2,
+                                   label='BIAS: {:.4f}'.format(
+                                       mean_BIAS(self.guessed_opti_var_2[-1],
+                                                 self.true_opti_var_2))
+                                   ).opts(visible=False)
+
+            diff_opti_2 = hv.Curve(([0], [0]),
+                                   'distance',
+                                   'diff ' + self.opti_var_2,
+                                   label='DIFF: {:.4f}'.format(
+                                       max_dif(self.guessed_opti_var_2[-1],
+                                               self.true_opti_var_2))
+                                   ).opts(visible=False)
+
+            opti_2_plot = (zero_line_opti_2 *
+                           diff_first_guess_opti_2 *
+                           diff_estimated_opti_2 *
+                           rmse_opti_2 *
+                           bias_opti_2 *
+                           diff_opti_2
+                           ).opts(xaxis='bottom',
+                                  legend_position='best')
+
+            final_plot = (opti_1_plot.opts(aspect=4,
+                                           fontsize={'ticks': 15,
+                                                     'labels': 25,
+                                                     'legend': 20,
+                                                     'legend_title': 20},
+                                           show_frame=True) +
+                          opti_2_plot.opts(aspect=4,
+                                           xaxis='bottom',
+                                           show_grid=True,
+                                           fontsize={'ticks': 15,
+                                                     'labels': 25,
+                                                     'legend': 20,
+                                                     'legend_title': 20},
+                                           show_frame=True)).cols(1)
+
+            final_plot.opts(sublabel_format='',
+                            tight=True,
+                            fig_inches=20,
+                            fontsize={'title': 27})
+
+        else:
+            final_plot = opti_1_plot.opts(aspect=2,
+                                          fig_inches=20,
+                                          show_frame=True,
+                                          fontsize={'ticks': 15,
+                                                    'labels': 25,
+                                                    'legend': 20,
+                                                    'legend_title': 20,
+                                                    'title': 27})
+
+        final_plot.opts(title=(self.filename + ', reg_par = ' +
+                               str(self.reg_parameters)))
+        final_plot.opts(opts.Curve(linewidth=3))
+
+        hv.save(final_plot,
+                self.filename,
+                fmt='svg')
 
     def plot_iterations(self,
                         opti_var='bed_h',

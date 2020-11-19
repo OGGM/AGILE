@@ -1178,6 +1178,8 @@ class FluxBasedModel(FlowlineModel):
         elif fl.fl_type == 'TrapezoidalFlowline':
             w = fl.widths_m
             CS = fl.section
+        else:
+            raise ValueError('Unknown flowline type!')
 
         # Surface gradient on staggerd grid
         S_grad = (S[self.k_right] - S[self.k_left]) / dx

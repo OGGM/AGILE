@@ -1337,14 +1337,32 @@ def cost_fct(unknown_parameter,
     datalogger.save_data_in_datalogger('widths', model_widths)
     datalogger.save_data_in_datalogger('opti_var_iteration', opti_var)
     datalogger.save_data_in_datalogger('current_main_iterations',
-                                       datalogger.main_iterations)
+                                       datalogger.main_iterations[-1])
     if opti_var == 'bed_h':
         datalogger.save_data_in_datalogger('guessed_opti_var_1', bed_h_unknown)
         datalogger.save_data_in_datalogger('grads_opti_var_1', grad)
+        # save second variable if currently in separated optimisation
+        if datalogger.opti_var_2 is not None:
+            datalogger.save_data_in_datalogger('guessed_opti_var_2',
+                                               shape_var[ice_mask])
+            datalogger.save_data_in_datalogger('grads_opti_var_2',
+                                               np.empty(len(grad)) * np.nan)
     elif opti_var in ['bed_shape', 'w0']:
-        datalogger.save_data_in_datalogger('guessed_opti_var_1',
-                                           shape_var_unknown)
-        datalogger.save_data_in_datalogger('grads_opti_var_1', grad)
+        # check if currently in separated optimisation
+        if datalogger.opti_var_2 is None:
+            datalogger.save_data_in_datalogger('guessed_opti_var_1',
+                                               shape_var_unknown)
+            datalogger.save_data_in_datalogger('grads_opti_var_1', grad)
+        else:
+            datalogger.save_data_in_datalogger('guessed_opti_var_1',
+                                               bed_h[ice_mask])
+            datalogger.save_data_in_datalogger('grads_opti_var_1',
+                                               np.empty(len(grad)) * np.nan)
+
+            datalogger.save_data_in_datalogger('guessed_opti_var_2',
+                                               shape_var_unknown)
+            datalogger.save_data_in_datalogger('grads_opti_var_2', grad)
+
     elif opti_var in ['bed_h and bed_shape', 'bed_h and w0']:
         datalogger.save_data_in_datalogger('guessed_opti_var_1', bed_h_unknown)
         datalogger.save_data_in_datalogger('grads_opti_var_1', grad_bed_h)
