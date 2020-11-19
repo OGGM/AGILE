@@ -18,7 +18,7 @@ from oggm import utils
 import shapely.geometry as shpg
 import copy
 from oggm import cfg
-hv.extension('bokeh')
+# hv.extension('matplotlib')
 # cfg.initialize()
 
 
@@ -239,7 +239,8 @@ def create_measurements(geometry,
         # (see https://docs.oggm.org/en/latest/ice-dynamics.html#trapezoidal)
         oggm_fl = TrapezoidalBedFlowline(surface_h=geometry['bed_h'],
                                          bed_h=geometry['bed_h'],
-                                         widths=geometry['w0'],
+                                         widths=(geometry['w0'] /
+                                                 geometry['map_dx']),
                                          lambdas=np.zeros(geometry['nx']) + 1.,
                                          map_dx=geometry['map_dx'],
                                          )
@@ -382,14 +383,12 @@ def get_first_guess(measurements,
     climate.apparent_mb_from_linear_mb(gdir,
                                        mb_gradient=model.mb_model.grad)
     mb_parameters = gdir.read_pickle('linear_mb_params')
-    print('estimated ELA = ' + str(mb_parameters['ela_h']) +
+    print('\n    estimated ELA = ' + str(mb_parameters['ela_h']) +
           ' , grad = ' + str(mb_parameters['grad']))
 
     # do the OGGM inversion
     inversion.prepare_for_inversion(gdir)
     inversion.mass_conservation_inversion(gdir)
-    # TODO: check what this is doing and if I should use it
-    # inversion.filter_inversion_output(gdir)
 
     # read the result of OGGM inversion
     ocls = gdir.read_pickle('inversion_output')
@@ -409,7 +408,7 @@ def get_first_guess(measurements,
         # equation there is the multiplication with 1.
         # (see https://docs.oggm.org/en/latest/ice-dynamics.html#trapezoidal)
         return np.clip(ocls[-1]['width'] - 1. * ocls[-1]['thick'],
-                       0,
+                       1.,
                        np.Inf)
 
     # depending on bed_geometry and opti_parameter get first guess
@@ -564,7 +563,7 @@ def get_reg_parameters(opti_var,
             else:
                 reg_parameters[i] = 10.**(desired_mag - term_mag)
 
-    print('\nreg_parameters = ' + str(reg_parameters))
+    print('\n    reg_parameters = ' + str(reg_parameters))
     return reg_parameters
 
 

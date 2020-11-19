@@ -135,7 +135,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                                      'maxcor': 50,
                                                      'maxls': 50},
                                    solver='L-BFGS-B',
-                                   show_plot=False,
+                                   save_plot=True,
+                                   filename_suffix='',
                                    minimize_options_spinup={'maxiter': 10,
                                                             'ftol': 1e-7,
                                                             'gtol': 1e-8,
@@ -148,12 +149,12 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
     geometry = define_geometry(used_bed_h_geometry,
                                used_along_glacier_geometry,
                                bed_geometry)
-    print('---DONE---')
+    print('\n    ---DONE---')
 
     # define mass balance profile
     print('\n- Define mass balance model: ')
     mb_model = define_mb_model(mb_opts)
-    print('---DONE---')
+    print('\n    ---DONE---')
 
     # create some measurements
     print('\n- Create Measurements: ')
@@ -166,13 +167,13 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
        glacier_state == 'retreating with unknow spinup'):
         # use only second mass balance model for optimization
         mb_model = mb_model[1]
-    print('---DONE---')
+    print('\n    ---DONE---')
 
     print('\n- Get first guess: ')
     first_guess = get_first_guess(measurements,
                                   bed_geometry=bed_geometry,
                                   opti_parameter=opti_parameter)
-    print('---DONE---')
+    print('\n    ---DONE---')
 
 
     # TODO: This option is not tested or working
@@ -185,7 +186,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                                     bed_geometry,
                                                     geometry,
                                                     torch_type=torch_type)
-        print('---DONE---')
+        print('\n    ---DONE---')
 
     # define regularisation parameters
     if reg_parameters is None:
@@ -198,7 +199,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                             first_guess,
                                             torch_type,
                                             wanted_c_terms)
-        print('---DONE---')
+        print('\n    ---DONE---')
 
     # create Datalogger according to the used bed geometry and save some data,
     # Datalogger also checks if the inputs work together
@@ -216,7 +217,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
         minimize_options=minimize_options,
         solver=solver,
         glacier_state=glacier_state,
-        mb_opts=mb_opts)
+        mb_opts=mb_opts,
+        filename_suffix=filename_suffix)
 
     print('\n- Start minimising (start timer):')
 
@@ -224,7 +226,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
     start_time = time.time()
 
     # create an array with separareted optimisation variables if needed
-    if dl.two_parameter_option == 'separated':
+    if (dl.two_parameter_option == 'separated') & (dl.opti_var_2 is not None):
         if dl.opti_parameter == 'bed_h and bed_shape':
             opti_var_to_loop_through = ['bed_h', 'bed_shape']
         elif dl.opti_parameter == 'bed_h and w0':
@@ -247,8 +249,14 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
         dl.main_iterations = np.append(dl.main_iterations, loop + 1)
         dl.main_iteration_callback()
 
+        # variables to check if minimise was succesfull for separated
+        # optimisation
+        success_opti_var_1 = False
+        success_opti_var_2 = False
+
         for loop_opti_var in opti_var_to_loop_through:
-            if dl.two_parameter_option == 'separated':
+            if (dl.two_parameter_option == 'separated') & \
+               (dl.opti_var_2 is not None):
                 # switch variables, consider first guess in first round
                 # during first main loop use the first guess values
                 if loop == 0:
@@ -311,8 +319,22 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                            options=minimize_options,
                            callback=dl.callback_fct)
 
+            # checking success for separated optimisation
+            if (dl.two_parameter_option == 'separated') & \
+               (dl.opti_var_2 is not None):
+                if res.success:
+                    if loop_opti_var == 'bed_h':
+                        success_opti_var_1 = True
+                    else:
+                        success_opti_var_2 = True
+
+        # now in mainiteration for loop check if separated optimisation was
+        # successfull for both variables and exit loop if so
+        if success_opti_var_1 & success_opti_var_2:
+            break
+
     end_time = time.time()
-    print('---Done (stop timer) ---')
+    print('\n    ---Done (stop timer) ---')
 
     print('\n- Create Dataset and save as NetCDF data')
 
@@ -323,11 +345,17 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
     # save results to netcdf file
     dl.create_and_save_dataset()
 
-    print('---Done---')
-    # show a plot if wanted
-    if show_plot:
-        plot_result(dl)
+    print('\n    ---Done---')
 
+    # show a plot if wanted
+    if save_plot:
+        print('\n- Create and save figure')
+        dl.save_result_plot()
+        print('\n    ---Done---')
+
+    print('\n-----COMBINE finished-----')
+
+    return dl
     '''
     # define initial values
     if opti_parameter == 'bed_h':
