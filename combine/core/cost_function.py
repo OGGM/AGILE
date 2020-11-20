@@ -1428,21 +1428,21 @@ def get_cost_terms(model_sfc_h,
     true_sfc_h = to_torch_tensor(true_sfc_h, torch_type)
     costs[0] = reg_parameters[0] * (true_sfc_h - model_sfc_h).pow(2).sum()
 
-    # smoothnes of glacier bed
-    db_dx = (model_bed_h[1:] - model_bed_h[:-1]) / dx
-    costs[1] = reg_parameters[1] * db_dx.pow(2).sum()
-
     # misfit between modeled and measured width
     true_widths = to_torch_tensor(true_widths, torch_type)
-    costs[2] = reg_parameters[2] * ((true_widths - model_widths)).pow(2).sum()
+    costs[1] = reg_parameters[1] * ((true_widths - model_widths)).pow(2).sum()
 
     # ice thickness close to zero where no glacier should be and vice versa
     model_ice_mask = torch.where(model_thicks > 1e-2,
                                  torch.tensor(1),
                                  torch.tensor(0))
     true_ice_mask = to_torch_tensor(true_ice_mask, torch_type)
-    costs[3] = reg_parameters[3] * torch.where(true_ice_mask != model_ice_mask,
+    costs[2] = reg_parameters[2] * torch.where(true_ice_mask != model_ice_mask,
                                                torch.tensor(1.),
                                                torch.tensor(0.)).sum()
+
+    # smoothnes of glacier bed
+    db_dx = (model_bed_h[1:] - model_bed_h[:-1]) / dx
+    costs[3] = reg_parameters[3] * db_dx.pow(2).sum()
 
     return costs
