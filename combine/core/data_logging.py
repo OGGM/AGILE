@@ -1,14 +1,9 @@
 import torch
 import numpy as np
 import xarray as xr
-import matplotlib.pyplot as plt
-import matplotlib.colors as colors
 import holoviews as hv
 from holoviews import opts
-import pickle
-import gzip
 from combine.core.arithmetics import RMSE, mean_BIAS, max_dif
-from oggm import cfg
 import os
 hv.extension('matplotlib')
 
@@ -64,7 +59,7 @@ class DataLogger(object):
         self.main_iterations = np.empty((0, 1), dtype=np.int_)
 
         # help variable for two optimisation variables
-        two_opti_parameter_options = ['separated', 'at once']
+        two_opti_parameter_options = ['separated', 'at_once']
 
         # create variables according to the bed_geometry and opti_parameter
         if bed_geometry == 'rectangular':
@@ -387,7 +382,7 @@ Main Iteration number {iteration:d}:'''
 
         # add to filename if maxiterations were used
         if (self.opti_var_2 is None) or \
-           (self.two_parameter_option == 'at once'):
+           (self.two_parameter_option == 'at_once'):
             if (len(self.step_indices) ==
                self.minimize_options['maxiter']):
                 self.filename += '_maxiter'

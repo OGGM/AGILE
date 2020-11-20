@@ -16,7 +16,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                             'grad': np.array([4.])},
                                    glacier_state='equilibrium',
                                    opti_parameter='bed_h',
-                                   two_parameter_option='None', # separated, at once
+                                   two_parameter_option='None', # separated, at_once
                                    main_iterations_separeted=1,
                                    reg_parameters=None,
                                    wanted_c_terms=None,
@@ -177,7 +177,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                         geometry_var = np.append(dl.guessed_opti_var_1[-1],
                                                  dl.known_opti_var_1)
 
-            # here you have only one optimisation variable or two at once
+            # here you have only one optimisation variable or two at_once
             else:
                 if loop_opti_var in ['bed_h', 'bed_shape', 'w0']:
                     guess_parameter = dl.first_guessed_opti_var_1
