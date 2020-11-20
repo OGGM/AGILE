@@ -403,11 +403,12 @@ Main Iteration number {iteration:d}:'''
         self.filename += self.filename_suffix
 
         # check if filename already exists, prevent overwriting
-        list_of_files = os.os.listdir()
+        list_of_files = os.listdir()
         if (self.filename + '.nc') in list_of_files:
             for file_nr in range(10):
-                if (self.filename + str(file_nr) + '.nc') not in list_of_files:
-                    self.filename += str(file_nr)
+                if (self.filename + '_' + str(file_nr) + '.nc') \
+                   not in list_of_files:
+                    self.filename += ('_' + str(file_nr))
                     break
                 if file_nr == 9:
                     raise ValueError('There are to many files with the same '
@@ -593,8 +594,10 @@ Main Iteration number {iteration:d}:'''
                                                     'legend_title': 20,
                                                     'title': 27})
 
-        final_plot.opts(title=(self.filename + ', reg_par = ' +
-                               str(self.reg_parameters)))
+        final_plot.opts(title=(self.filename + '\n reg_par = ' +
+                               str(self.reg_parameters) + ', iteraations: ' +
+                               str(len(self.step_indices)) + ', fct_calls: ' +
+                               str(self.fct_calls[-1])))
         final_plot.opts(opts.Curve(linewidth=3))
 
         hv.save(final_plot,
