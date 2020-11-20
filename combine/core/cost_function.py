@@ -1,10 +1,8 @@
 import numpy as np
-import salem
 import torch
 
-from combine.core.dynamics import run_forward_core
 from combine.core.dynamics import run_flowline_forward_core
-from combine.core.arithmetics import to_torch_tensor, magnitude
+from combine.core.arithmetics import to_torch_tensor
 
 
 def creat_spinup_cost_fct(measurements,

@@ -1,9 +1,5 @@
 import torch
 import numpy as np
-import rasterio
-import salem
-from oggm import entity_task, cfg
-from combine.core.sia2d_adapted import Upstream2D
 import logging
 from combine.core.flowline_adapted import ParabolicBedFlowline
 from combine.core.flowline_adapted import RectangularBedFlowline
