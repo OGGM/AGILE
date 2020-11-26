@@ -312,7 +312,9 @@ def create_measurements(geometry,
 
 def get_first_guess(measurements,
                     bed_geometry='rectangular',
-                    opti_parameter='bed_h'):
+                    opti_parameter='bed_h',
+                    job_id=0,
+                    task_id=0):  # only needed for computation on the cluster
     '''
     Creates a first guess using the inversion of OGGM.
 
@@ -350,7 +352,10 @@ def get_first_guess(measurements,
     entity = gpd.read_file(hef_file).iloc[0]
 
     # create a temporary directory for inversion
-    tmpdir = utils.gettempdir(dirname='OGGM_Inversion', reset=True)
+    tmpdir = utils.gettempdir(dirname=('OGGM_Inversion_' + str(job_id) + '_' +
+                                       str(task_id)),
+                              reset=True,
+                              home=True)  # home=True needed for cluster
     gdir = GlacierDirectory(entity, base_dir=tmpdir, reset=True)
     define_glacier_region(gdir)
 
