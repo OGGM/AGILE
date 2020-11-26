@@ -16,7 +16,7 @@ class DataLogger(object):
                  main_iterations_separeted, geometry, measurements,
                  first_guess, reg_parameters, used_bed_h_geometry,
                  used_along_glacier_geometry, minimize_options, solver,
-                 glacier_state, mb_opts, filename_suffix):
+                 glacier_state, mb_opts, filename_suffix, task_id):
         # first save all initial data for idealized experiment
         self.bed_geometry = bed_geometry
         self.opti_parameter = opti_parameter
@@ -34,6 +34,9 @@ class DataLogger(object):
         self.minimize_options = minimize_options
         self.main_iterations_separeted = main_iterations_separeted
         self.filename_suffix = filename_suffix
+
+        # task_id only needed for cluster computation
+        self.task_id = task_id
 
         # define some variables needed for all bed_geometries
         self.costs = np.empty((0, 1))
@@ -386,10 +389,14 @@ Main Iteration number {iteration:d}:'''
             if (len(self.step_indices) ==
                self.minimize_options['maxiter']):
                 self.filename += '_maxiter'
+                # task_id only needed for cluster computation
+                self.filename += ('_' + str(self.task_id))
         elif self.two_parameter_option == 'separated':
             if np.squeeze(self.current_main_iterations)[-1] == \
                self.main_iterations_separeted:
                 self.filename += '_maxiter'
+                # task_id only needed for cluster computation
+                self.filename += ('_' + str(self.task_id))
         else:
             raise ValueError('Somthing went wrong by checking if maxiter was'
                              'used!')

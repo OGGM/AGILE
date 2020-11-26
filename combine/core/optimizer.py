@@ -116,7 +116,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
         solver=solver,
         glacier_state=glacier_state,
         mb_opts=mb_opts,
-        filename_suffix=filename_suffix)
+        filename_suffix=filename_suffix,
+        task_id=task_id)
 
     print('\n- Start minimising (start timer):')
 
