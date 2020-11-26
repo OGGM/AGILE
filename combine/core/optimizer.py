@@ -36,7 +36,9 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                                             'gtol': 1e-8,
                                                             'disp': True,
                                                             'maxcor': 50,
-                                                            'maxls': 50}
+                                                            'maxls': 50},
+                                   job_id=0,  # only needed for cluster
+                                   task_id=0  # only needed for cluster
                                    ):
     # define glacier bed geometry
     print('- Define geometry: ')
@@ -66,7 +68,9 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
     print('\n- Get first guess: ')
     first_guess = get_first_guess(measurements,
                                   bed_geometry=bed_geometry,
-                                  opti_parameter=opti_parameter)
+                                  opti_parameter=opti_parameter,
+                                  job_id=job_id,
+                                  task_id=task_id)
     print('\n    ---DONE---')
 
 

@@ -590,7 +590,7 @@ Main Iteration number {iteration:d}:'''
                                                     'title': 27})
 
         final_plot.opts(title=(self.filename + '\n reg_par = ' +
-                               str(self.reg_parameters) + ', iteraations: ' +
+                               str(self.reg_parameters) + ', iterations: ' +
                                str(len(self.step_indices)) + ', fct_calls: ' +
                                str(self.fct_calls[-1])))
         final_plot.opts(opts.Curve(linewidth=3))
