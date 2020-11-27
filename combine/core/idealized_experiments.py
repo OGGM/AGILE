@@ -4,7 +4,8 @@ import holoviews as hv
 from holoviews import opts
 from combine.core.cost_function import create_cost_fct, creat_spinup_cost_fct
 from combine.core.arithmetics import magnitude
-from oggm.core.massbalance import LinearMassBalance
+from combine.core.massbalance_adapted import LinearMassBalance
+# from oggm.core.massbalance import LinearMassBalance
 from oggm.core.flowline import FluxBasedModel as oggm_FluxModel
 from oggm.core.flowline import RectangularBedFlowline
 from oggm.core.flowline import ParabolicBedFlowline
