@@ -44,6 +44,8 @@ def compute_inner_mask(ice_mask, full_array=False):
 def to_torch_tensor(val, torch_type, requires_grad=False):
     if type(val) == np.ndarray:
         val = torch.from_numpy(val).to(torch_type)
+    elif val is None:
+        pass
     elif type(val) != torch.Tensor:
         val = torch.tensor(val,
                            dtype=torch_type,
@@ -55,6 +57,8 @@ def to_torch_tensor(val, torch_type, requires_grad=False):
 def to_numpy_array(val):
     if type(val) == torch.Tensor:
         val = val.detach().numpy()
+    elif val is None:
+        pass
     elif type(val) != np.ndarray:
         val = np.array(val)
 

@@ -3,9 +3,9 @@ from scipy.optimize import minimize
 import holoviews as hv
 from holoviews import opts
 from combine.core.cost_function import create_cost_fct, creat_spinup_cost_fct
-from combine.core.arithmetics import magnitude
+from combine.core.arithmetics import magnitude, to_numpy_array
 from combine.core.massbalance_adapted import LinearMassBalance
-# from oggm.core.massbalance import LinearMassBalance
+from oggm.core.massbalance import LinearMassBalance as oggm_MassBalance
 from oggm.core.flowline import FluxBasedModel as oggm_FluxModel
 from oggm.core.flowline import RectangularBedFlowline
 from oggm.core.flowline import ParabolicBedFlowline
@@ -248,30 +248,50 @@ def create_measurements(geometry,
     else:
         raise ValueError('Unkown bed shape!')
 
+    # convert COMBINE MassBalanceModel to OGGM MassBalanceModel
+    try:
+        len(mb_model)
+    except TypeError as e:
+        if str(e) != "object of type 'LinearMassBalance' has no len()":
+            len(mb_model)
+        else:
+            oggm_mb_model = oggm_MassBalance(
+                to_numpy_array(mb_model.ela_h),
+                grad=to_numpy_array(mb_model.grad))
+
     # let the model run according to the desired glacier state
     if glacier_state == 'equilibrium':
-        ref_model = oggm_FluxModel(oggm_fl, mb_model=mb_model, y0=0.)
+        ref_model = oggm_FluxModel(oggm_fl, mb_model=oggm_mb_model, y0=0.)
         ref_model.run_until_equilibrium()
 
     elif glacier_state == 'advancing':
-        ref_model = oggm_FluxModel(oggm_fl, mb_model=mb_model, y0=0.)
+        ref_model = oggm_FluxModel(oggm_fl, mb_model=oggm_mb_model, y0=0.)
         ref_model.run_until_equilibrium()
         eq_years = ref_model.yr
-        ref_model = oggm_FluxModel(oggm_fl, mb_model=mb_model, y0=0.)
+        ref_model = oggm_FluxModel(oggm_fl, mb_model=oggm_mb_model, y0=0.)
         ref_model.run_until(int(eq_years/2))
 
     elif (glacier_state == 'retreating' or
           glacier_state == 'retreating with unknow spinup'):
         assert len(mb_model) >= 2,\
             'Need at least two mass balance models for retreating!'
+
+        # convert two COMBINE MassBalanceModels
+        oggm_mb_model = [oggm_MassBalance(
+                            to_numpy_array(mb_model[0].ela_h),
+                            grad=to_numpy_array(mb_model[0].grad)),
+                         oggm_MassBalance(
+                             to_numpy_array(mb_model[1].ela_h),
+                             grad=to_numpy_array(mb_model[1].grad))]
+
         years_to_retreat = None
         for i in range(2):
             start_model = oggm_FluxModel(oggm_fl,
-                                         mb_model=mb_model[0],
+                                         mb_model=oggm_mb_model[0],
                                          y0=0.)
             start_model.run_until_equilibrium()
             retreat_model = oggm_FluxModel(start_model.fls[-1],
-                                           mb_model=mb_model[1],
+                                           mb_model=oggm_mb_model[1],
                                            y0=0.)
             if years_to_retreat is None:
                 retreat_model.run_until_equilibrium()
@@ -451,6 +471,11 @@ def get_first_guess(measurements,
     else:
         raise ValueError('Unknown bed geometry!')
 
+    # empty the tmp directory on the cluster
+    tmpdir = utils.gettempdir(dirname=('OGGM_Inversion_' + str(job_id) + '_' +
+                                       str(task_id)),
+                              reset=True,
+                              home=True)  # home=True needed for cluster
     return first_guess
 
 
