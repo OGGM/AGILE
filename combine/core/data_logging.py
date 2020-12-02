@@ -393,7 +393,7 @@ Main Iteration number {iteration:d}:'''
                 dataset.attrs['minimize_' + key] = self.minimize_options[key]
 
         # add to filename if maxiterations were used
-        dataset.attrs['maxiter_reached'] = False
+        dataset.attrs['maxiter_reached'] = 'no'
         if (self.opti_var_2 is None) or \
            (self.two_parameter_option == 'at_once'):
             if (len(self.step_indices) ==
@@ -401,14 +401,14 @@ Main Iteration number {iteration:d}:'''
                 self.filename += '_maxiter'
                 # task_id only needed for cluster computation
                 self.filename += ('_' + str(self.task_id))
-                dataset.attrs['maxiter_reached'] = True
+                dataset.attrs['maxiter_reached'] = 'yes'
         elif self.two_parameter_option == 'separated':
             if np.squeeze(self.current_main_iterations)[-1] == \
                self.main_iterations_separeted:
                 self.filename += '_maxiter'
                 # task_id only needed for cluster computation
                 self.filename += ('_' + str(self.task_id))
-                dataset.attrs['maxiter_reached'] = True
+                dataset.attrs['maxiter_reached'] = 'yes'
         else:
             raise ValueError('Somthing went wrong by checking if maxiter was'
                              'used!')
