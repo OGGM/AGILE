@@ -479,6 +479,48 @@ def get_first_guess(measurements,
     return first_guess
 
 
+def first_guess_run(first_guess,
+                    bed_geometry,
+                    measurements,
+                    mb_model,
+                    geometry):
+    # Create a flowline
+    if bed_geometry == 'rectangular':
+        oggm_fl = RectangularBedFlowline(surface_h=measurements['spinup_sfc'],
+                                         bed_h=first_guess['bed_h'],
+                                         widths=measurements['widths'],
+                                         map_dx=geometry['map_dx'])
+    elif bed_geometry == 'parabolic':
+        oggm_fl = ParabolicBedFlowline(surface_h=measurements['spinup_sfc'],
+                                       bed_h=first_guess['bed_h'],
+                                       bed_shape=first_guess['bed_shape'],
+                                       map_dx=geometry['map_dx'])
+    elif bed_geometry == 'trapezoidal':
+        # for trapezoidal bed lambda is always set to 1
+        # (see https://docs.oggm.org/en/latest/ice-dynamics.html#trapezoidal)
+        oggm_fl = TrapezoidalBedFlowline(surface_h=measurements['spinup_sfc'],
+                                         bed_h=first_guess['bed_h'],
+                                         widths=(first_guess['w0'] /
+                                                 geometry['map_dx']),
+                                         lambdas=np.zeros(geometry['nx']) + 1.,
+                                         map_dx=geometry['map_dx'],
+                                         )
+
+    # convert COMBINE MassBalanceModel to OGGM MassBalanceModel
+    oggm_mb_model = oggm_MassBalance(to_numpy_array(mb_model.ela_h),
+                                     grad=to_numpy_array(mb_model.grad))
+
+    # create a model and let it run
+    model = oggm_FluxModel(oggm_fl, mb_model=oggm_mb_model, y0=0.)
+    model.run_until(measurements['yrs_to_run'])
+
+    # get values of flowline
+    fg_sfc_h = model.fls[0].surface_h
+    fg_widths = model.fls[0].widths_m
+
+    return fg_sfc_h, fg_widths
+
+
 def get_reg_parameters(opti_var,
                        measurements,
                        geometry,

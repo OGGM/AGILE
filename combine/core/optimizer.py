@@ -4,7 +4,7 @@ from combine.core.cost_function import create_cost_fct
 from scipy.optimize import minimize
 from combine.core.idealized_experiments import define_geometry,\
     define_mb_model, create_measurements, get_first_guess, get_reg_parameters,\
-    plot_result, get_spinup_sfc
+    plot_result, get_spinup_sfc, first_guess_run
 from combine.core.data_logging import DataLogger
 import time
 
@@ -73,6 +73,13 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                   task_id=task_id)
     print('\n    ---DONE---')
 
+    print('\n- First guess run for fg_sfc_h and fg_widths')
+    fg_sfc_h, fg_widths = first_guess_run(first_guess,
+                                          bed_geometry,
+                                          measurements,
+                                          mb_model,
+                                          geometry)
+    print('\n    ---DONE---')
 
     # TODO: This option is not tested or working
     if glacier_state == 'retreating with unknow spinup':
@@ -109,6 +116,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
         geometry=geometry,
         measurements=measurements,
         first_guess=first_guess,
+        fg_sfc_h=fg_sfc_h,
+        fg_widths=fg_widths,
         reg_parameters=reg_parameters,
         used_bed_h_geometry=used_bed_h_geometry,
         used_along_glacier_geometry=used_along_glacier_geometry,
