@@ -16,7 +16,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                             'grad': np.array([4.])},
                                    glacier_state='equilibrium',
                                    opti_parameter='bed_h',
-                                   two_parameter_option='None', # separated, at_once
+                                   # separated, at_once, calculated
+                                   two_parameter_option='None',
                                    main_iterations_separeted=1,
                                    reg_parameters=None,
                                    wanted_c_terms=None,
@@ -192,7 +193,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                         geometry_var = np.append(dl.guessed_opti_var_1[-1],
                                                  dl.known_opti_var_1)
 
-            # here you have only one optimisation variable or two at_once
+            # here you have only one optimisation variable or
+            # two at_once/calculated
             else:
                 if loop_opti_var in ['bed_h', 'bed_shape', 'w0']:
                     guess_parameter = dl.first_guessed_opti_var_1
@@ -200,12 +202,18 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                     # here the second variable is selected (defined when
                     # creating the datalogger)
                     geometry_var = dl.geometry[dl.geometry_var]
-                elif loop_opti_var in ['bed_h and bed_shape', 'bed_h and w0']:
+                elif (loop_opti_var in ['bed_h and bed_shape', 'bed_h and w0']
+                      & dl.two_parameter_option == 'at_once'):
                     guess_parameter = np.append(dl.first_guessed_opti_var_1,
                                                 dl.first_guessed_opti_var_2)
                     known_parameter = np.append(dl.known_opti_var_1,
                                                 dl.known_opti_var_2)
                     geometry_var = None
+                elif (loop_opti_var in ['bed_h and bed_shape', 'bed_h and w0']
+                      & dl.two_parameter_option == 'calculated'):
+                    guess_parameter = dl.first_guessed_opti_var_1
+                    known_parameter = dl.known_opti_var_1
+                    geometry_var = dl.known_opti_var_2
                 else:
                     raise ValueError('Unknown optimisation variable!')
 
@@ -218,6 +226,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                 dx=dl.geometry['map_dx'],
                 mb_model=mb_model,
                 opti_var=loop_opti_var,
+                two_parameter_option=dl.two_parameter_option,
                 datalogger=dl)
 
             res = minimize(fun=cost_fct,

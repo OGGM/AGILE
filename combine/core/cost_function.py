@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 from combine.core.dynamics import run_flowline_forward_core
-from combine.core.arithmetics import to_torch_tensor
+from combine.core.arithmetics import to_torch_tensor, to_numpy_array
 
 
 def creat_spinup_cost_fct(measurements,
@@ -79,6 +79,7 @@ def create_cost_fct(known_parameter,
                     dx,
                     mb_model,
                     opti_var,
+                    two_parameter_option,
                     datalogger,
                     only_get_c_terms=False,
                     torch_type='double'):
@@ -128,6 +129,7 @@ def create_cost_fct(known_parameter,
                         dx,
                         mb_model,
                         opti_var,
+                        two_parameter_option,
                         datalogger,
                         only_get_c_terms,
                         torch_type)
@@ -144,6 +146,7 @@ def cost_fct(unknown_parameter,
              map_dx,
              mb_model,
              opti_var,
+             two_parameter_option,
              datalogger,
              only_get_c_terms=False,
              torch_type='double'):
@@ -259,7 +262,8 @@ def cost_fct(unknown_parameter,
                              dtype=torch_type,
                              requires_grad=False)
 
-    elif opti_var in ['bed_h and bed_shape', 'bed_h and w0']:
+    elif ((two_parameter_option == 'at_once') &
+          (opti_var in ['bed_h and bed_shape', 'bed_h and w0'])):
         split_point_unknown = int(len(unknown_parameter) / 2)
         split_point_known = int(len(known_parameter) / 2)
 
@@ -297,11 +301,80 @@ def cost_fct(unknown_parameter,
         shape_var[ice_mask] = shape_var_unknown
         shape_var[~ice_mask] = shape_var_known
 
+    elif ((two_parameter_option == 'calculated') &
+          (opti_var == 'bed_h and bed_shape')):
+        bed_h_unknown = torch.tensor(unknown_parameter,
+                                     dtype=torch_type,
+                                     requires_grad=True)
+        bed_h_known = torch.tensor(known_parameter,
+                                   dtype=torch_type,
+                                   requires_grad=False)
+        bed_h = torch.empty(sum(list(bed_h_unknown.size() +
+                                     bed_h_known.size())),
+                            dtype=torch_type,
+                            requires_grad=False)
+        bed_h[ice_mask] = bed_h_unknown
+        bed_h[~ice_mask] = bed_h_known
+
+        shape_var_known = torch.tensor(geometry_var,
+                                       dtype=torch_type,
+                                       requires_grad=False)
+        true_widths = to_torch_tensor(measurements['widths'], torch_type)
+        true_sfc_h = to_torch_tensor(measurements['sfc_h'], torch_type)
+        shape_var_unknown = to_torch_tensor(4., torch_type) * \
+            (true_sfc_h[ice_mask] - bed_h_unknown) / \
+            (true_widths[ice_mask])**2
+        shape_var = torch.empty(sum(list(shape_var_unknown.size() +
+                                         shape_var_known.size())),
+                                dtype=torch_type,
+                                requires_grad=False)
+        shape_var[ice_mask] = shape_var_unknown
+        shape_var[~ice_mask] = shape_var_known
+
+    elif ((two_parameter_option == 'calculated') &
+          (opti_var == 'bed_h and w0')):
+        bed_h_unknown = torch.tensor(unknown_parameter,
+                                     dtype=torch_type,
+                                     requires_grad=True)
+        bed_h_known = torch.tensor(known_parameter,
+                                   dtype=torch_type,
+                                   requires_grad=False)
+        bed_h = torch.empty(sum(list(bed_h_unknown.size() +
+                                     bed_h_known.size())),
+                            dtype=torch_type,
+                            requires_grad=False)
+        bed_h[ice_mask] = bed_h_unknown
+        bed_h[~ice_mask] = bed_h_known
+
+        shape_var_known = torch.tensor(geometry_var,
+                                       dtype=torch_type,
+                                       requires_grad=False)
+        true_widths = to_torch_tensor(measurements['widths'], torch_type)
+        true_sfc_h = to_torch_tensor(measurements['sfc_h'], torch_type)
+        # 1. for constant lambda of trapozidal bed geometry
+        shape_var_unknown = true_widths[ice_mask] - \
+            to_torch_tensor(1., torch_type) * \
+            (true_sfc_h[ice_mask] - bed_h_unknown)
+        shape_var = torch.empty(sum(list(shape_var_unknown.size() +
+                                         shape_var_known.size())),
+                                dtype=torch_type,
+                                requires_grad=False)
+        shape_var[ice_mask] = shape_var_unknown
+        shape_var[~ice_mask] = shape_var_known
+
     else:
-        raise ValueError('Unknown optimisation variable!')
+        raise ValueError('Unknown combination of opti var and '
+                         'two parameter option!')
 
     # check if bed_h and shape_var are the same length
     assert len(bed_h) == len(shape_var), 'Parameters not the same length!!!'
+
+    # check that shape parameters is positive (neede for 'calculated' option),
+    # can be also done with bounds on input parameters, coming soon ;)
+    if np.any(np.sign(to_numpy_array(shape_var)) == -1):
+        cost = np.Inf
+        grad = np.empty(len(unknown_parameter)) * np.nan
+        return cost, grad
 
     # forward run of model, try is needed to avoid a memory overflow
     try:
@@ -535,7 +608,7 @@ def get_cost_terms_new(model_sfc_h,
     costs = torch.zeros(4,
                         dtype=torch_type)
 
-    ice_mask = to_torch_tensor(true_ice_mask, torch_type)
+    ice_mask = to_torch_tensor(true_ice_mask, torch.bool)
 
     # misfit between modeled and measured surface height for points with ice
     true_sfc_h = to_torch_tensor(true_sfc_h, torch_type)
