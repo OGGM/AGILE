@@ -65,7 +65,7 @@ class DataLogger(object):
         self.main_iterations = np.empty((0, 1), dtype=np.int_)
 
         # help variable for two optimisation variables
-        two_opti_parameter_options = ['separated', 'at_once']
+        two_opti_parameter_options = ['separated', 'at_once', 'calculated']
 
         # create variables according to the bed_geometry and opti_parameter
         if bed_geometry == 'rectangular':
@@ -395,7 +395,7 @@ Main Iteration number {iteration:d}:'''
         # add to filename if maxiterations were used
         dataset.attrs['maxiter_reached'] = 'no'
         if (self.opti_var_2 is None) or \
-           (self.two_parameter_option == 'at_once'):
+           (self.two_parameter_option in ['at_once', 'calculated']):
             if (len(self.step_indices) ==
                self.minimize_options['maxiter']):
                 self.filename += '_maxiter'
