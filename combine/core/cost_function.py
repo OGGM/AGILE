@@ -326,7 +326,7 @@ def cost_fct(unknown_parameter,
         return cost, grad
 
     # calculate terms of cost function
-    c_terms = get_cost_terms(
+    c_terms = get_cost_terms_new(
         model_sfc_h=model_sfc_h,
         model_widths=model_widths,
         model_thicks=model_thicks,
@@ -481,6 +481,75 @@ def get_cost_terms(model_sfc_h,
     costs[2] = reg_parameters[2] * torch.where(true_ice_mask != model_ice_mask,
                                                torch.tensor(1.),
                                                torch.tensor(0.)).sum()
+
+    # smoothnes of glacier bed
+    db_dx = (model_bed_h[1:] - model_bed_h[:-1]) / dx
+    costs[3] = reg_parameters[3] * db_dx.pow(2).sum()
+
+    return costs
+
+
+def get_cost_terms_new(model_sfc_h,
+                       model_widths,
+                       model_thicks,
+                       model_bed_h,
+                       true_sfc_h,
+                       true_widths,
+                       true_ice_mask,
+                       reg_parameters,
+                       dx,
+                       torch_type):
+    '''
+    Returns the individual terms of the cost function.
+
+    Parameters
+    ----------
+    model_sfc_h : :py:class:`torch.Tensor`
+        Surface heights of the modeled glacier.
+    model_widths : :py:class:`torch.Tensor`
+        Widths of the modeled glacier.
+    model_thicks : :py:class:`torch.Tensor`
+        Thickness of the modeled glacier.
+    model_bed_h : :py:class:`torch.Tensor`
+        Bed heights of the modeled glacier.
+    true_sfc_h : :py:class:`numpy.ndarray`
+        Surface heights from measurements.
+    true_widths : :py:class:`numpy.ndarray`
+        Widths from measurements.
+    true_ice_mask : :py:class:`numpy.ndarray`
+        Ice maks from measurements (1 = ice, 0 = no ice).
+    reg_parameters : :py:class:`numpy.ndarray`
+        Regularisation parameters for the individual terms.
+    dx : float
+        Model grid spacing in meters.
+    torch_type : :py:class:`torch.dtype`
+        Defines type for torch.Tensor.
+
+    Returns
+    -------
+    costs : :py:class:`torch.Tensor`
+        Contains the four terms of the final cost function.
+
+    '''
+    # calculate cost terms
+    costs = torch.zeros(4,
+                        dtype=torch_type)
+
+    ice_mask = to_torch_tensor(true_ice_mask, torch_type)
+
+    # misfit between modeled and measured surface height for points with ice
+    true_sfc_h = to_torch_tensor(true_sfc_h, torch_type)
+    costs[0] = reg_parameters[0] * (true_sfc_h[ice_mask] -
+                                    model_sfc_h[ice_mask]).pow(2).sum()
+
+    # misfit between modeled and measured width for points with ice
+    true_widths = to_torch_tensor(true_widths, torch_type)
+    costs[1] = reg_parameters[1] * ((true_widths[ice_mask] -
+                                     model_widths[ice_mask])).pow(2).sum()
+
+    # pnelalize ice outside of glacier outline
+    costs[2] = reg_parameters[2] * (true_sfc_h[~ice_mask] -
+                                    model_sfc_h[~ice_mask]).pow(2).sum()
 
     # smoothnes of glacier bed
     db_dx = (model_bed_h[1:] - model_bed_h[:-1]) / dx
