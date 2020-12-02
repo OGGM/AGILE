@@ -14,15 +14,18 @@ class DataLogger(object):
 
     def __init__(self, bed_geometry, opti_parameter, two_parameter_option,
                  main_iterations_separeted, geometry, measurements,
-                 first_guess, reg_parameters, used_bed_h_geometry,
-                 used_along_glacier_geometry, minimize_options, solver,
-                 glacier_state, mb_opts, filename_suffix, task_id):
+                 first_guess, fg_sfc_h, fg_widths, reg_parameters,
+                 used_bed_h_geometry, used_along_glacier_geometry,
+                 minimize_options, solver, glacier_state, mb_opts,
+                 filename_suffix, task_id):
         # first save all initial data for idealized experiment
         self.bed_geometry = bed_geometry
         self.opti_parameter = opti_parameter
         self.geometry = geometry
         self.measurements = measurements
         self.first_guess = first_guess
+        self.fg_sfc_h = fg_sfc_h
+        self.fg_widths = fg_widths
         self.reg_parameters = reg_parameters
         self.geometry_bed_h = used_bed_h_geometry
         self.along_glacier_geometry = used_along_glacier_geometry
@@ -311,12 +314,18 @@ Main Iteration number {iteration:d}:'''
                 'true_surface_h':
                     (['total_distance'],
                      np.squeeze(self.true_sfc_h)),
+                'first_guess_surface_h':
+                    (['total_distance'],
+                     np.squeeze(self.fg_sfc_h)),
                 'surface_h':
                     (['nr_of_iteration', 'total_distance'],
                      self.sfc_h),
                 'true_widths':
                     (['total_distance'],
                      np.squeeze(self.true_widths)),
+                'first_guess_widths':
+                    (['total_distance'],
+                     np.squeeze(self.fg_widths)),
                 'widths':
                     (['nr_of_iteration', 'total_distance'],
                      self.widths),
