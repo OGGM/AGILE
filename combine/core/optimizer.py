@@ -78,7 +78,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                           bed_geometry,
                                           measurements,
                                           mb_model,
-                                          geometry)
+                                          geometry,
+                                          opti_parameter=opti_parameter)
     print('\n    ---DONE---')
 
     # TODO: This option is not tested or working

@@ -483,25 +483,49 @@ def first_guess_run(first_guess,
                     bed_geometry,
                     measurements,
                     mb_model,
-                    geometry):
+                    geometry,
+                    opti_parameter='bed_h',):
+    ice_mask = measurements['ice_mask']
+
+    if opti_parameter in ['bed_h', 'bed_h and bed_shape', 'bed_h and w0']:
+        bed_h = np.empty(len(first_guess['bed_h']) +
+                         len(geometry['bed_h'][~ice_mask]))
+        bed_h[ice_mask] = first_guess['bed_h']
+        bed_h[~ice_mask] = geometry['bed_h'][~ice_mask]
+    else:
+        bed_h = geometry['bed_h']
+
     # Create a flowline
     if bed_geometry == 'rectangular':
         oggm_fl = RectangularBedFlowline(surface_h=measurements['spinup_sfc'],
-                                         bed_h=first_guess['bed_h'],
-                                         widths=measurements['widths'],
+                                         bed_h=bed_h,
+                                         widths=geometry['widths'],
                                          map_dx=geometry['map_dx'])
     elif bed_geometry == 'parabolic':
+        if opti_parameter in ['bed_shape', 'bed_h and bed_shape']:
+            bed_shape = np.empty(len(first_guess['bed_shape']) +
+                                 len(geometry['bed_shape'][~ice_mask]))
+            bed_shape[ice_mask] = first_guess['bed_shape']
+            bed_shape[~ice_mask] = geometry['bed_shape'][~ice_mask]
+        else:
+            bed_shape = geometry['bed_shape']
         oggm_fl = ParabolicBedFlowline(surface_h=measurements['spinup_sfc'],
-                                       bed_h=first_guess['bed_h'],
-                                       bed_shape=first_guess['bed_shape'],
+                                       bed_h=bed_h,
+                                       bed_shape=bed_shape,
                                        map_dx=geometry['map_dx'])
     elif bed_geometry == 'trapezoidal':
+        if opti_parameter in ['w0', 'bed_h and w0']:
+            w0 = np.empty(len(first_guess['w0']) +
+                          len(geometry['w0'][~ice_mask]))
+            w0[ice_mask] = first_guess['w0']
+            w0[~ice_mask] = geometry['w0'][~ice_mask]
+        else:
+            w0 = geometry['w0']
         # for trapezoidal bed lambda is always set to 1
         # (see https://docs.oggm.org/en/latest/ice-dynamics.html#trapezoidal)
         oggm_fl = TrapezoidalBedFlowline(surface_h=measurements['spinup_sfc'],
-                                         bed_h=first_guess['bed_h'],
-                                         widths=(first_guess['w0'] /
-                                                 geometry['map_dx']),
+                                         bed_h=bed_h,
+                                         widths=(w0 / geometry['map_dx']),
                                          lambdas=np.zeros(geometry['nx']) + 1.,
                                          map_dx=geometry['map_dx'],
                                          )
