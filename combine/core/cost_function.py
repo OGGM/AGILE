@@ -430,10 +430,15 @@ def cost_fct(unknown_parameter,
     elif opti_var in ['bed_shape', 'w0']:
         grad = shape_var_unknown.grad.detach().numpy().astype(np.float64)
     elif opti_var in ['bed_h and bed_shape', 'bed_h and w0']:
-        grad_bed_h = bed_h_unknown.grad.detach().numpy().astype(np.float64)
-        grad_shape_var = \
-            shape_var_unknown.grad.detach().numpy().astype(np.float64)
-        grad = np.append(grad_bed_h, grad_shape_var)
+        if two_parameter_option == 'at_once':
+            grad_bed_h = bed_h_unknown.grad.detach().numpy().astype(np.float64)
+            grad_shape_var = \
+                shape_var_unknown.grad.detach().numpy().astype(np.float64)
+            grad = np.append(grad_bed_h, grad_shape_var)
+        elif two_parameter_option == 'calculated':
+            grad = bed_h_unknown.grad.detach().numpy().astype(np.float64)
+        else:
+            raise ValueError('Unknown two opti parameter option!')
     else:
         raise ValueError('Unknown optimisation variable!')
 
@@ -478,11 +483,22 @@ def cost_fct(unknown_parameter,
             datalogger.save_data_in_datalogger('grads_opti_var_2', grad)
 
     elif opti_var in ['bed_h and bed_shape', 'bed_h and w0']:
-        datalogger.save_data_in_datalogger('guessed_opti_var_1', bed_h_unknown)
-        datalogger.save_data_in_datalogger('grads_opti_var_1', grad_bed_h)
-        datalogger.save_data_in_datalogger('guessed_opti_var_2',
-                                           shape_var_unknown)
-        datalogger.save_data_in_datalogger('grads_opti_var_2', grad_shape_var)
+        if two_parameter_option == 'at_once':
+            datalogger.save_data_in_datalogger('guessed_opti_var_1',
+                                               bed_h_unknown)
+            datalogger.save_data_in_datalogger('grads_opti_var_1', grad_bed_h)
+            datalogger.save_data_in_datalogger('guessed_opti_var_2',
+                                               shape_var_unknown)
+            datalogger.save_data_in_datalogger('grads_opti_var_2',
+                                               grad_shape_var)
+        elif two_parameter_option == 'calculated':
+            datalogger.save_data_in_datalogger('guessed_opti_var_1',
+                                               bed_h_unknown)
+            datalogger.save_data_in_datalogger('grads_opti_var_1', grad)
+            datalogger.save_data_in_datalogger('guessed_opti_var_2',
+                                               shape_var_unknown)
+            datalogger.save_data_in_datalogger('grads_opti_var_2',
+                                               np.empty(len(grad)) * np.nan)
     else:
         raise ValueError('Unknown optimisation variable!')
 
