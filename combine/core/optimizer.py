@@ -202,15 +202,19 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                     # here the second variable is selected (defined when
                     # creating the datalogger)
                     geometry_var = dl.geometry[dl.geometry_var]
-                elif (loop_opti_var in ['bed_h and bed_shape', 'bed_h and w0']
-                      & dl.two_parameter_option == 'at_once'):
+                elif (
+                     (loop_opti_var in ['bed_h and bed_shape', 'bed_h and w0'])
+                      & (dl.two_parameter_option == 'at_once')
+                     ):
                     guess_parameter = np.append(dl.first_guessed_opti_var_1,
                                                 dl.first_guessed_opti_var_2)
                     known_parameter = np.append(dl.known_opti_var_1,
                                                 dl.known_opti_var_2)
                     geometry_var = None
-                elif (loop_opti_var in ['bed_h and bed_shape', 'bed_h and w0']
-                      & dl.two_parameter_option == 'calculated'):
+                elif (
+                     (loop_opti_var in ['bed_h and bed_shape', 'bed_h and w0'])
+                      & (dl.two_parameter_option == 'calculated')
+                     ):
                     guess_parameter = dl.first_guessed_opti_var_1
                     known_parameter = dl.known_opti_var_1
                     geometry_var = dl.known_opti_var_2
