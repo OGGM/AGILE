@@ -125,7 +125,7 @@ def define_geometry(used_bed_h_geometry='linear',
         elif bed_geometry == 'parabolic':
             geometry['bed_shape'] = np.zeros(geometry['nx']) + 1.
         elif bed_geometry == 'trapezoidal':
-            geometry['w0'] = np.zeros(geometry['nx']) + 1.
+            geometry['w0'] = np.zeros(geometry['nx']) + 2.
         else:
             raise ValueError('Unkonwn bed shape!')
     elif used_along_glacier_geometry == 'random':
