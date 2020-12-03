@@ -45,9 +45,9 @@ class DataLogger(object):
         self.costs = np.empty((0, 1))
         self.c_terms = np.empty((0, len(self.reg_parameters)))
         self.sfc_h = np.empty((0, self.geometry['nx']))
-        self.true_sfc_h = measurements['sfc_h']
+        self.true_sfc_h = self.measurements['sfc_h']
         self.widths = np.empty((0, self.geometry['nx']))
-        self.true_widths = measurements['widths']
+        self.true_widths = self.measurements['widths']
 
         # variable to keep track in which main iteration the algorithm is at
         # the current minimisation, only needed for separated optimisation
@@ -262,24 +262,31 @@ Main Iteration number {iteration:d}:'''
             arg = {'iteration': self.main_iterations[-1]}
             print(text.format(**arg))
 
+    def squeeze_generic(self, a, axes_to_keep=[0]):
+        out_s = [s for i, s in enumerate(a.shape)
+                 if i in axes_to_keep or s != 1]
+        return a.reshape(out_s)
+
     def filter_data_from_optimization(self):
         # Filter all "exploratory" model runs to only get "real" iteration
         # steps
         index = self.step_indices
         self.grads_opti_var_1 = self.grads_opti_var_1[index]
-        self.costs = self.costs[index]
+        self.costs = self.squeeze_generic(self.costs[index])
         self.c_terms = self.c_terms[index]
         self.sfc_h = self.sfc_h[index]
         self.widths = self.widths[index]
         # + 1 in index because fct_calls starts with [0] and not empty
-        self.fct_calls = self.fct_calls[index + 1]
-        self.opti_var_iteration = self.opti_var_iteration[index]
+        self.fct_calls = self.squeeze_generic(self.fct_calls[index + 1])
+        self.opti_var_iteration = self.squeeze_generic(
+            self.opti_var_iteration[index])
         self.guessed_opti_var_1 = self.guessed_opti_var_1[index]
         if self.opti_var_2 is not None:
             self.guessed_opti_var_2 = self.guessed_opti_var_2[index]
             self.grads_opti_var_2 = self.grads_opti_var_2[index]
         if self.main_iterations.size is not None:
-            self.current_main_iterations = self.current_main_iterations[index]
+            self.current_main_iterations = self.squeeze_generic(
+                self.current_main_iterations[index])
 
     def create_and_save_dataset(self):
         dataset = xr.Dataset(
@@ -295,7 +302,7 @@ Main Iteration number {iteration:d}:'''
                      self.guessed_opti_var_1),
                 'cost':
                     (['nr_of_iteration'],
-                     np.squeeze(self.costs)),
+                     self.costs),
                 'cost_terms':
                     (['nr_of_iteration', 'nr_of_reg_parameter'],
                      self.c_terms),
@@ -304,28 +311,28 @@ Main Iteration number {iteration:d}:'''
                      self.grads_opti_var_1),
                 'function_calls':
                     (['nr_of_iteration'],
-                     np.squeeze(self.fct_calls)),
+                     self.fct_calls),
                 'optimisation_variable':
                     (['nr_of_iteration'],
-                     np.squeeze(self.opti_var_iteration)),
+                     self.opti_var_iteration),
                 'ice_mask':
                     (['total_distance'],
-                     np.squeeze(self.ice_mask)),
+                     self.squeeze_generic(self.ice_mask)),
                 'true_surface_h':
                     (['total_distance'],
-                     np.squeeze(self.true_sfc_h)),
+                     self.squeeze_generic(self.true_sfc_h)),
                 'first_guess_surface_h':
                     (['total_distance'],
-                     np.squeeze(self.fg_sfc_h)),
+                     self.squeeze_generic(self.fg_sfc_h)),
                 'surface_h':
                     (['nr_of_iteration', 'total_distance'],
                      self.sfc_h),
                 'true_widths':
                     (['total_distance'],
-                     np.squeeze(self.true_widths)),
+                     self.squeeze_generic(self.true_widths)),
                 'first_guess_widths':
                     (['total_distance'],
-                     np.squeeze(self.fg_widths)),
+                     self.squeeze_generic(self.fg_widths)),
                 'widths':
                     (['nr_of_iteration', 'total_distance'],
                      self.widths),
@@ -358,10 +365,10 @@ Main Iteration number {iteration:d}:'''
             # save additional data from second optimisation variable
             dataset['true_' + self.opti_var_2] = \
                 (['points_with_ice'],
-                 np.squeeze(self.true_opti_var_2))
+                 self.squeeze_generic(self.true_opti_var_2))
             dataset['first_guessed_' + self.opti_var_2] = \
                 (['points_with_ice'],
-                 np.squeeze(self.first_guessed_opti_var_2))
+                 self.squeeze_generic(self.first_guessed_opti_var_2))
             dataset['guessed_' + self.opti_var_2] = \
                 (['nr_of_iteration', 'points_with_ice'],
                  self.guessed_opti_var_2)
@@ -383,7 +390,7 @@ Main Iteration number {iteration:d}:'''
         # is separated)
         dataset['current_main_iterations'] = \
             (['nr_of_iteration'],
-             np.squeeze(self.current_main_iterations))
+             self.current_main_iterations)
         dataset.attrs['max_number_of_main_iteration(separeted)'] = \
             self.main_iterations_separeted
 
@@ -403,7 +410,7 @@ Main Iteration number {iteration:d}:'''
                 self.filename += ('_' + str(self.task_id))
                 dataset.attrs['maxiter_reached'] = 'yes'
         elif self.two_parameter_option == 'separated':
-            if np.squeeze(self.current_main_iterations)[-1] == \
+            if self.current_main_iterations[-1] == \
                self.main_iterations_separeted:
                 self.filename += '_maxiter'
                 # task_id only needed for cluster computation
