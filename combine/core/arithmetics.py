@@ -89,7 +89,7 @@ class para_width_from_thick(Function):
         # only calculate gradients when needed
         shape_grad = thick_grad = None
         if ctx.needs_input_grad[0]:
-            shape_mul = torch.where(shape.abs() < 10e-10,
+            shape_mul = torch.where(shape.abs() < 10e-7,
                                     torch.tensor([1.],
                                                  dtype=torch.double),
                                     torch.sqrt(thick / shape.pow(3)) * (- 1)
@@ -125,14 +125,14 @@ class para_thick_from_section(Function):
         # only calculate gradients when needed
         shape_grad = section_grad = None
         if ctx.needs_input_grad[0]:
-            shape_mul = torch.where(shape.abs() < 10e-10,
+            shape_mul = torch.where(shape.abs() < 10e-20,
                                     torch.tensor([1.], dtype=torch.double),
-                                    1 / (2 * 6**(1/3)) *
+                                    1 / (48**(1/3)) *
                                     (section / shape)**(2/3)
                                     )
             shape_grad = grad_output * shape_mul
         if ctx.needs_input_grad[1]:
-            section_mul = torch.where(section.abs() < 10e-10,
+            section_mul = torch.where(section.abs() < 10e-20,
                                       torch.tensor([1.], dtype=torch.double),
                                       1 / (6**(1/3)) *
                                       (shape / section)**(1/3)
