@@ -460,6 +460,13 @@ def get_first_guess(measurements,
     elif bed_geometry == 'trapezoidal':
         if opti_parameter == 'bed_h':
             first_guess['bed_h'] = read_bed_h(ocls)
+            # filter first guess bed_h so that w0 > 0.5,
+            # division through lambda = 1.
+            max_thick = (flo.widths - 0.5) / 1.
+            first_guess['bed_h'] = np.where(sh - first_guess['bed_h'] >
+                                            max_thick,
+                                            sh - max_thick,
+                                            first_guess['bed_h'])
         elif opti_parameter == 'w0':
             first_guess['w0'] = read_w0(ocls)
         elif opti_parameter == 'bed_h and w0':
@@ -520,7 +527,11 @@ def first_guess_run(first_guess,
             w0[ice_mask] = first_guess['w0']
             w0[~ice_mask] = geometry['w0'][~ice_mask]
         else:
-            w0 = geometry['w0']
+            # calculate widths so that w0 is genarated with spinup_sfc
+            w0 = np.where((measurements['spinup_sfc'] - bed_h) > 0,
+                          geometry['w0'] + 1. * (measurements['spinup_sfc']
+                                                 - bed_h),
+                          geometry['w0'])
         # for trapezoidal bed lambda is always set to 1
         # (see https://docs.oggm.org/en/latest/ice-dynamics.html#trapezoidal)
         oggm_fl = TrapezoidalBedFlowline(surface_h=measurements['spinup_sfc'],

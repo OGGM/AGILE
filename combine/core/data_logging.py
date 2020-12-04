@@ -405,16 +405,16 @@ Main Iteration number {iteration:d}:'''
            (self.two_parameter_option in ['at_once', 'calculated']):
             if (len(self.step_indices) ==
                self.minimize_options['maxiter']):
-                self.filename += '_maxiter'
+                # self.filename += '_maxiter'
                 # task_id only needed for cluster computation
-                self.filename += ('_' + str(self.task_id))
+                # self.filename += ('_' + str(self.task_id))
                 dataset.attrs['maxiter_reached'] = 'yes'
         elif self.two_parameter_option == 'separated':
             if self.current_main_iterations[-1] == \
                self.main_iterations_separeted:
-                self.filename += '_maxiter'
+                # self.filename += '_maxiter'
                 # task_id only needed for cluster computation
-                self.filename += ('_' + str(self.task_id))
+                # self.filename += ('_' + str(self.task_id))
                 dataset.attrs['maxiter_reached'] = 'yes'
         else:
             raise ValueError('Somthing went wrong by checking if maxiter was'
