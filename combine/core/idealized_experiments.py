@@ -260,7 +260,7 @@ def create_measurements(geometry,
 
     # let the model run according to the desired glacier state
     if glacier_state == 'equilibrium':
-        ref_model = oggm_FluxModel(oggm_fl, mb_model=oggm_mb_model, y0=0.)
+        ref_model = oggm_FluxModel(oggm_fl, mb_model=oggm_mb_model[1], y0=0.)
         ref_model.run_until_equilibrium()
 
     elif glacier_state == 'advancing':
@@ -270,9 +270,24 @@ def create_measurements(geometry,
         ref_model = oggm_FluxModel(oggm_fl, mb_model=oggm_mb_model, y0=0.)
         ref_model.run_until(int(eq_years/2))
 
-    elif (glacier_state == 'retreating' or
-          glacier_state == 'retreating with unknow spinup'):
+        years_to_advance = None
+        for i in range(2):
+            start_model = oggm_FluxModel(oggm_fl,
+                                         mb_model=oggm_mb_model[1],
+                                         y0=0.)
+            start_model.run_until_equilibrium()
+            advance_model = oggm_FluxModel(start_model.fls[-1],
+                                           mb_model=oggm_mb_model[0],
+                                           y0=0.)
+            if years_to_advance is None:
+                advance_model.run_until_equilibrium()
+                years_to_advance = int(advance_model.yr / 2)
+            else:
+                advance_model.run_until(years_to_advance)
+                break
+        ref_model = advance_model
 
+    elif glacier_state in ['retreating', 'retreating with unknow spinup']:
         years_to_retreat = None
         for i in range(2):
             start_model = oggm_FluxModel(oggm_fl,
@@ -299,21 +314,23 @@ def create_measurements(geometry,
     # get 'measurements' of glacier
     measurements['sfc_h'] = ref_model.fls[0].surface_h
     measurements['widths'] = ref_model.fls[0].widths_m
-    measurements['yrs_to_run'] = ref_model.yr
 
     # find ice and ice free points, with a thickness larger than 0.01 m
     ice_mask = np.where(ref_model.fls[0].thick > 10e-2, True, False)
     measurements['ice_mask'] = ice_mask
 
-    # define spinup_sfc from which the experiments start
-    if (glacier_state == 'equilibrium') or (glacier_state == 'advancing'):
-        measurements['spinup_sfc'] = np.zeros(len(measurements['sfc_h']))
-    elif glacier_state == 'retreating':
+    # define spinup_sfc from which the experiments start and years to run
+    if glacier_state == 'equilibrium':
+        measurements['spinup_sfc'] = ref_model.fls[0].surface_h
+        measurements['yrs_to_run'] = ref_model.yr
+    elif glacier_state in ['retreating', 'advancing']:
         measurements['spinup_sfc'] = start_model.fls[0].surface_h
+        measurements['yrs_to_run'] = ref_model.yr
     elif glacier_state == 'retreating with unknow spinup':
         measurements['spinup_volume'] = start_model.fls[0].volume_m3
         measurements['spinup_bin_area'] = start_model.fls[0].bin_area_m2
         measurements['ref_spinup_sfc'] = start_model.fls[0].surface_h
+        measurements['yrs_to_run'] = ref_model.yr
     else:
         raise ValueError('Unknown glacier state!')
 
