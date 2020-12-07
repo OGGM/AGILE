@@ -264,12 +264,6 @@ def create_measurements(geometry,
         ref_model.run_until_equilibrium()
 
     elif glacier_state == 'advancing':
-        ref_model = oggm_FluxModel(oggm_fl, mb_model=oggm_mb_model, y0=0.)
-        ref_model.run_until_equilibrium()
-        eq_years = ref_model.yr
-        ref_model = oggm_FluxModel(oggm_fl, mb_model=oggm_mb_model, y0=0.)
-        ref_model.run_until(int(eq_years/2))
-
         years_to_advance = None
         for i in range(2):
             start_model = oggm_FluxModel(oggm_fl,
