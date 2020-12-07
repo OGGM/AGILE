@@ -77,7 +77,7 @@ def define_geometry(used_bed_h_geometry='linear',
         geometry['top_height'] = 4000
 
         # glacier bottom height
-        geometry['bottom_height'] = 0
+        geometry['bottom_height'] = 1500
         # define linear glacier bed with zero ice thickness
         geometry['bed_h'] = np.linspace(geometry['top_height'],
                                         geometry['bottom_height'],
@@ -87,10 +87,10 @@ def define_geometry(used_bed_h_geometry='linear',
         geometry['top_height'] = 4000
 
         # glacier bottom height
-        geometry['bottom_height'] = 1000
+        geometry['bottom_height'] = 1500
         # define extend of cliff
-        cliff_top = 3200
-        cliff_bottom = 3050
+        cliff_top = 3410
+        cliff_bottom = 3260
 
         geometry['bed_h'] = np.concatenate(
             (np.linspace(geometry['top_height'],
@@ -109,7 +109,7 @@ def define_geometry(used_bed_h_geometry='linear',
         np.random.seed(0)
 
         # get the differences from linear bed
-        offsets = np.random.normal(scale=30., size=geometry['nx'])
+        offsets = np.random.normal(scale=15., size=geometry['nx'])
 
         # define random glacier bed
         geometry['bed_h'] = (np.linspace(geometry['top_height'],
