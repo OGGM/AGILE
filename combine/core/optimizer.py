@@ -60,10 +60,11 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                        bed_geometry=bed_geometry,
                                        glacier_state=glacier_state)
 
-    if glacier_state in ['retreating', 'retreating with unknow spinup']:
+    if glacier_state in ['retreating', 'retreating with unknow spinup',
+                         'equilibrium']:
         # use only second mass balance model for optimization
         mb_model = mb_model[1]
-    elif glacier_state in ['equilibrium', 'advancing']:
+    elif glacier_state in ['advancing']:
         mb_model = mb_model[0]
     print('\n    ---DONE---')
 
