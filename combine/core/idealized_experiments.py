@@ -148,8 +148,8 @@ def define_geometry(used_bed_h_geometry='linear',
     return geometry
 
 
-def define_mb_model(mb_opts={'ELA': np.array([3000.]),
-                             'grad': np.array([4.])}):
+def define_mb_model(mb_opts={'ELA': np.array([3000., 3200.]),
+                             'grad': np.array([4., 4.])}):
     '''
     generate one or more OGGM LinearMassBalance models
 
@@ -249,15 +249,14 @@ def create_measurements(geometry,
         raise ValueError('Unkown bed shape!')
 
     # convert COMBINE MassBalanceModel to OGGM MassBalanceModel
-    try:
-        len(mb_model)
-    except TypeError as e:
-        if str(e) != "object of type 'LinearMassBalance' has no len()":
-            len(mb_model)
-        else:
-            oggm_mb_model = oggm_MassBalance(
-                to_numpy_array(mb_model.ela_h),
-                grad=to_numpy_array(mb_model.grad))
+    assert len(mb_model) >= 2,\
+        'Need at least two mass balance models!'
+    oggm_mb_model = [oggm_MassBalance(
+                        to_numpy_array(mb_model[0].ela_h),
+                        grad=to_numpy_array(mb_model[0].grad)),
+                     oggm_MassBalance(
+                         to_numpy_array(mb_model[1].ela_h),
+                         grad=to_numpy_array(mb_model[1].grad))]
 
     # let the model run according to the desired glacier state
     if glacier_state == 'equilibrium':
@@ -273,16 +272,6 @@ def create_measurements(geometry,
 
     elif (glacier_state == 'retreating' or
           glacier_state == 'retreating with unknow spinup'):
-        assert len(mb_model) >= 2,\
-            'Need at least two mass balance models for retreating!'
-
-        # convert two COMBINE MassBalanceModels
-        oggm_mb_model = [oggm_MassBalance(
-                            to_numpy_array(mb_model[0].ela_h),
-                            grad=to_numpy_array(mb_model[0].grad)),
-                         oggm_MassBalance(
-                             to_numpy_array(mb_model[1].ela_h),
-                             grad=to_numpy_array(mb_model[1].grad))]
 
         years_to_retreat = None
         for i in range(2):
