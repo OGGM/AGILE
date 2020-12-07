@@ -12,8 +12,8 @@ import time
 def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                    used_along_glacier_geometry='constant',
                                    bed_geometry='rectangular',
-                                   mb_opts={'ELA': np.array([3000.]),
-                                            'grad': np.array([4.])},
+                                   mb_opts={'ELA': np.array([3000., 3200.]),
+                                            'grad': np.array([4., 4.])},
                                    glacier_state='equilibrium',
                                    opti_parameter='bed_h',
                                    # separated, at_once, calculated
@@ -60,10 +60,11 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                        bed_geometry=bed_geometry,
                                        glacier_state=glacier_state)
 
-    if (glacier_state == 'retreating' or
-       glacier_state == 'retreating with unknow spinup'):
+    if glacier_state in ['retreating', 'retreating with unknow spinup']:
         # use only second mass balance model for optimization
         mb_model = mb_model[1]
+    elif glacier_state in ['equilibrium', 'advancing']:
+        mb_model = mb_model[0]
     print('\n    ---DONE---')
 
     print('\n- Get first guess: ')
