@@ -657,6 +657,7 @@ def get_reg_parameters(opti_var,
                 dx=geometry['map_dx'],
                 mb_model=mb_model,
                 opti_var=opti_var,
+                two_parameter_option='None',
                 datalogger=None,
                 only_get_c_terms=True)
 
