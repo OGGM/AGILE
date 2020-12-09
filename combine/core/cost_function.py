@@ -640,8 +640,15 @@ def get_cost_terms_new(model_sfc_h,
     costs[2] = reg_parameters[2] * (true_sfc_h[~ice_mask] -
                                     model_sfc_h[~ice_mask]).pow(2).sum()
 
-    # smoothnes of glacier bed
+    # smoothnes of glacier bed, use mean of forward and backward
     db_dx = (model_bed_h[1:] - model_bed_h[:-1]) / dx
     costs[3] = reg_parameters[3] * db_dx.pow(2).sum()
+    
+    # smooth transition from at boundering pixel
+    #last_glacier_pixel = np.argwhere(true_ice_mask)[-1][-1]
+    #costs[4] = reg_parameters[4] * ((model_bed_h[last_glacier_pixel + 1] -
+    #                                 2 * model_bed_h[last_glacier_pixel] +
+    #                                 model_bed_h[last_glacier_pixel - 1]) /
+    #                                dx**2).pow(2)
 
     return costs

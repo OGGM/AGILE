@@ -135,6 +135,8 @@ class DataLogger(object):
         self.guessed_opti_var_1 = np.empty((0, self.geometry['nx']))
         # variable for gradients
         self.grads_opti_var_1 = np.empty((0, self.geometry['nx']))
+        # variable to save last message of minimisation algorithm
+        self.message_opti_var_1 = ''
 
         # check if second optimisation variable is needed
         if self.opti_var_2 is not None:
@@ -148,6 +150,8 @@ class DataLogger(object):
             self.guessed_opti_var_2 = np.empty((0, self.geometry['nx']))
             # variable for gradients
             self.grads_opti_var_2 = np.empty((0, self.geometry['nx']))
+            # variable to save last message of minimisation algorithm
+            self.message_opti_var_2 = ''
 
         # create info Text for callback_fct
         self.info_text = '''
@@ -357,7 +361,9 @@ Main Iteration number {iteration:d}:'''
                 'geometry_of_bed_h': self.geometry_bed_h,
                 'along_glacier_geometry': self.along_glacier_geometry,
                 'solver': self.solver,
-                'computing_time': self.computing_time
+                'computing_time': self.computing_time,
+                'last minimisation message' + self.opti_var_1:
+                    self.message_opti_var_1
             })
 
         # check if there is a second optimisation variable
@@ -380,6 +386,8 @@ Main Iteration number {iteration:d}:'''
                  self.grads_opti_var_2)
             dataset.attrs['optimisation of two variables'] = \
                 self.two_parameter_option
+            dataset.attrs['last minimisation message' + self.opti_var_1] = \
+                self.message_opti_var_2
 
         # add spinup surface
         dataset['spinup_sfc_h'] = \

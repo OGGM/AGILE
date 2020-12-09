@@ -246,11 +246,22 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
             # checking success for separated optimisation
             if (dl.two_parameter_option == 'separated') & \
                (dl.opti_var_2 is not None):
-                if res.success:
+                # status = 0 is success, status = 2 no further minimisation
+                # possible (e.g. wrong line search direction)
+                if res.status in [0, 2]:
                     if loop_opti_var == 'bed_h':
                         success_opti_var_1 = True
                     else:
                         success_opti_var_2 = True
+                if loop_opti_var == 'bed_h':
+                    message_opti_var_1 = res.message
+                else:
+                    message_opti_var_2 = res.message
+            elif loop_opti_var in ['bed_h', 'bed_shape', 'w0']:
+                message_opti_var_1 = res.message
+            elif loop_opti_var in ['bed_h and bed_shape', 'bed_h and w0']:
+                message_opti_var_1 = res.message
+                message_opti_var_2 = res.message
 
         # now in mainiteration for loop check if separated optimisation was
         # successfull for both variables and exit loop if so
@@ -262,6 +273,10 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
 
     print('\n- Create Dataset and save as NetCDF data')
 
+    # add minimize message to datalogger
+    dl.message_opti_var_1 = str(message_opti_var_1)
+    if dl.opti_var_2 is not None:
+        dl.message_opti_var_2 = str(message_opti_var_2)
     dl.computing_time = end_time - start_time
     # filter out data used by minimize function for exploratory
     dl.filter_data_from_optimization()
