@@ -38,6 +38,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                                             'disp': True,
                                                             'maxcor': 50,
                                                             'maxls': 50},
+                                   years_to_run=None,  # needed for equ exp.
                                    job_id=0,  # only needed for cluster
                                    task_id=0  # only needed for cluster
                                    ):
@@ -66,6 +67,11 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
         mb_model = mb_model[1]
     elif glacier_state in ['advancing']:
         mb_model = mb_model[0]
+
+    # only needed for different years for equilibrium experiment
+    if years_to_run is not None:
+        measurements['yrs_to_run'] = years_to_run
+
     print('\n    ---DONE---')
 
     print('\n- Get first guess: ')
@@ -271,6 +277,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
     end_time = time.time()
     print('\n    ---Done (stop timer) ---')
 
+    return np.arange(len(dl.step_indices)) + 1
     print('\n- Create Dataset and save as NetCDF data')
 
     # add minimize message to datalogger

@@ -185,6 +185,8 @@ class DataLogger(object):
             self.filename += 'clif_'
         elif self.geometry_bed_h == 'random':
             self.filename += 'rand_'
+        elif self.geometry_bed_h == 'HEF':
+            self.filename += 'HEF_'
         else:
             raise ValueError('Unknown bed height geometry!')
 
@@ -192,6 +194,8 @@ class DataLogger(object):
             self.filename += 'cons_'
         elif self.along_glacier_geometry == 'random':
             self.filename += 'rand_'
+        elif self.along_glacier_geometry == 'HEF':
+            self.filename += ''
         else:
             raise ValueError('Unknown along glacier geometry!')
 
