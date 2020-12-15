@@ -277,7 +277,6 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
     end_time = time.time()
     print('\n    ---Done (stop timer) ---')
 
-    return np.arange(len(dl.step_indices)) + 1
     print('\n- Create Dataset and save as NetCDF data')
 
     # add minimize message to datalogger

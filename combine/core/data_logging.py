@@ -297,140 +297,227 @@ Main Iteration number {iteration:d}:'''
                 self.current_main_iterations[index])
 
     def create_and_save_dataset(self):
-        dataset = xr.Dataset(
-            data_vars={
-                'true_' + self.opti_var_1:
-                    (['points_with_ice'],
-                     self.true_opti_var_1),
-                'first_guessed_' + self.opti_var_1:
-                    (['points_with_ice'],
-                     self.first_guessed_opti_var_1),
-                'guessed_' + self.opti_var_1:
-                    (['nr_of_iteration', 'points_with_ice'],
-                     self.guessed_opti_var_1),
-                'cost':
-                    (['nr_of_iteration'],
-                     self.costs),
-                'cost_terms':
-                    (['nr_of_iteration', 'nr_of_reg_parameter'],
-                     self.c_terms),
-                'gradients_' + self.opti_var_1:
-                    (['nr_of_iteration', 'points_with_ice'],
-                     self.grads_opti_var_1),
-                'function_calls':
-                    (['nr_of_iteration'],
-                     self.fct_calls),
-                'optimisation_variable':
-                    (['nr_of_iteration'],
-                     self.opti_var_iteration),
-                'ice_mask':
-                    (['total_distance'],
-                     self.squeeze_generic(self.ice_mask)),
-                'true_surface_h':
-                    (['total_distance'],
-                     self.squeeze_generic(self.true_sfc_h)),
-                'first_guess_surface_h':
-                    (['total_distance'],
-                     self.squeeze_generic(self.fg_sfc_h)),
-                'surface_h':
-                    (['nr_of_iteration', 'total_distance'],
-                     self.sfc_h),
-                'true_widths':
-                    (['total_distance'],
-                     self.squeeze_generic(self.true_widths)),
-                'first_guess_widths':
-                    (['total_distance'],
-                     self.squeeze_generic(self.fg_widths)),
-                'widths':
-                    (['nr_of_iteration', 'total_distance'],
-                     self.widths),
-                'total_true_' + self.opti_var_1:
-                    (['total_distance'],
-                     self.geometry[self.opti_var_1])
-            },
-            coords={
-                'total_distance': self.geometry['distance_along_glacier'],
-                'points_with_ice': np.arange(len(self.true_opti_var_1)),
-                'nr_of_iteration': np.arange(len(self.step_indices)) + 1,
-                'nr_of_reg_parameter': np.arange(len(self.reg_parameters))
-            },
-            attrs={
-                'reg_parameters': self.reg_parameters,
-                'glacier_state': self.glacier_state,
-                'domain_points': self.geometry['nx'],
-                'distance_between_points_m': self.geometry['map_dx'],
-                'years_of_model_run': self.measurements['yrs_to_run'],
-                'mb_ELA': self.mb_opts['ELA'],
-                'mb_grad': self.mb_opts['grad'],
-                'geometry_of_bed_h': self.geometry_bed_h,
-                'along_glacier_geometry': self.along_glacier_geometry,
-                'solver': self.solver,
-                'computing_time': self.computing_time,
-                'last minimisation message' + self.opti_var_1:
-                    self.message_opti_var_1
-            })
+        # check if minimisation could find one improvement
+        if np.arange(len(self.step_indices)).size != 0:
+            dataset = xr.Dataset(
+                data_vars={
+                    'true_' + self.opti_var_1:
+                        (['points_with_ice'],
+                         self.true_opti_var_1),
+                    'first_guessed_' + self.opti_var_1:
+                        (['points_with_ice'],
+                         self.first_guessed_opti_var_1),
+                    'guessed_' + self.opti_var_1:
+                        (['nr_of_iteration', 'points_with_ice'],
+                         self.guessed_opti_var_1),
+                    'cost':
+                        (['nr_of_iteration'],
+                         self.costs),
+                    'cost_terms':
+                        (['nr_of_iteration', 'nr_of_reg_parameter'],
+                         self.c_terms),
+                    'gradients_' + self.opti_var_1:
+                        (['nr_of_iteration', 'points_with_ice'],
+                         self.grads_opti_var_1),
+                    'function_calls':
+                        (['nr_of_iteration'],
+                         self.fct_calls),
+                    'optimisation_variable':
+                        (['nr_of_iteration'],
+                         self.opti_var_iteration),
+                    'ice_mask':
+                        (['total_distance'],
+                         self.squeeze_generic(self.ice_mask)),
+                    'true_surface_h':
+                        (['total_distance'],
+                         self.squeeze_generic(self.true_sfc_h)),
+                    'first_guess_surface_h':
+                        (['total_distance'],
+                         self.squeeze_generic(self.fg_sfc_h)),
+                    'surface_h':
+                        (['nr_of_iteration', 'total_distance'],
+                         self.sfc_h),
+                    'true_widths':
+                        (['total_distance'],
+                         self.squeeze_generic(self.true_widths)),
+                    'first_guess_widths':
+                        (['total_distance'],
+                         self.squeeze_generic(self.fg_widths)),
+                    'widths':
+                        (['nr_of_iteration', 'total_distance'],
+                         self.widths),
+                    'total_true_' + self.opti_var_1:
+                        (['total_distance'],
+                         self.geometry[self.opti_var_1])
+                },
+                coords={
+                    'total_distance': self.geometry['distance_along_glacier'],
+                    'points_with_ice': np.arange(len(self.true_opti_var_1)),
+                    'nr_of_iteration': np.arange(len(self.step_indices)) + 1,
+                    'nr_of_reg_parameter': np.arange(len(self.reg_parameters))
+                },
+                attrs={
+                    'reg_parameters': self.reg_parameters,
+                    'glacier_state': self.glacier_state,
+                    'domain_points': self.geometry['nx'],
+                    'distance_between_points_m': self.geometry['map_dx'],
+                    'years_of_model_run': self.measurements['yrs_to_run'],
+                    'mb_ELA': self.mb_opts['ELA'],
+                    'mb_grad': self.mb_opts['grad'],
+                    'geometry_of_bed_h': self.geometry_bed_h,
+                    'along_glacier_geometry': self.along_glacier_geometry,
+                    'solver': self.solver,
+                    'computing_time': self.computing_time,
+                    'last minimisation message' + self.opti_var_1:
+                        self.message_opti_var_1,
+                    'minimisation_possible': 'yes'
+                })
 
-        # check if there is a second optimisation variable
-        if self.opti_var_2 is not None:
-            # save additional data from second optimisation variable
-            dataset['true_' + self.opti_var_2] = \
-                (['points_with_ice'],
-                 self.squeeze_generic(self.true_opti_var_2))
-            dataset['first_guessed_' + self.opti_var_2] = \
-                (['points_with_ice'],
-                 self.squeeze_generic(self.first_guessed_opti_var_2))
-            dataset['guessed_' + self.opti_var_2] = \
-                (['nr_of_iteration', 'points_with_ice'],
-                 self.guessed_opti_var_2)
-            dataset['total_true_' + self.opti_var_2] = \
+            # check if there is a second optimisation variable
+            if self.opti_var_2 is not None:
+                # save additional data from second optimisation variable
+                dataset['true_' + self.opti_var_2] = \
+                    (['points_with_ice'],
+                     self.squeeze_generic(self.true_opti_var_2))
+                dataset['first_guessed_' + self.opti_var_2] = \
+                    (['points_with_ice'],
+                     self.squeeze_generic(self.first_guessed_opti_var_2))
+                dataset['guessed_' + self.opti_var_2] = \
+                    (['nr_of_iteration', 'points_with_ice'],
+                     self.guessed_opti_var_2)
+                dataset['total_true_' + self.opti_var_2] = \
+                    (['total_distance'],
+                     self.geometry[self.opti_var_2])
+                dataset['gradients_' + self.opti_var_2] = \
+                    (['nr_of_iteration', 'points_with_ice'],
+                     self.grads_opti_var_2)
+                dataset.attrs['optimisation of two variables'] = \
+                    self.two_parameter_option
+                dataset.attrs['last minimisation message' + self.opti_var_1] =\
+                    self.message_opti_var_2
+
+            # add spinup surface
+            dataset['spinup_sfc_h'] = \
                 (['total_distance'],
-                 self.geometry[self.opti_var_2])
-            dataset['gradients_' + self.opti_var_2] = \
-                (['nr_of_iteration', 'points_with_ice'],
-                 self.grads_opti_var_2)
-            dataset.attrs['optimisation of two variables'] = \
-                self.two_parameter_option
-            dataset.attrs['last minimisation message' + self.opti_var_1] = \
-                self.message_opti_var_2
+                 self.measurements['spinup_sfc'])
 
-        # add spinup surface
-        dataset['spinup_sfc_h'] = \
-            (['total_distance'],
-             self.measurements['spinup_sfc'])
+            # save current main iteration (only when optimisaton for two
+            # parameters is separated)
+            dataset['current_main_iterations'] = \
+                (['nr_of_iteration'],
+                 self.current_main_iterations)
+            dataset.attrs['max_number_of_main_iteration(separeted)'] = \
+                self.main_iterations_separeted
 
-        # save current main iteration (only when optimisaton for two parameters
-        # is separated)
-        dataset['current_main_iterations'] = \
-            (['nr_of_iteration'],
-             self.current_main_iterations)
-        dataset.attrs['max_number_of_main_iteration(separeted)'] = \
-            self.main_iterations_separeted
+            # add options of minimisation function with prefix 'minimize_'
+            for key in self.minimize_options:
+                if key != 'disp':
+                    dataset.attrs['minimize_' + key] = \
+                        self.minimize_options[key]
 
-        # add options of minimisation function with prefix 'minimize_'
-        for key in self.minimize_options:
-            if key != 'disp':
-                dataset.attrs['minimize_' + key] = self.minimize_options[key]
+            # add to filename if maxiterations were used
+            dataset.attrs['maxiter_reached'] = 'no'
+            if (self.opti_var_2 is None) or \
+               (self.two_parameter_option in ['at_once', 'calculated']):
+                if (len(self.step_indices) ==
+                   self.minimize_options['maxiter']):
+                    # self.filename += '_maxiter'
+                    # task_id only needed for cluster computation
+                    # self.filename += ('_' + str(self.task_id))
+                    dataset.attrs['maxiter_reached'] = 'yes'
+            elif self.two_parameter_option == 'separated':
+                if self.current_main_iterations[-1] == \
+                   self.main_iterations_separeted:
+                    # self.filename += '_maxiter'
+                    # task_id only needed for cluster computation
+                    # self.filename += ('_' + str(self.task_id))
+                    dataset.attrs['maxiter_reached'] = 'yes'
+            else:
+                raise ValueError('Somthing went wrong by checking if maxiter'
+                                 ' was used!')
 
-        # add to filename if maxiterations were used
-        dataset.attrs['maxiter_reached'] = 'no'
-        if (self.opti_var_2 is None) or \
-           (self.two_parameter_option in ['at_once', 'calculated']):
-            if (len(self.step_indices) ==
-               self.minimize_options['maxiter']):
-                # self.filename += '_maxiter'
-                # task_id only needed for cluster computation
-                # self.filename += ('_' + str(self.task_id))
-                dataset.attrs['maxiter_reached'] = 'yes'
-        elif self.two_parameter_option == 'separated':
-            if self.current_main_iterations[-1] == \
-               self.main_iterations_separeted:
-                # self.filename += '_maxiter'
-                # task_id only needed for cluster computation
-                # self.filename += ('_' + str(self.task_id))
-                dataset.attrs['maxiter_reached'] = 'yes'
+        # in case no minimisation was possible at all
         else:
-            raise ValueError('Somthing went wrong by checking if maxiter was'
-                             'used!')
+            dataset = xr.Dataset(
+                data_vars={
+                    'true_' + self.opti_var_1:
+                        (['points_with_ice'],
+                         self.true_opti_var_1),
+                    'first_guessed_' + self.opti_var_1:
+                        (['points_with_ice'],
+                         self.first_guessed_opti_var_1),
+                    'ice_mask':
+                        (['total_distance'],
+                         self.squeeze_generic(self.ice_mask)),
+                    'true_surface_h':
+                        (['total_distance'],
+                         self.squeeze_generic(self.true_sfc_h)),
+                    'first_guess_surface_h':
+                        (['total_distance'],
+                         self.squeeze_generic(self.fg_sfc_h)),
+                    'true_widths':
+                        (['total_distance'],
+                         self.squeeze_generic(self.true_widths)),
+                    'first_guess_widths':
+                        (['total_distance'],
+                         self.squeeze_generic(self.fg_widths)),
+                    'total_true_' + self.opti_var_1:
+                        (['total_distance'],
+                         self.geometry[self.opti_var_1])
+                },
+                coords={
+                    'total_distance': self.geometry['distance_along_glacier'],
+                    'points_with_ice': np.arange(len(self.true_opti_var_1))
+                },
+                attrs={
+                    'reg_parameters': self.reg_parameters,
+                    'glacier_state': self.glacier_state,
+                    'domain_points': self.geometry['nx'],
+                    'distance_between_points_m': self.geometry['map_dx'],
+                    'years_of_model_run': self.measurements['yrs_to_run'],
+                    'mb_ELA': self.mb_opts['ELA'],
+                    'mb_grad': self.mb_opts['grad'],
+                    'geometry_of_bed_h': self.geometry_bed_h,
+                    'along_glacier_geometry': self.along_glacier_geometry,
+                    'solver': self.solver,
+                    'computing_time': self.computing_time,
+                    'last minimisation message' + self.opti_var_1:
+                        self.message_opti_var_1,
+                    'minimisation_possible': 'no'
+                })
+
+            # check if there is a second optimisation variable
+            if self.opti_var_2 is not None:
+                # save additional data from second optimisation variable
+                dataset['true_' + self.opti_var_2] = \
+                    (['points_with_ice'],
+                     self.squeeze_generic(self.true_opti_var_2))
+                dataset['first_guessed_' + self.opti_var_2] = \
+                    (['points_with_ice'],
+                     self.squeeze_generic(self.first_guessed_opti_var_2))
+                dataset['total_true_' + self.opti_var_2] = \
+                    (['total_distance'],
+                     self.geometry[self.opti_var_2])
+                dataset.attrs['optimisation of two variables'] = \
+                    self.two_parameter_option
+                dataset.attrs['last minimisation message' + self.opti_var_2] =\
+                    self.message_opti_var_2
+
+            # add spinup surface
+            dataset['spinup_sfc_h'] = \
+                (['total_distance'],
+                 self.measurements['spinup_sfc'])
+
+            # save current max number of main iteration (only when optimisaton
+            # for two parameters is separated)
+            dataset.attrs['max_number_of_main_iteration(separeted)'] = \
+                self.main_iterations_separeted
+
+            # add options of minimisation function with prefix 'minimize_'
+            for key in self.minimize_options:
+                if key != 'disp':
+                    dataset.attrs['minimize_' + key] = \
+                        self.minimize_options[key]
 
         # add given filename suffix
         self.filename += self.filename_suffix
