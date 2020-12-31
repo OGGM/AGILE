@@ -194,6 +194,8 @@ class DataLogger(object):
             self.filename += 'cons_'
         elif self.along_glacier_geometry == 'random':
             self.filename += 'rand_'
+        elif self.along_glacier_geometry == 'wide_top':
+            self.filename += 'wide_'
         elif self.along_glacier_geometry == 'HEF':
             self.filename += ''
         else:

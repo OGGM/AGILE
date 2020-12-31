@@ -12,7 +12,7 @@ import time
 def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                    used_along_glacier_geometry='constant',
                                    bed_geometry='rectangular',
-                                   mb_opts={'ELA': np.array([3000., 3200.]),
+                                   mb_opts={'ELA': np.array([3100., 3300.]),
                                             'grad': np.array([4., 4.])},
                                    glacier_state='equilibrium',
                                    opti_parameter='bed_h',

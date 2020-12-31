@@ -180,9 +180,10 @@ def define_geometry(used_bed_h_geometry='linear',
         elif bed_geometry == 'parabolic':
             geometry['bed_shape'] = np.zeros(geometry['nx']) + 1.
         elif bed_geometry == 'trapezoidal':
-            geometry['w0'] = np.zeros(geometry['nx']) + 2.
+            geometry['w0'] = np.zeros(geometry['nx']) + 1.
         else:
             raise ValueError('Unkonwn bed shape!')
+
     elif used_along_glacier_geometry == 'random':
         np.random.seed(0)
         random_shape = np.random.normal(loc=1.,
@@ -197,6 +198,21 @@ def define_geometry(used_bed_h_geometry='linear',
             geometry['w0'] = random_shape
         else:
             raise ValueError('Unkonwn bed shape!')
+
+    elif used_along_glacier_geometry == 'wide_top':
+        top_len = np.int(np.round(geometry['nx']/5))
+        bottom_len = np.int(geometry['nx'] - top_len)
+
+        if bed_geometry == 'rectangular':
+            geometry['widths'] = np.append(np.ones(top_len) * 1.,
+                                           np.ones(bottom_len) * 0.5)
+        elif bed_geometry == 'parabolic':
+            geometry['bed_shape'] = np.append(np.ones(top_len) * 1.,
+                                              np.ones(bottom_len) * 2.)
+        elif bed_geometry == 'trapezoidal':
+            geometry['w0'] = np.append(np.ones(top_len) * 1.,
+                                       np.ones(bottom_len) * 0.5)
+
     elif used_along_glacier_geometry == 'HEF':
         if bed_geometry == 'rectangular':
             raise ValueError('HEF with rectangular bed shape not supported'
@@ -249,7 +265,7 @@ def define_geometry(used_bed_h_geometry='linear',
     return geometry
 
 
-def define_mb_model(mb_opts={'ELA': np.array([3000., 3200.]),
+def define_mb_model(mb_opts={'ELA': np.array([3100., 3300.]),
                              'grad': np.array([4., 4.])}):
     '''
     generate one or more OGGM LinearMassBalance models
