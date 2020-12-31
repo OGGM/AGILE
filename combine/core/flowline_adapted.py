@@ -621,7 +621,6 @@ class FlowlineModel(object):
         # Do we even have to optimise?
         if self.mb_elev_feedback == 'always':
             # Version with OGGM MassBalanceModel
-            # heights = to_numpy_array(heights)
             return self._mb_call(heights, year=year, fl_id=fl_id, fls=fls)
 
         # Ok, user asked for it
@@ -632,7 +631,7 @@ class FlowlineModel(object):
             # The very first call we take the heights
             if fl_id not in self._mb_current_heights:
                 # We need to reset just this tributary
-                self._mb_current_heights[fl_id] = to_numpy_array(heights)
+                self._mb_current_heights[fl_id] = heights
             # All calls we replace
             heights = self._mb_current_heights[fl_id]
 
@@ -645,20 +644,18 @@ class FlowlineModel(object):
             if fl_id not in self._mb_current_out:
                 # We need to reset just this tributary
                 # Version with OGGM MassBalanceModel
-                # heights = to_numpy_array(heights)
                 self._mb_current_out[fl_id] = self._mb_call(heights,
                                                             year=year,
-                                                            fl_id=fl_id)
-                                                            # TODO: fls=fls)
+                                                            fl_id=fl_id,
+                                                            fls=fls)
         else:
             # We need to reset all
             self._mb_current_date = date
             self._mb_current_out = dict()
-            heights = to_numpy_array(heights)
             self._mb_current_out[fl_id] = self._mb_call(heights,
                                                         year=year,
-                                                        fl_id=fl_id)
-                                                        # TODO: fls=fls)
+                                                        fl_id=fl_id,
+                                                        fls=fls)
 
         return self._mb_current_out[fl_id]
 
@@ -1050,7 +1047,7 @@ class RectangularBedDiffusiveFlowlineModel(FlowlineModel):
         # get massbalance
         m_dot = torch.tensor(self.get_mb(fl.surface_h,
                                          self.yr,
-                                         fl_id=id(fl)),
+                                         fl_id=0),
                              dtype=dtype,
                              requires_grad=False)
 
@@ -1229,12 +1226,14 @@ class FluxBasedModel(FlowlineModel):
         # get massbalance with OGGM MassBalanceModel
         # m_dot = torch.tensor(self.get_mb(fl.surface_h,
         #                                  self.yr,
-        #                                  fl_id=id(fl)),
+        #                                  fl_id=0),
         #                      dtype=dtype,
         #                      requires_grad=False)
 
         # get massbalance with COMBINE MassBalanceModel
-        m_dot = self.get_mb(S)
+        m_dot = self.get_mb(S,
+                            year=self.yr,
+                            fl_id=0)  # 0 because only one flowline
 
         # allow parabolic bed to grow
         m_dot_use = m_dot * torch.where((m_dot > 0.) & (w == 0),
