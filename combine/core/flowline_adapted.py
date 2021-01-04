@@ -256,9 +256,11 @@ class ParabolicBedFlowline(Flowline):
             print(self.bed_shape)
         assert torch.all(torch.isfinite(self.bed_shape))
 
-        # use defined function with gradient computation
-        self.widths = para_width_from_thick.apply(self.bed_shape,
-                                                  self.thick) / self.map_dx
+    @property
+    def widths_m(self):
+        """Compute the widths out of H and shape"""
+        return para_width_from_thick.apply(self.bed_shape,
+                                           self.thick)
 
     @property
     def section(self):
@@ -288,7 +290,7 @@ class RectangularBedFlowline(Flowline):
     """
 
     def __init__(self, line=None, dx=None, map_dx=None,
-                 surface_h=None, bed_h=None, widths=None, rgi_id=None,
+                 surface_h=None, bed_h=None, widths_m=None, rgi_id=None,
                  water_level=None, torch_type=torch.float):
         """ Instanciate.
 
@@ -309,7 +311,7 @@ class RectangularBedFlowline(Flowline):
 
         self.fl_type = 'RectangularFlowline'
 
-        self.widths = to_torch_tensor(widths, self.torch_type)
+        self.widths_m = to_torch_tensor(widths_m, self.torch_type)
 
     @property
     def section(self):
@@ -317,7 +319,7 @@ class RectangularBedFlowline(Flowline):
 
     @section.setter
     def section(self, val):
-        val = to_torch_tensor(val, self.torch_type)
+        # val = to_torch_tensor(val, self.torch_type)
         self.thick = val / self.widths_m
 
     @utils.lazy_property
@@ -335,7 +337,7 @@ class TrapezoidalBedFlowline(Flowline):
     """
 
     def __init__(self, line=None, dx=None, map_dx=None, surface_h=None,
-                 bed_h=None, w0=None, lambdas=None, rgi_id=None,
+                 bed_h=None, w0_m=None, lambdas=None, rgi_id=None,
                  water_level=None, torch_type=torch.float):
         """ Instanciate.
 
@@ -359,7 +361,7 @@ class TrapezoidalBedFlowline(Flowline):
         self._lambdas = to_torch_tensor(lambdas,
                                         self.torch_type)
 
-        self._w0_m = w0 * self.map_dx
+        self._w0_m = w0_m
 
         if torch.any(self._w0_m <= 0):
             raise ValueError('Trapezoid beds need to have origin widths > 0.')
@@ -379,14 +381,17 @@ class TrapezoidalBedFlowline(Flowline):
 
     @section.setter
     def section(self, val):
-        val = to_torch_tensor(val, self.torch_type)
-
-        b = 2 * self._w0_m
-        a = 2 * self._lambdas
-        with np.errstate(divide='ignore', invalid='ignore'):
-            thick = (torch.sqrt(b**2 + 4 * a * val) - b) / a
-        thick[self._prec] = val[self._prec] / self._w0_m[self._prec]
+        thick = (torch.sqrt(self._w0_m**2 + 2 * self._lambdas * val) -
+                 self._w0_m) / self._lambdas
         self.thick = thick
+        # val = to_torch_tensor(val, self.torch_type)
+
+        # b = 2 * self._w0_m
+        # a = 2 * self._lambdas
+        # with np.errstate(divide='ignore', invalid='ignore'):
+        #    thick = (torch.sqrt(b**2 + 4 * a * val) - b) / a
+        # thick[self._prec] = val[self._prec] / self._w0_m[self._prec]
+        # self.thick = thick
 
     @utils.lazy_property
     def shape_str(self):
@@ -1165,20 +1170,21 @@ class FluxBasedModel(FlowlineModel):
 
         H = fl.thick
         S = fl.surface_h
-        # CS = fl.section
+        CS = fl.section
+        w = fl.widths_m
 
         # Calculate area of cross section in accordance to flowlinetype
-        if fl.fl_type == 'RectangularFlowline':
-            w = fl.widths * fl.map_dx
-            CS = H * w
-        elif fl.fl_type == 'ParabolicFlowline':
-            w = fl.widths * fl.map_dx
-            CS = 2./3. * H * w
-        elif fl.fl_type == 'TrapezoidalFlowline':
-            w = fl.widths_m
-            CS = fl.section
-        else:
-            raise ValueError('Unknown flowline type!')
+        #if fl.fl_type == 'RectangularFlowline':
+           # w = fl.widths * fl.map_dx
+            #CS = H * w
+        #elif fl.fl_type == 'ParabolicFlowline':
+            #w = fl.widths * fl.map_dx
+            #CS = 2./3. * H * w
+        #elif fl.fl_type == 'TrapezoidalFlowline':
+            #w = fl.widths_m
+            #CS = fl.section
+        #else:
+            #raise ValueError('Unknown flowline type!')
 
         # Surface gradient on staggerd grid
         S_grad = (S[self.k_right] - S[self.k_left]) / dx
@@ -1246,21 +1252,24 @@ class FluxBasedModel(FlowlineModel):
         CS_new = torch.clamp(CS + dt_use * (q_grad + m_dot_use),
                              min=0)
 
+        # save new section in flowline
+        self.fls[0].section = CS_new
         # calculate new ice thickness and width according to flowline type
-        if fl.fl_type == 'RectangularFlowline':
-            self.fls[0].thick = torch.clamp(CS_new / w, min=0)
-        elif fl.fl_type == 'ParabolicFlowline':
-            H_new = para_thick_from_section.apply(self.fls[0].bed_shape,
-                                                  CS_new)
-            self.fls[0].thick = torch.clamp(H_new, min=0)
-            w_new = para_width_from_thick.apply(self.fls[0].bed_shape,
-                                                self.fls[0].thick)
-            self.fls[0].widths = w_new / fl.map_dx
-        elif fl.fl_type == 'TrapezoidalFlowline':
-            H_new = (torch.sqrt(self.fls[0]._w0_m**2 +
-                                2 * self.fls[0]._lambdas * CS_new) -
-                     self.fls[0]._w0_m) / self.fls[0]._lambdas
-            self.fls[0].thick = torch.clamp(H_new, min=0)
+        # if fl.fl_type == 'RectangularFlowline':
+        #     self.fls[0].thick = torch.clamp(CS_new / w, min=0)
+        #    self.fls[0].section = CS_new
+        # elif fl.fl_type == 'ParabolicFlowline':
+        #    H_new = para_thick_from_section.apply(self.fls[0].bed_shape,
+        #                                          CS_new)
+        #    self.fls[0].thick = torch.clamp(H_new, min=0)
+        #    w_new = para_width_from_thick.apply(self.fls[0].bed_shape,
+        #                                        self.fls[0].thick)
+        #    self.fls[0].widths_m = w_new
+        # elif fl.fl_type == 'TrapezoidalFlowline':
+        #    H_new = (torch.sqrt(self.fls[0]._w0_m**2 +
+        #                        2 * self.fls[0]._lambdas * CS_new) -
+        #             self.fls[0]._w0_m) / self.fls[0]._lambdas
+        #    self.fls[0].thick = torch.clamp(H_new, min=0)
 
         # save new section in flowline
         # self.fls[0].section = torch.clamp(CS_new, min=0)

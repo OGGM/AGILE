@@ -176,11 +176,11 @@ def define_geometry(used_bed_h_geometry='linear',
 
     if used_along_glacier_geometry == 'constant':
         if bed_geometry == 'rectangular':
-            geometry['widths'] = np.zeros(geometry['nx']) + 1.
+            geometry['widths_m'] = np.zeros(geometry['nx']) + 100.
         elif bed_geometry == 'parabolic':
             geometry['bed_shape'] = np.zeros(geometry['nx']) + 1.
         elif bed_geometry == 'trapezoidal':
-            geometry['w0'] = np.zeros(geometry['nx']) + 1.
+            geometry['w0_m'] = np.zeros(geometry['nx']) + 100.
         else:
             raise ValueError('Unkonwn bed shape!')
 
@@ -191,11 +191,11 @@ def define_geometry(used_bed_h_geometry='linear',
                                         size=geometry['nx'])
 
         if bed_geometry == 'rectangular':
-            geometry['widths'] = random_shape
+            geometry['widths_m'] = random_shape
         elif bed_geometry == 'parabolic':
             geometry['bed_shape'] = random_shape
         elif bed_geometry == 'trapezoidal':
-            geometry['w0'] = random_shape
+            geometry['w0_m'] = random_shape
         else:
             raise ValueError('Unkonwn bed shape!')
 
@@ -204,14 +204,14 @@ def define_geometry(used_bed_h_geometry='linear',
         bottom_len = np.int(geometry['nx'] - top_len)
 
         if bed_geometry == 'rectangular':
-            geometry['widths'] = np.append(np.ones(top_len) * 1.,
-                                           np.ones(bottom_len) * 0.5)
+            geometry['widths_m'] = np.append(np.ones(top_len) * 100.,
+                                             np.ones(bottom_len) * 50.)
         elif bed_geometry == 'parabolic':
             geometry['bed_shape'] = np.append(np.ones(top_len) * 1.,
                                               np.ones(bottom_len) * 2.)
         elif bed_geometry == 'trapezoidal':
-            geometry['w0'] = np.append(np.ones(top_len) * 1.,
-                                       np.ones(bottom_len) * 0.5)
+            geometry['w0_m'] = np.append(np.ones(top_len) * 100.,
+                                         np.ones(bottom_len) * 50.)
 
     elif used_along_glacier_geometry == 'HEF':
         if bed_geometry == 'rectangular':
@@ -345,7 +345,8 @@ def create_measurements(geometry,
     if bed_geometry == 'rectangular':
         oggm_fl = RectangularBedFlowline(surface_h=geometry['bed_h'],
                                          bed_h=geometry['bed_h'],
-                                         widths=geometry['widths'],
+                                         widths=(geometry['widths_m'] /
+                                                 geometry['map_dx']),
                                          map_dx=geometry['map_dx'])
     elif bed_geometry == 'parabolic':
         oggm_fl = ParabolicBedFlowline(surface_h=geometry['bed_h'],
@@ -357,7 +358,7 @@ def create_measurements(geometry,
         # (see https://docs.oggm.org/en/latest/ice-dynamics.html#trapezoidal)
         oggm_fl = TrapezoidalBedFlowline(surface_h=geometry['bed_h'],
                                          bed_h=geometry['bed_h'],
-                                         widths=(geometry['w0'] /
+                                         widths=(geometry['w0_m'] /
                                                  geometry['map_dx']),
                                          lambdas=np.zeros(geometry['nx']) + 1.,
                                          map_dx=geometry['map_dx'],

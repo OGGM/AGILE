@@ -49,7 +49,7 @@ def run_flowline_forward_core(bed_h, shape_var, bed_geometry, mb_model,
     if bed_geometry == 'rectangular':
         flowline = RectangularBedFlowline(surface_h=spinup_sfc_h,
                                           bed_h=bed_h,
-                                          widths=shape_var,
+                                          widths_m=shape_var,
                                           map_dx=map_dx,
                                           torch_type=torch_type)
     elif bed_geometry == 'parabolic':
@@ -68,7 +68,7 @@ def run_flowline_forward_core(bed_h, shape_var, bed_geometry, mb_model,
         # w0 = torch.clamp(shape_var, min=1.) should be done by bounds
         flowline = TrapezoidalBedFlowline(surface_h=spinup_sfc_h,
                                           bed_h=bed_h,
-                                          w0=shape_var,
+                                          w0_m=shape_var,
                                           lambdas=lambdas,
                                           map_dx=map_dx,
                                           torch_type=torch_type)
