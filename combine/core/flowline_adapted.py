@@ -1230,7 +1230,7 @@ class FluxBasedModel(FlowlineModel):
 
         # check timestep that timestep is at least max_dt / 100, to avoid
         # memory overfolw and a break down of the program
-        if (dt_use != dt) and (dt_use / self.max_dt < 0.01):
+        if (dt_use != dt) and (dt_use / self.max_dt < 0.001):
             raise MemoryError('Stopping dynamics run to avoid memory overflow')
 
         # get massbalance with OGGM MassBalanceModel

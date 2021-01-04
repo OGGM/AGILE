@@ -82,6 +82,8 @@ def create_cost_fct(known_parameter,
                     opti_var,
                     two_parameter_option,
                     datalogger,
+                    grad_scaling={'bed_h': 1,
+                                  'shape_var': 1},
                     only_get_c_terms=False,
                     torch_type='double'):
     '''
@@ -132,6 +134,7 @@ def create_cost_fct(known_parameter,
                         opti_var,
                         two_parameter_option,
                         datalogger,
+                        grad_scaling,
                         only_get_c_terms,
                         torch_type)
 
@@ -149,6 +152,8 @@ def cost_fct(unknown_parameter,
              opti_var,
              two_parameter_option,
              datalogger,
+             grad_scaling={'bed_h': 1,
+                           'shape_var': 1},
              only_get_c_terms=False,
              torch_type='double'):
     '''
@@ -432,9 +437,12 @@ def cost_fct(unknown_parameter,
         grad = shape_var_unknown.grad.detach().numpy().astype(np.float64)
     elif opti_var in ['bed_h and bed_shape', 'bed_h and w0']:
         if two_parameter_option == 'at_once':
-            grad_bed_h = bed_h_unknown.grad.detach().numpy().astype(np.float64)
+            grad_bed_h = \
+                bed_h_unknown.grad.detach().numpy().astype(np.float64) * \
+                grad_scaling['bed_h']
             grad_shape_var = \
-                shape_var_unknown.grad.detach().numpy().astype(np.float64)
+                shape_var_unknown.grad.detach().numpy().astype(np.float64) * \
+                grad_scaling['shape_var']
             grad = np.append(grad_bed_h, grad_shape_var)
         elif two_parameter_option == 'calculated':
             grad = bed_h_unknown.grad.detach().numpy().astype(np.float64)

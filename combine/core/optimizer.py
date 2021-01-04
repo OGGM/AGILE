@@ -33,8 +33,10 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                    max_ice_h=1000,  # in m
                                    min_w0=10.,  # in m
                                    min_bed_shape=0.001,
+                                   grad_scaling={'bed_h': 1,
+                                                 'shape_var': 1},
                                    solver='L-BFGS-B',
-                                   save_plot=True,
+                                   save_plot=False,
                                    filename_suffix='',
                                    minimize_options_spinup={'maxiter': 10,
                                                             'ftol': 1e-7,
@@ -139,6 +141,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
         solver=solver,
         glacier_state=glacier_state,
         mb_opts=mb_opts,
+        grad_scaling=grad_scaling,
         filename_suffix=filename_suffix,
         task_id=task_id)
 
@@ -301,7 +304,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                 mb_model=mb_model,
                 opti_var=loop_opti_var,
                 two_parameter_option=dl.two_parameter_option,
-                datalogger=dl)
+                datalogger=dl,
+                grad_scaling=grad_scaling)
 
             res = minimize(fun=cost_fct,
                            x0=guess_parameter,
