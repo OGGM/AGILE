@@ -375,13 +375,6 @@ def cost_fct(unknown_parameter,
     # check if bed_h and shape_var are the same length
     assert len(bed_h) == len(shape_var), 'Parameters not the same length!!!'
 
-    # check that shape parameters is positive (neede for 'calculated' option),
-    # can be also done with bounds on input parameters, coming soon ;)
-    if np.any(np.sign(to_numpy_array(shape_var)) == -1):
-        cost = np.Inf
-        grad = np.empty(len(unknown_parameter)) * np.nan
-        return cost, grad
-
     # forward run of model, try is needed to avoid a memory overflow
     try:
         model_flowline = run_flowline_forward_core(
@@ -398,14 +391,14 @@ def cost_fct(unknown_parameter,
         model_widths = model_flowline.widths_m
         model_thicks = model_flowline.thick
     except MemoryError:
-        print('MemoryError in forward model run (due to a too small timestep) \
-              -> set Costfunction to Inf')
+        print('MemoryError in forward model run (due to a too small '
+              'timestep) -> set Costfunction to Inf')
         cost = np.Inf
         grad = np.empty(len(unknown_parameter)) * np.nan
         return cost, grad
 
     # calculate terms of cost function
-    c_terms = get_cost_terms_new(
+    c_terms = get_cost_terms(
         model_sfc_h=model_sfc_h,
         model_widths=model_widths,
         model_thicks=model_thicks,
@@ -565,76 +558,6 @@ def get_cost_terms(model_sfc_h,
     costs = torch.zeros(4,
                         dtype=torch_type)
 
-    # misfit between modeled and measured surface height
-    true_sfc_h = to_torch_tensor(true_sfc_h, torch_type)
-    costs[0] = reg_parameters[0] * (true_sfc_h - model_sfc_h).pow(2).sum()
-
-    # misfit between modeled and measured width
-    true_widths = to_torch_tensor(true_widths, torch_type)
-    costs[1] = reg_parameters[1] * ((true_widths - model_widths)).pow(2).sum()
-
-    # ice thickness close to zero where no glacier should be and vice versa
-    model_ice_mask = torch.where(model_thicks > 1e-2,
-                                 torch.tensor(1),
-                                 torch.tensor(0))
-    true_ice_mask = to_torch_tensor(true_ice_mask, torch_type)
-    costs[2] = reg_parameters[2] * torch.where(true_ice_mask != model_ice_mask,
-                                               torch.tensor(1.),
-                                               torch.tensor(0.)).sum()
-
-    # smoothnes of glacier bed
-    db_dx = (model_bed_h[1:] - model_bed_h[:-1]) / dx
-    costs[3] = reg_parameters[3] * db_dx.pow(2).sum()
-
-    return costs
-
-
-def get_cost_terms_new(model_sfc_h,
-                       model_widths,
-                       model_thicks,
-                       model_bed_h,
-                       true_sfc_h,
-                       true_widths,
-                       true_ice_mask,
-                       reg_parameters,
-                       dx,
-                       torch_type):
-    '''
-    Returns the individual terms of the cost function.
-
-    Parameters
-    ----------
-    model_sfc_h : :py:class:`torch.Tensor`
-        Surface heights of the modeled glacier.
-    model_widths : :py:class:`torch.Tensor`
-        Widths of the modeled glacier.
-    model_thicks : :py:class:`torch.Tensor`
-        Thickness of the modeled glacier.
-    model_bed_h : :py:class:`torch.Tensor`
-        Bed heights of the modeled glacier.
-    true_sfc_h : :py:class:`numpy.ndarray`
-        Surface heights from measurements.
-    true_widths : :py:class:`numpy.ndarray`
-        Widths from measurements.
-    true_ice_mask : :py:class:`numpy.ndarray`
-        Ice maks from measurements (1 = ice, 0 = no ice).
-    reg_parameters : :py:class:`numpy.ndarray`
-        Regularisation parameters for the individual terms.
-    dx : float
-        Model grid spacing in meters.
-    torch_type : :py:class:`torch.dtype`
-        Defines type for torch.Tensor.
-
-    Returns
-    -------
-    costs : :py:class:`torch.Tensor`
-        Contains the four terms of the final cost function.
-
-    '''
-    # calculate cost terms
-    costs = torch.zeros(4,
-                        dtype=torch_type)
-
     ice_mask = to_torch_tensor(true_ice_mask, torch.bool)
 
     # misfit between modeled and measured surface height for points with ice
@@ -654,10 +577,10 @@ def get_cost_terms_new(model_sfc_h,
     # smoothnes of glacier bed, use mean of forward and backward
     db_dx = (model_bed_h[1:] - model_bed_h[:-1]) / dx
     costs[3] = reg_parameters[3] * db_dx.pow(2).sum()
-    
+
     # smooth transition from at boundering pixel
-    #last_glacier_pixel = np.argwhere(true_ice_mask)[-1][-1]
-    #costs[4] = reg_parameters[4] * ((model_bed_h[last_glacier_pixel + 1] -
+    # last_glacier_pixel = np.argwhere(true_ice_mask)[-1][-1]
+    # costs[4] = reg_parameters[4] * ((model_bed_h[last_glacier_pixel + 1] -
     #                                 2 * model_bed_h[last_glacier_pixel] +
     #                                 model_bed_h[last_glacier_pixel - 1]) /
     #                                dx**2).pow(2)
