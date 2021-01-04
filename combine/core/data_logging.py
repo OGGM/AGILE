@@ -48,12 +48,15 @@ class DataLogger(object):
         self.true_sfc_h = self.measurements['sfc_h']
         self.widths = np.empty((0, self.geometry['nx']))
         self.true_widths = self.measurements['widths']
+        self.time_needed = np.empty((0, 1))
 
         # variable to keep track in which main iteration the algorithm is at
         # the current minimisation, only needed for separated optimisation
         self.current_main_iterations = np.empty((0, 1))
 
-        self.computing_time = 'no time recorded'
+        # variable to keep track of time
+        self.start_time = None
+        self.total_computing_time = 'no time recorded'
         self.fct_calls = np.array([0])
         # save optimisation variable of current iteration
         self.opti_var_iteration = np.empty((0, 1))
@@ -286,6 +289,7 @@ Main Iteration number {iteration:d}:'''
         self.c_terms = self.c_terms[index]
         self.sfc_h = self.sfc_h[index]
         self.widths = self.widths[index]
+        self.time_needed = self.squeeze_generic(self.time_needed[index])
         # + 1 in index because fct_calls starts with [0] and not empty
         self.fct_calls = self.squeeze_generic(self.fct_calls[index + 1])
         self.opti_var_iteration = self.squeeze_generic(
@@ -350,7 +354,10 @@ Main Iteration number {iteration:d}:'''
                          self.widths),
                     'total_true_' + self.opti_var_1:
                         (['total_distance'],
-                         self.geometry[self.opti_var_1])
+                         self.geometry[self.opti_var_1]),
+                    'computing_time':
+                        (['nr_of_iteration'],
+                         self.time_needed)
                 },
                 coords={
                     'total_distance': self.geometry['distance_along_glacier'],
@@ -369,7 +376,7 @@ Main Iteration number {iteration:d}:'''
                     'geometry_of_bed_h': self.geometry_bed_h,
                     'along_glacier_geometry': self.along_glacier_geometry,
                     'solver': self.solver,
-                    'computing_time': self.computing_time,
+                    'total_computing_time': self.total_computing_time,
                     'last minimisation message' + self.opti_var_1:
                         self.message_opti_var_1,
                     'minimisation_possible': 'yes'
@@ -482,7 +489,7 @@ Main Iteration number {iteration:d}:'''
                     'geometry_of_bed_h': self.geometry_bed_h,
                     'along_glacier_geometry': self.along_glacier_geometry,
                     'solver': self.solver,
-                    'computing_time': self.computing_time,
+                    'total_computing_time': self.total_computing_time,
                     'last minimisation message' + self.opti_var_1:
                         self.message_opti_var_1,
                     'minimisation_possible': 'no'

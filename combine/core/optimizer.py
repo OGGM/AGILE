@@ -141,7 +141,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
     print('\n- Start minimising (start timer):')
 
     # save start time
-    start_time = time.time()
+    dl.start_time = time.time()
 
     # create an array with separareted optimisation variables if needed
     if (dl.two_parameter_option == 'separated') & (dl.opti_var_2 is not None):
@@ -283,7 +283,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
     dl.message_opti_var_1 = str(message_opti_var_1)
     if dl.opti_var_2 is not None:
         dl.message_opti_var_2 = str(message_opti_var_2)
-    dl.computing_time = end_time - start_time
+    dl.total_computing_time = end_time - dl.start_time
     # filter out data used by minimize function for exploratory
     dl.filter_data_from_optimization()
 

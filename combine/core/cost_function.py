@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import time
 
 from combine.core.dynamics import run_flowline_forward_core
 from combine.core.arithmetics import to_torch_tensor, to_numpy_array
@@ -457,6 +458,8 @@ def cost_fct(unknown_parameter,
     datalogger.save_data_in_datalogger('opti_var_iteration', opti_var)
     datalogger.save_data_in_datalogger('current_main_iterations',
                                        datalogger.main_iterations[-1])
+    datalogger.save_data_in_datalogger('time_needed',
+                                       time.time() - datalogger.start_time)
     if opti_var == 'bed_h':
         datalogger.save_data_in_datalogger('guessed_opti_var_1', bed_h_unknown)
         datalogger.save_data_in_datalogger('grads_opti_var_1', grad)
