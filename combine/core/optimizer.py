@@ -4,7 +4,7 @@ from combine.core.cost_function import create_cost_fct
 from scipy.optimize import minimize
 from combine.core.idealized_experiments import define_geometry,\
     define_mb_model, create_measurements, get_first_guess, get_reg_parameters,\
-    plot_result, get_spinup_sfc, first_guess_run
+    plot_result, get_spinup_sfc, first_guess_run, get_bounds
 from combine.core.data_logging import DataLogger
 import time
 
@@ -28,7 +28,10 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                                      'disp': True,
                                                      'maxcor': 50,
                                                      'maxls': 50},
-                                   minimize_bounds=None,
+                                   use_bounds=True,
+                                   min_ice_h=0.01,  # in m
+                                   max_ice_h=1000,  # in m
+                                   min_w0=1.,  # in m
                                    solver='L-BFGS-B',
                                    save_plot=True,
                                    filename_suffix='',
@@ -38,7 +41,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                                             'disp': True,
                                                             'maxcor': 50,
                                                             'maxls': 50},
-                                   years_to_run=None,  # needed for equ exp.
+                                   years_to_run=None,  # needed for equ exp. (how long should equilibrium run should last)
                                    job_id=0,  # only needed for cluster
                                    task_id=0  # only needed for cluster
                                    ):
@@ -162,6 +165,47 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
     else:
         raise ValueError('Unknown opti_parameter!')
 
+    # calculate control variable boundaries if wanted
+    if use_bounds is True:
+        sfc_h_ice = measurements['sfc_h'][measurements['ice_mask']]
+        widths_ice = measurements['widths'][measurements['ice_mask']]
+        bounds = {}
+        if dl.two_parameter_option == 'separated':
+            bounds['bed_h'] = get_bounds('bed_h',
+                                         measurements=sfc_h_ice,
+                                         min_value=min_ice_h,
+                                         max_value=max_ice_h)
+            if dl.opti_parameter == 'bed_h and bed_shape':
+                bounds['shape_var'] = get_bounds('bed_shape',
+                                                 measurements=sfc_h_ice)
+            elif dl.opti_parameter == 'bed_h and w0':
+                bounds['shape_var'] = get_bounds('w0',
+                                                 measurements=widths_ice,
+                                                 min_value=min_w0)
+        else:
+            if dl.opti_parameter in ['bed_h', 'bed_h and bed_shape',
+                                     'bed_h and w0']:
+                bounds['bed_h'] = get_bounds('bed_h',
+                                             measurements=sfc_h_ice,
+                                             min_value=min_ice_h,
+                                             max_value=max_ice_h)
+            if dl.opti_parameter in ['bed_shape', 'bed_h and bed_shape']:
+                bounds['bed_shape'] = get_bounds('bed_shape',
+                                                 measurements=sfc_h_ice)
+                bounds['shape_var'] = get_bounds('bed_shape',
+                                                 measurements=sfc_h_ice)
+            if dl.opti_parameter in ['w0', 'bed_h and w0']:
+                bounds['w0'] = get_bounds('w0',
+                                          measurements=widths_ice,
+                                          min_value=min_w0)
+                bounds['shape_var'] = get_bounds('w0',
+                                                 measurements=widths_ice,
+                                                 min_value=min_w0)
+            if dl.opti_parameter in ['bed_h and bed_shape', 'bed_h and w0']:
+                bounds['two_opti_var'] = bounds['bed_h'] + bounds['shape_var']
+    else:
+        minimize_bounds = None
+
     # the next two for loops only has an effect for separated optimisation
     for loop in np.arange(main_iterations_separeted):
         dl.main_iterations = np.append(dl.main_iterations, loop + 1)
@@ -183,11 +227,15 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                         known_parameter = dl.known_opti_var_1
                         geometry_var = np.append(dl.first_guessed_opti_var_2,
                                                  dl.known_opti_var_2)
+                        if use_bounds is True:
+                            minimize_bounds = bounds['bed_h']
                     else:
                         guess_parameter = dl.first_guessed_opti_var_2
                         known_parameter = dl.known_opti_var_2
                         geometry_var = np.append(dl.guessed_opti_var_1[-1],
                                                  dl.known_opti_var_1)
+                        if use_bounds is True:
+                            minimize_bounds = bounds['shape_var']
                 # if not in first main loop use already guessed variables
                 else:
                     if loop_opti_var == 'bed_h':
@@ -195,11 +243,15 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                         known_parameter = dl.known_opti_var_1
                         geometry_var = np.append(dl.guessed_opti_var_2[-1],
                                                  dl.known_opti_var_2)
+                        if use_bounds is True:
+                            minimize_bounds = bounds['bed_h']
                     else:
                         guess_parameter = dl.guessed_opti_var_2[-1]
                         known_parameter = dl.known_opti_var_2
                         geometry_var = np.append(dl.guessed_opti_var_1[-1],
                                                  dl.known_opti_var_1)
+                        if use_bounds is True:
+                            minimize_bounds = bounds['shape_var']
 
             # here you have only one optimisation variable or
             # two at_once/calculated
@@ -210,6 +262,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                     # here the second variable is selected (defined when
                     # creating the datalogger)
                     geometry_var = dl.geometry[dl.geometry_var]
+                    if use_bounds is True:
+                        minimize_bounds = bounds[loop_opti_var]
                 elif (
                      (loop_opti_var in ['bed_h and bed_shape', 'bed_h and w0'])
                       & (dl.two_parameter_option == 'at_once')
@@ -219,6 +273,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                     known_parameter = np.append(dl.known_opti_var_1,
                                                 dl.known_opti_var_2)
                     geometry_var = None
+                    if use_bounds is True:
+                        minimize_bounds = bounds['two_opti_var']
                 elif (
                      (loop_opti_var in ['bed_h and bed_shape', 'bed_h and w0'])
                       & (dl.two_parameter_option == 'calculated')
@@ -226,6 +282,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                     guess_parameter = dl.first_guessed_opti_var_1
                     known_parameter = dl.known_opti_var_1
                     geometry_var = dl.known_opti_var_2
+                    if use_bounds is True:
+                        minimize_bounds = bounds['bed_h']
                 else:
                     raise ValueError('Unknown optimisation variable!')
 

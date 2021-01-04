@@ -65,10 +65,10 @@ def run_flowline_forward_core(bed_h, shape_var, bed_geometry, mb_model,
                                dtype=torch_type,
                                requires_grad=False)
 
-        w0 = torch.clamp(shape_var, min=1.)
+        # w0 = torch.clamp(shape_var, min=1.) should be done by bounds
         flowline = TrapezoidalBedFlowline(surface_h=spinup_sfc_h,
                                           bed_h=bed_h,
-                                          w0=w0,
+                                          w0=shape_var,
                                           lambdas=lambdas,
                                           map_dx=map_dx,
                                           torch_type=torch_type)
