@@ -311,7 +311,11 @@ class RectangularBedFlowline(Flowline):
 
         self.fl_type = 'RectangularFlowline'
 
-        self.widths_m = to_torch_tensor(widths_m, self.torch_type)
+        self.widths = widths_m
+
+    @property
+    def widths_m(self):
+        return self.widths
 
     @property
     def section(self):

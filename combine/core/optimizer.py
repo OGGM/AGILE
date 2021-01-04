@@ -32,6 +32,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                    min_ice_h=0.01,  # in m
                                    max_ice_h=1000,  # in m
                                    min_w0=10.,  # in m
+                                   min_bed_shape=0.001,
                                    solver='L-BFGS-B',
                                    save_plot=True,
                                    filename_suffix='',
@@ -177,7 +178,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                          max_value=max_ice_h)
             if dl.opti_parameter == 'bed_h and bed_shape':
                 bounds['shape_var'] = get_bounds('bed_shape',
-                                                 measurements=sfc_h_ice)
+                                                 measurements=sfc_h_ice,
+                                                 min_value=min_bed_shape)
             elif dl.opti_parameter == 'bed_h and w0':
                 bounds['shape_var'] = get_bounds('w0',
                                                  measurements=widths_ice,
@@ -191,9 +193,11 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                              max_value=max_ice_h)
             if dl.opti_parameter in ['bed_shape', 'bed_h and bed_shape']:
                 bounds['bed_shape'] = get_bounds('bed_shape',
-                                                 measurements=sfc_h_ice)
+                                                 measurements=sfc_h_ice,
+                                                 min_value=min_bed_shape)
                 bounds['shape_var'] = get_bounds('bed_shape',
-                                                 measurements=sfc_h_ice)
+                                                 measurements=sfc_h_ice,
+                                                 min_value=min_bed_shape)
             if dl.opti_parameter in ['w0', 'bed_h and w0']:
                 bounds['w0'] = get_bounds('w0',
                                           measurements=widths_ice,
