@@ -793,6 +793,36 @@ def get_reg_parameters(opti_var,
     return reg_parameters
 
 
+def get_bounds(control_var,
+               measurements=None,
+               min_value=None,
+               max_value=None):
+    if control_var == 'bed_h':
+        if measurements is None:
+            raise ValueError('Need surface height measurements for bed_h '
+                             'bounds!')
+        if (min_value is None) or (max_value is None):
+            raise ValueError('Need max and min ice thickness for bed_h '
+                             'bounds!')
+        return [(sfc_h - max_value, sfc_h - min_value)
+                for sfc_h in measurements]
+
+    elif control_var == 'bed_shape':
+        if measurements is None:
+            raise ValueError('Need surface height/width measurements for '
+                             'bed_shape to have length of needed bounds!')
+        return [(0, None) for m in measurements]
+
+    elif control_var == 'w0':
+        if measurements is None:
+            raise ValueError('Need width measurements for w0 bounds!')
+        if min_value is None:
+            raise ValueError('Need a minimum value for w0!')
+        return [(min_value, width) for width in measurements]
+    else:
+        raise ValueError('Unknown control variable for bounds calculation!')
+
+
 def plot_result(dl, plot_height=450, plot_width=800):
     x = dl.geometry['distance_along_glacier']
 
