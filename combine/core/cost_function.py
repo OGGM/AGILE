@@ -84,6 +84,7 @@ def create_cost_fct(known_parameter,
                     datalogger,
                     grad_scaling={'bed_h': 1,
                                   'shape_var': 1},
+                    min_w0=10.,
                     only_get_c_terms=False,
                     torch_type='double'):
     '''
@@ -134,9 +135,10 @@ def create_cost_fct(known_parameter,
                         opti_var,
                         two_parameter_option,
                         datalogger,
-                        grad_scaling,
-                        only_get_c_terms,
-                        torch_type)
+                        grad_scaling=grad_scaling,
+                        min_w0=min_w0,
+                        only_get_c_terms=only_get_c_terms,
+                        torch_type=torch_type)
 
     return c_fun
 
@@ -154,6 +156,7 @@ def cost_fct(unknown_parameter,
              datalogger,
              grad_scaling={'bed_h': 1,
                            'shape_var': 1},
+             min_w0=10.,
              only_get_c_terms=False,
              torch_type='double'):
     '''
@@ -358,9 +361,10 @@ def cost_fct(unknown_parameter,
         true_widths = to_torch_tensor(measurements['widths'], torch_type)
         true_sfc_h = to_torch_tensor(measurements['sfc_h'], torch_type)
         # 1. for constant lambda of trapozidal bed geometry
-        shape_var_unknown = true_widths[ice_mask] - \
-            to_torch_tensor(1., torch_type) * \
-            (true_sfc_h[ice_mask] - bed_h_unknown)
+        shape_var_unknown = torch.clamp(true_widths[ice_mask] -
+                                        to_torch_tensor(1., torch_type) *
+                                        (true_sfc_h[ice_mask] - bed_h_unknown),
+                                        min=min_w0)
         shape_var = torch.empty(sum(list(shape_var_unknown.size() +
                                          shape_var_known.size())),
                                 dtype=torch_type,
