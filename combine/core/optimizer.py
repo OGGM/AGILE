@@ -305,7 +305,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                 opti_var=loop_opti_var,
                 two_parameter_option=dl.two_parameter_option,
                 datalogger=dl,
-                grad_scaling=grad_scaling)
+                grad_scaling=grad_scaling,
+                min_w0=min_w0)
 
             res = minimize(fun=cost_fct,
                            x0=guess_parameter,
