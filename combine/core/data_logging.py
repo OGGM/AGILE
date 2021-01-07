@@ -3,7 +3,8 @@ import numpy as np
 import xarray as xr
 import holoviews as hv
 from holoviews import opts
-from combine.core.arithmetics import RMSE, mean_BIAS, max_dif
+from combine.core.arithmetics import RMSE, mean_BIAS, max_dif, \
+    MaxCalculationTimeReached
 import os
 hv.extension('matplotlib')
 
@@ -16,8 +17,8 @@ class DataLogger(object):
                  main_iterations_separeted, geometry, measurements,
                  first_guess, fg_sfc_h, fg_widths, reg_parameters,
                  used_bed_h_geometry, used_along_glacier_geometry,
-                 minimize_options, solver, glacier_state, mb_opts,
-                 grad_scaling, filename_suffix, task_id):
+                 minimize_options, max_time_minimize, solver, glacier_state,
+                 mb_opts, grad_scaling, filename_suffix, task_id):
         # first save all initial data for idealized experiment
         self.bed_geometry = bed_geometry
         self.opti_parameter = opti_parameter
@@ -35,6 +36,7 @@ class DataLogger(object):
         self.two_parameter_option = two_parameter_option
         self.solver = solver
         self.minimize_options = minimize_options
+        self.max_time_minimize = max_time_minimize
         self.main_iterations_separeted = main_iterations_separeted
         self.filename_suffix = filename_suffix
         self.grad_scaling = grad_scaling
@@ -268,6 +270,11 @@ class DataLogger(object):
             # show text
             print(self.info_text.format(**args))
 
+            if self.max_time_minimize is not None:
+                # raise an exception if maximum calculation time is reached
+                if self.time_needed[-1] > self.max_time_minimize:
+                    raise MaxCalculationTimeReached()
+
     def main_iteration_callback(self):
         if self.two_parameter_option == 'separated':
             text = '''
@@ -356,6 +363,9 @@ Main Iteration number {iteration:d}:'''
                 'max_number_of_main_iteration(separeted)':
                     self.main_iterations_separeted
             })
+
+        if self.max_time_minimize is not None:
+            dataset.attrs['max_time_minimize'] = self.max_time_minimize
 
         # check if there is a second optimisation variable
         if self.opti_var_2 is not None:

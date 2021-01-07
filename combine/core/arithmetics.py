@@ -140,3 +140,8 @@ class para_thick_from_section(Function):
             section_grad = grad_output * section_mul
 
         return shape_grad, section_grad
+
+
+# Exception if maximum clauclation time of minimisation algorithm is reached
+class MaxCalculationTimeReached(Exception):
+    pass
