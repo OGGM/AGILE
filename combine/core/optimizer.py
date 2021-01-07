@@ -6,6 +6,7 @@ from combine.core.idealized_experiments import define_geometry,\
     define_mb_model, create_measurements, get_first_guess, get_reg_parameters,\
     plot_result, get_spinup_sfc, first_guess_run, get_bounds
 from combine.core.data_logging import DataLogger
+from combine.core.arithmetics import MaxCalculationTimeReached
 import time
 
 
@@ -28,6 +29,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                                      'disp': True,
                                                      'maxcor': 50,
                                                      'maxls': 50},
+                                   max_time_minimize=None,  # in s
                                    use_bounds=True,
                                    min_ice_h=0.01,  # in m
                                    max_ice_h=1000,  # in m
@@ -138,6 +140,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
         used_bed_h_geometry=used_bed_h_geometry,
         used_along_glacier_geometry=used_along_glacier_geometry,
         minimize_options=minimize_options,
+        max_time_minimize=max_time_minimize,
         solver=solver,
         glacier_state=glacier_state,
         mb_opts=mb_opts,
@@ -308,33 +311,48 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                 grad_scaling=grad_scaling,
                 min_w0=min_w0)
 
-            res = minimize(fun=cost_fct,
-                           x0=guess_parameter,
-                           method=solver,
-                           jac=True,
-                           bounds=minimize_bounds,
-                           options=minimize_options,
-                           callback=dl.callback_fct)
+            try:
+                res = minimize(fun=cost_fct,
+                               x0=guess_parameter,
+                               method=solver,
+                               jac=True,
+                               bounds=minimize_bounds,
+                               options=minimize_options,
+                               callback=dl.callback_fct)
+                minimize_message = res.message
+                minimize_status = res.status
+            except MaxCalculationTimeReached:
+                minimize_message = 'Maximum calculation time reached!'
+                minimize_status = 'max calc time reached'
 
             # checking success for separated optimisation
             if (dl.two_parameter_option == 'separated') & \
                (dl.opti_var_2 is not None):
+                # is needed if max calc time is reached in first main iteration
+                message_opti_var_2 = ''
+
+                if loop_opti_var == 'bed_h':
+                    message_opti_var_1 = minimize_message
+                else:
+                    message_opti_var_2 = minimize_message
                 # status = 0 is success, status = 2 no further minimisation
                 # possible (e.g. wrong line search direction)
-                if res.status in [0, 2]:
+                if minimize_status in [0, 2]:
                     if loop_opti_var == 'bed_h':
                         success_opti_var_1 = True
                     else:
                         success_opti_var_2 = True
-                if loop_opti_var == 'bed_h':
-                    message_opti_var_1 = res.message
-                else:
-                    message_opti_var_2 = res.message
+                elif minimize_status == 'max calc time reached':
+                    success_opti_var_1 = True
+                    success_opti_var_2 = True
+                    break
+
             elif loop_opti_var in ['bed_h', 'bed_shape', 'w0']:
-                message_opti_var_1 = res.message
+                message_opti_var_1 = minimize_message
+
             elif loop_opti_var in ['bed_h and bed_shape', 'bed_h and w0']:
-                message_opti_var_1 = res.message
-                message_opti_var_2 = res.message
+                message_opti_var_1 = minimize_message
+                message_opti_var_2 = minimize_message
 
         # now in mainiteration for loop check if separated optimisation was
         # successfull for both variables and exit loop if so
