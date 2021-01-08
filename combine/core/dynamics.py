@@ -11,8 +11,16 @@ from combine.core.flowline_adapted import FluxBasedModel
 log = logging.getLogger(__name__)
 
 
-def run_flowline_forward_core(bed_h, shape_var, bed_geometry, mb_model,
-                              spinup_sfc_h, yrs_to_run, map_dx, torch_type):
+def run_flowline_forward_core(bed_h,
+                              shape_var,
+                              bed_geometry,
+                              mb_model,
+                              spinup_sfc_h,
+                              spinup_sfc_known,
+                              yrs_to_run,
+                              spinup_yrs,
+                              map_dx,
+                              torch_type):
     '''
     Performs the forward run of the Flowlinemodel
 
@@ -75,12 +83,25 @@ def run_flowline_forward_core(bed_h, shape_var, bed_geometry, mb_model,
     else:
         raise ValueError('Unknown bed geometry!')
 
-    model = FluxBasedModel(flowline,
-                           mb_model=mb_model,
-                           y0=0.,
-                           fs=0.,
-                           mb_elev_feedback='annual')
+    if spinup_sfc_known:
+        final_model = FluxBasedModel(flowline,
+                                     mb_model=mb_model,
+                                     y0=0.,
+                                     fs=0.,
+                                     mb_elev_feedback='annual')
 
-    model.run_until(yrs_to_run)
+        final_model.run_until(yrs_to_run)
+    else:
+        spinup_model = FluxBasedModel(flowline,
+                                      mb_model=mb_model['spinup_mb_model'],
+                                      y0=0.,
+                                      fs=0.,
+                                      mb_elev_feedback='annual')
+        spinup_model.run_until(spinup_yrs)
 
-    return model.fls[0]
+        final_model = FluxBasedModel(spinup_model.fls[0],
+                                     mb_model=mb_model['known_mb_model'],
+                                     y0=0.)
+        final_model.run_until(yrs_to_run)
+
+    return final_model.fls[0]

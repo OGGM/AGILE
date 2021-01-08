@@ -105,6 +105,8 @@ class Flowline(Centerline):
         self.thick = torch.clamp(thick,
                                  min=0)
 
+        self.spinup_sfc_h = surface_h
+
         self.map_dx = to_torch_tensor(map_dx, self.torch_type)
         self.dx = to_torch_tensor(dx, self.torch_type)
         self.dx_meter = self.map_dx * self.dx
@@ -256,6 +258,10 @@ class ParabolicBedFlowline(Flowline):
             print(self.bed_shape)
         assert torch.all(torch.isfinite(self.bed_shape))
 
+        self.spinup_widths = para_width_from_thick.apply(self.bed_shape,
+                                                         self.spinup_sfc_h -
+                                                         self.bed_h)
+
     @property
     def widths_m(self):
         """Compute the widths out of H and shape"""
@@ -312,6 +318,8 @@ class RectangularBedFlowline(Flowline):
         self.fl_type = 'RectangularFlowline'
 
         self.widths = widths_m
+
+        self.spinup_widths = widths_m
 
     @property
     def widths_m(self):
@@ -373,6 +381,9 @@ class TrapezoidalBedFlowline(Flowline):
         self.fl_type = 'TrapezoidalFlowline'
 
         self._prec = torch.where(self._lambdas == 0)[0]
+
+        self.spinup_widths = self._w0_m + self._lambdas * (self.spinup_sfc_h -
+                                                           self.bed_h)
 
     @property
     def widths_m(self):
@@ -478,6 +489,10 @@ class FlowlineModel(object):
         self.fls = None
         self._tributary_indices = None
         self.reset_flowlines(flowlines, inplace=inplace)
+
+        # update flowline spinup states at initialisation
+        self.fls[0].spinup_sfc_h = self.fls[0].surface_h
+        self.fls[0].spinup_widths = self.fls[0].widths_m
 
         # Defaults
         if glen_a is None:

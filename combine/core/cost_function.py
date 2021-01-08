@@ -4,72 +4,7 @@ import time
 
 from combine.core.dynamics import run_flowline_forward_core
 from combine.core.arithmetics import to_torch_tensor, to_numpy_array
-
-
-def creat_spinup_cost_fct(measurements,
-                          mb_model,
-                          first_guess,
-                          used_geometry,
-                          geometry,
-                          torch_type):
-    '''
-    Creates a cost function for optimizing t bias for the spinup
-    '''
-
-    def c_fun(t_bias):
-        return spinup_cost_fct(t_bias,
-                               measurements,
-                               mb_model,
-                               first_guess,
-                               used_geometry,
-                               geometry,
-                               torch_type)
-
-    return c_fun
-
-
-def spinup_cost_fct(t_bias,
-                    measurements,
-                    mb_model,
-                    first_guess,
-                    used_geometry,
-                    geometry,
-                    torch_type='double'):
-    # check which data type should be used for calculation
-    if torch_type == 'double':
-        torch_type = torch.double
-    else:
-        torch_type = torch.float
-
-    temp_bias = torch.tensor(t_bias,
-                             dtype=torch_type,
-                             requires_grad=True)
-    # set the temperature bias for the mass balance model
-    mb_model.temp_bias = temp_bias
-
-    # run the model with the first guess geometry to equilibrium and get volume
-    model_flowline = run_flowline_forward_core(
-            spinup_surf=first_guess['bed_h'],
-            bed_h=first_guess['bed_h'],
-            shape=first_guess['shape'],
-            dx=geometry['map_dx'],
-            torch_type=torch_type,
-            mb_model=mb_model,
-            yrs_to_run='equilibrium',
-            used_geometry=used_geometry,
-            ref_surf=measurements['sfc_h'],
-            ref_width=measurements['widths'])
-    model_volume = model_flowline.volume_m3
-
-    ref_volume = to_torch_tensor(measurements['spinup_volume'], torch_type)
-
-    c = torch.abs(model_volume - ref_volume)
-    c.backward()
-
-    cost = c.detach().numpy().astype(np.float64)
-    grad = temp_bias.grad.detach().numpy().astype(np.float64)
-
-    return cost, grad
+from combine.core.massbalance_adapted import LinearMassBalance
 
 
 def create_cost_fct(known_parameter,
@@ -85,6 +20,7 @@ def create_cost_fct(known_parameter,
                     grad_scaling={'bed_h': 1,
                                   'shape_var': 1},
                     min_w0=10.,
+                    spinup_sfc_known=True,
                     only_get_c_terms=False,
                     torch_type='double'):
     '''
@@ -137,6 +73,7 @@ def create_cost_fct(known_parameter,
                         datalogger,
                         grad_scaling=grad_scaling,
                         min_w0=min_w0,
+                        spinup_sfc_known=spinup_sfc_known,
                         only_get_c_terms=only_get_c_terms,
                         torch_type=torch_type)
 
@@ -157,6 +94,7 @@ def cost_fct(unknown_parameter,
              grad_scaling={'bed_h': 1,
                            'shape_var': 1},
              min_w0=10.,
+             spinup_sfc_known=True,
              only_get_c_terms=False,
              torch_type='double'):
     '''
@@ -224,15 +162,29 @@ def cost_fct(unknown_parameter,
 
     # try without checks and with bounds
     # check that all parameters are positive
-    if np.any(np.sign(unknown_parameter) == -1):
-        cost = np.Inf
-        grad = np.empty(len(unknown_parameter)) * np.nan
-        return cost, grad
+    # if np.any(np.sign(unknown_parameter) == -1):
+    #    cost = np.Inf
+    #    grad = np.empty(len(unknown_parameter)) * np.nan
+    #    return cost, grad
 
     # ice mask is needed for cost calculation and to put parameters together
     ice_mask = torch.tensor(measurements['ice_mask'],
                             requires_grad=False,
                             dtype=torch.bool)
+
+    if not spinup_sfc_known:
+        spinup_ELA = torch.tensor(unknown_parameter[0],
+                                  dtype=torch_type,
+                                  requires_grad=True)
+        unknown_parameter = unknown_parameter[1:]
+        spinup_mb_model = LinearMassBalance(spinup_ELA,
+                                            grad=mb_model['grad_spinup'])
+        mb_model = {'spinup_mb_model': spinup_mb_model,
+                    'known_mb_model': mb_model['model_known']}
+        spinup_yrs = datalogger.spinup_yrs
+    else:
+        spinup_ELA = None
+        spinup_yrs = None
 
     # check which parameter should be optimized
     if opti_var == 'bed_h':
@@ -387,7 +339,9 @@ def cost_fct(unknown_parameter,
             bed_geometry=bed_geometry,
             mb_model=mb_model,
             spinup_sfc_h=measurements['spinup_sfc'],
+            spinup_sfc_known=spinup_sfc_known,
             yrs_to_run=measurements['yrs_to_run'],
+            spinup_yrs=spinup_yrs,
             map_dx=map_dx,
             torch_type=torch_type)
 
@@ -448,6 +402,13 @@ def cost_fct(unknown_parameter,
     else:
         raise ValueError('Unknown optimisation variable!')
 
+    if not spinup_sfc_known:
+        spinup_ELA_grad = spinup_ELA.grad.detach().numpy().astype(np.float64)
+        grad_return = np.append(spinup_ELA_grad,
+                                grad)
+    else:
+        grad_return = grad
+
     # help function to save data in datalogger as numpy array
     # def save_data_in_datalogger(datalogger_var, data):
     #    if type(data) == torch.Tensor:
@@ -465,6 +426,15 @@ def cost_fct(unknown_parameter,
                                        datalogger.main_iterations[-1])
     datalogger.save_data_in_datalogger('time_needed',
                                        time.time() - datalogger.start_time)
+
+    if not spinup_sfc_known:
+        datalogger.save_data_in_datalogger('spinup_ELA_guessed', spinup_ELA)
+        datalogger.save_data_in_datalogger('spinup_ELA_grad', spinup_ELA_grad)
+        datalogger.save_data_in_datalogger('spinup_sfc_h_guessed',
+                                           model_flowline.spinup_sfc_h)
+        datalogger.save_data_in_datalogger('spinup_widths_guessed',
+                                           model_flowline.spinup_widths)
+
     if opti_var == 'bed_h':
         datalogger.save_data_in_datalogger('guessed_opti_var_1', bed_h_unknown)
         datalogger.save_data_in_datalogger('grads_opti_var_1', grad)
@@ -513,7 +483,7 @@ def cost_fct(unknown_parameter,
     datalogger.fct_calls = np.append(datalogger.fct_calls,
                                      datalogger.fct_calls[-1] + 1)
 
-    return cost, grad
+    return cost, grad_return
 
 
 def get_cost_terms(model_sfc_h,
