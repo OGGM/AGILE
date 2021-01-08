@@ -15,7 +15,7 @@ class DataLogger(object):
 
     def __init__(self, bed_geometry, opti_parameter, two_parameter_option,
                  main_iterations_separeted, geometry, measurements,
-                 first_guess, fg_sfc_h, fg_widths, reg_parameters,
+                 first_guess, fg_run, reg_parameters,
                  used_bed_h_geometry, used_along_glacier_geometry,
                  minimize_options, max_time_minimize, solver, glacier_state,
                  mb_opts, grad_scaling, filename_suffix, task_id):
@@ -25,8 +25,7 @@ class DataLogger(object):
         self.geometry = geometry
         self.measurements = measurements
         self.first_guess = first_guess
-        self.fg_sfc_h = fg_sfc_h
-        self.fg_widths = fg_widths
+        self.fg_run = fg_run
         self.reg_parameters = reg_parameters
         self.geometry_bed_h = used_bed_h_geometry
         self.along_glacier_geometry = used_along_glacier_geometry
@@ -40,6 +39,7 @@ class DataLogger(object):
         self.main_iterations_separeted = main_iterations_separeted
         self.filename_suffix = filename_suffix
         self.grad_scaling = grad_scaling
+        self.spinup_yrs = []
 
         # task_id only needed for cluster computation
         self.task_id = task_id
@@ -159,8 +159,15 @@ class DataLogger(object):
             # variable to save last message of minimisation algorithm
             self.message_opti_var_2 = ''
 
+        if self.glacier_state == 'retreating with unknow spinup':
+            self.spinup_ELA_guessed = np.empty((0, 1))
+            self.spinup_ELA_grad = np.empty((0, 1))
+            self.spinup_sfc_h_guessed = np.empty((0, self.geometry['nx']))
+            self.spinup_widths_guessed = np.empty((0, self.geometry['nx']))
+
         # create info Text for callback_fct
         self.info_text = '''
+
     Iteration: {iteration:d}
     Optimisation Variable: {opti_var}
     Total Function calls: {fct_call:d}
@@ -172,8 +179,10 @@ class DataLogger(object):
             self.info_text += '''
     {opti_var_2} RMSE: {opti_var_2_rmse:g}
     {opti_var_2} Bias: {opti_var_2_bias:g}
-    {opti_var_2} Max_diff: {opti_var_2_max_dif:g}
-    '''
+    {opti_var_2} Max_diff: {opti_var_2_max_dif:g}'''
+        if self.glacier_state == 'retreating with unknow spinup':
+            self.info_text += '''
+    spinup ELA diff: {spinup_ELA_diff:g}'''
 
         # define filename to save output at the end
         if bed_geometry == 'rectangular':
@@ -213,6 +222,8 @@ class DataLogger(object):
             self.filename += 'adv_'
         elif self.glacier_state == 'retreating':
             self.filename += 'ret_'
+        elif self.glacier_state == 'retreating with unknow spinup':
+            self.filename += 'ret_spinup_'
         else:
             raise ValueError('Unknown glacier state!')
 
@@ -267,6 +278,12 @@ class DataLogger(object):
                                                    self.true_opti_var_2)
                      })
 
+            if self.glacier_state == 'retreating with unknow spinup':
+                args.update(
+                    {'spinup_ELA_diff': (self.spinup_ELA_guessed[-1] -
+                                         self.mb_opts['ELA'][0])[0]
+                     })
+
             # show text
             print(self.info_text.format(**args))
 
@@ -309,6 +326,13 @@ Main Iteration number {iteration:d}:'''
         if self.main_iterations.size is not None:
             self.current_main_iterations = self.squeeze_generic(
                 self.current_main_iterations[index])
+        if self.glacier_state == 'retreating with unknow spinup':
+            self.spinup_ELA_guessed = self.squeeze_generic(
+                self.spinup_ELA_guessed[index])
+            self.spinup_ELA_grad = self.squeeze_generic(
+                self.spinup_ELA_grad[index])
+            self.spinup_sfc_h_guessed = self.spinup_sfc_h_guessed[index]
+            self.spinup_widths_guessed = self.spinup_widths_guessed[index]
 
     def create_and_save_dataset(self):
         dataset = xr.Dataset(
@@ -330,13 +354,13 @@ Main Iteration number {iteration:d}:'''
                      self.squeeze_generic(self.true_sfc_h)),
                 'first_guess_surface_h':
                     (['total_distance'],
-                     self.squeeze_generic(self.fg_sfc_h)),
+                     self.squeeze_generic(self.fg_run['sfc_h'])),
                 'true_widths':
                     (['total_distance'],
                      self.squeeze_generic(self.true_widths)),
                 'first_guess_widths':
                     (['total_distance'],
-                     self.squeeze_generic(self.fg_widths)),
+                     self.squeeze_generic(self.fg_run['widths'])),
                 'total_true_' + self.opti_var_1:
                     (['total_distance'],
                      self.geometry[self.opti_var_1])
@@ -390,6 +414,21 @@ Main Iteration number {iteration:d}:'''
                 dataset.attrs['minimize_' + key] = \
                     self.minimize_options[key]
 
+        if self.glacier_state == 'retreating with unknow spinup':
+            dataset.coords['one_dimension'] = np.arange(1)
+            dataset['true_spinup_ELA'] = \
+                (['one_dimension'],
+                 np.array([self.mb_opts['ELA'][0]]))
+            dataset['true_spinup_sfc_h'] = \
+                (['total_distance'],
+                 self.measurements['true_spinup_sfc'])
+            dataset['true_spinup_widths'] = \
+                (['total_distance'],
+                 self.measurements['true_spinup_widths'])
+            dataset['first_guess_spinup_ELA'] = \
+                (['one_dimension'],
+                 np.array([self.first_guess['spinup_ELA']]))
+
         # check if minimisation could find one improvement
         if np.arange(len(self.step_indices)).size != 0:
             dataset.coords['nr_of_iteration'] = \
@@ -441,6 +480,20 @@ Main Iteration number {iteration:d}:'''
                 (['nr_of_iteration'],
                  self.current_main_iterations)
 
+            if self.glacier_state == 'retreating with unknow spinup':
+                dataset['spinup_ELA_guessed'] = \
+                    (['nr_of_iteration'],
+                     self.spinup_ELA_guessed)
+                dataset['spinup_ELA_grad'] = \
+                    (['nr_of_iteration'],
+                     self.spinup_ELA_grad)
+                dataset['spinup_sfc_h_guessed'] = \
+                    (['nr_of_iteration', 'total_distance'],
+                     self.spinup_sfc_h_guessed)
+                dataset['spinup_widths_guessed'] = \
+                    (['nr_of_iteration', 'total_distance'],
+                     self.spinup_widths_guessed)
+
             # save scaling of gradients if 'at_once'
             if self.two_parameter_option == 'at_once':
                 dataset.attrs['bed_h gradient scaling'] = \
@@ -448,7 +501,6 @@ Main Iteration number {iteration:d}:'''
                 dataset.attrs['shape_var gradient scaling'] = \
                     self.grad_scaling['shape_var']
 
-            # add to filename if maxiterations were used
             dataset.attrs['maxiter_reached'] = 'no'
             if (self.opti_var_2 is None) or \
                (self.two_parameter_option in ['at_once', 'calculated']):

@@ -4,7 +4,7 @@ from combine.core.cost_function import create_cost_fct
 from scipy.optimize import minimize
 from combine.core.idealized_experiments import define_geometry,\
     define_mb_model, create_measurements, get_first_guess, get_reg_parameters,\
-    plot_result, get_spinup_sfc, first_guess_run, get_bounds
+    plot_result, first_guess_run, get_bounds
 from combine.core.data_logging import DataLogger
 from combine.core.arithmetics import MaxCalculationTimeReached
 import time
@@ -16,6 +16,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                    mb_opts={'ELA': np.array([3100., 3300.]),
                                             'grad': np.array([4., 4.])},
                                    glacier_state='equilibrium',
+                                   spinup_yrs=200,
                                    opti_parameter='bed_h',
                                    # separated, at_once, calculated
                                    two_parameter_option='None',
@@ -69,12 +70,14 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                        bed_geometry=bed_geometry,
                                        glacier_state=glacier_state)
 
-    if glacier_state in ['retreating', 'retreating with unknow spinup',
-                         'equilibrium']:
+    if glacier_state in ['retreating', 'equilibrium']:
         # use only second mass balance model for optimization
         mb_model = mb_model[1]
     elif glacier_state in ['advancing']:
         mb_model = mb_model[0]
+    elif glacier_state == 'retreating with unknow spinup':
+        mb_model = {'model_known': mb_model[1],
+                    'grad_spinup': mb_opts['grad'][0]}
 
     # only needed for different years for equilibrium experiment
     if years_to_run is not None:
@@ -86,30 +89,21 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
     first_guess = get_first_guess(measurements,
                                   bed_geometry=bed_geometry,
                                   opti_parameter=opti_parameter,
+                                  glacier_state=glacier_state,
                                   job_id=job_id,
                                   task_id=task_id)
     print('\n    ---DONE---')
 
     print('\n- First guess run for fg_sfc_h and fg_widths')
-    fg_sfc_h, fg_widths = first_guess_run(first_guess,
-                                          bed_geometry,
-                                          measurements,
-                                          mb_model,
-                                          geometry,
-                                          opti_parameter=opti_parameter)
+    fg_run = first_guess_run(first_guess,
+                             bed_geometry,
+                             measurements,
+                             mb_model,
+                             geometry,
+                             glacier_state=glacier_state,
+                             spinup_yrs=spinup_yrs,
+                             opti_parameter=opti_parameter)
     print('\n    ---DONE---')
-
-    # TODO: This option is not tested or working
-    if glacier_state == 'retreating with unknow spinup':
-        print('\n- Calculate spinup surface:')
-        measurements['spinup_sfc'] = get_spinup_sfc(measurements,
-                                                    mb_model,
-                                                    first_guess,
-                                                    minimize_options_spinup,
-                                                    bed_geometry,
-                                                    geometry,
-                                                    torch_type=torch_type)
-        print('\n    ---DONE---')
 
     # define regularisation parameters
     if reg_parameters is None:
@@ -134,8 +128,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
         geometry=geometry,
         measurements=measurements,
         first_guess=first_guess,
-        fg_sfc_h=fg_sfc_h,
-        fg_widths=fg_widths,
+        fg_run=fg_run,
         reg_parameters=reg_parameters,
         used_bed_h_geometry=used_bed_h_geometry,
         used_along_glacier_geometry=used_along_glacier_geometry,
@@ -147,6 +140,9 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
         grad_scaling=grad_scaling,
         filename_suffix=filename_suffix,
         task_id=task_id)
+
+    if glacier_state == 'retreating with unknow spinup':
+        dl.spinup_yrs = spinup_yrs
 
     print('\n- Start minimising (start timer):')
 
@@ -213,6 +209,9 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                                  min_value=min_w0)
             if dl.opti_parameter in ['bed_h and bed_shape', 'bed_h and w0']:
                 bounds['two_opti_var'] = bounds['bed_h'] + bounds['shape_var']
+
+        if glacier_state == 'retreating with unknow spinup':
+            bounds['spinup_ELA'] = [(None, first_guess['max_spinup_ELA'])]
     else:
         minimize_bounds = None
 
@@ -297,6 +296,13 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                 else:
                     raise ValueError('Unknown optimisation variable!')
 
+            spinup_sfc_known = True
+            if glacier_state == 'retreating with unknow spinup':
+                guess_parameter = np.append(dl.first_guess['spinup_ELA'],
+                                            guess_parameter)
+                spinup_sfc_known = False
+                minimize_bounds = bounds['spinup_ELA'] + minimize_bounds
+
             cost_fct = create_cost_fct(
                 known_parameter=known_parameter,
                 geometry_var=geometry_var,
@@ -309,7 +315,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                 two_parameter_option=dl.two_parameter_option,
                 datalogger=dl,
                 grad_scaling=grad_scaling,
-                min_w0=min_w0)
+                min_w0=min_w0,
+                spinup_sfc_known=spinup_sfc_known)
 
             try:
                 res = minimize(fun=cost_fct,
@@ -369,6 +376,7 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
     if dl.opti_var_2 is not None:
         dl.message_opti_var_2 = str(message_opti_var_2)
     dl.total_computing_time = end_time - dl.start_time
+
     # filter out data used by minimize function for exploratory
     dl.filter_data_from_optimization()
 

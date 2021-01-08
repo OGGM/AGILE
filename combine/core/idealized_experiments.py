@@ -2,7 +2,7 @@ import numpy as np
 from scipy.optimize import minimize
 import holoviews as hv
 from holoviews import opts
-from combine.core.cost_function import create_cost_fct, creat_spinup_cost_fct
+from combine.core.cost_function import create_cost_fct
 from combine.core.arithmetics import magnitude, to_numpy_array
 from combine.core.massbalance_adapted import LinearMassBalance
 from oggm.core.massbalance import LinearMassBalance as oggm_MassBalance
@@ -439,10 +439,11 @@ def create_measurements(geometry,
         measurements['spinup_sfc'] = start_model.fls[0].surface_h
         measurements['yrs_to_run'] = ref_model.yr
     elif glacier_state == 'retreating with unknow spinup':
-        measurements['spinup_volume'] = start_model.fls[0].volume_m3
-        measurements['spinup_bin_area'] = start_model.fls[0].bin_area_m2
-        measurements['ref_spinup_sfc'] = start_model.fls[0].surface_h
         measurements['yrs_to_run'] = ref_model.yr
+        measurements['spinup_sfc'] = np.zeros(len(ref_model.fls[0].surface_h))
+        # no real measurements, but interesting for evaluation
+        measurements['true_spinup_sfc'] = start_model.fls[0].surface_h
+        measurements['true_spinup_widths'] = start_model.fls[0].widths_m
     else:
         raise ValueError('Unknown glacier state!')
 
@@ -452,6 +453,7 @@ def create_measurements(geometry,
 def get_first_guess(measurements,
                     bed_geometry='rectangular',
                     opti_parameter='bed_h',
+                    glacier_state='equilibrium',
                     job_id=0,
                     task_id=0):  # only needed for computation on the cluster
     '''
@@ -478,6 +480,8 @@ def get_first_guess(measurements,
         Containing first guess parameters.
 
     '''
+    first_guess = {}
+
     # use the FluxModel of the measurements to get the 'coordinates' of the
     # flowline to create a new flowline for the inversion (see below)
     model = measurements['model']
@@ -527,6 +531,10 @@ def get_first_guess(measurements,
     climate.apparent_mb_from_linear_mb(gdir,
                                        mb_gradient=model.mb_model.grad)
     mb_parameters = gdir.read_pickle('linear_mb_params')
+
+    if glacier_state == 'retreating with unknow spinup':
+        first_guess['max_spinup_ELA'] = mb_parameters['ela_h']
+        first_guess['spinup_ELA'] = mb_parameters['ela_h'] - 50
     print('\n    estimated ELA = ' + str(mb_parameters['ela_h']) +
           ' , grad = ' + str(mb_parameters['grad']))
 
@@ -556,8 +564,6 @@ def get_first_guess(measurements,
                        np.Inf)
 
     # depending on bed_geometry and opti_parameter get first guess
-    first_guess = {}
-
     if bed_geometry == 'rectangular':
         if opti_parameter == 'bed_h':
             first_guess['bed_h'] = read_bed_h(ocls)
@@ -609,7 +615,10 @@ def first_guess_run(first_guess,
                     measurements,
                     mb_model,
                     geometry,
+                    glacier_state='equilibrium',
+                    spinup_yrs=200,
                     opti_parameter='bed_h',):
+    fg_run = {}
     ice_mask = measurements['ice_mask']
 
     if opti_parameter in ['bed_h', 'bed_h and bed_shape', 'bed_h and w0']:
@@ -650,31 +659,65 @@ def first_guess_run(first_guess,
                           geometry['w0'] + 1. * (measurements['spinup_sfc']
                                                  - bed_h),
                           geometry['w0'])
+
+        # calculate widths, want to set w0, but w0 is calculated internaly,
+        # so here reverse this calculation
+        if measurements['spinup_sfc'].sum() == 0.:
+            widths_use = w0
+        else:
+            widths_use = (w0 + 1. * (measurements['spinup_sfc'] - bed_h))
         # for trapezoidal bed lambda is always set to 1
         # (see https://docs.oggm.org/en/latest/ice-dynamics.html#trapezoidal)
         oggm_fl = TrapezoidalBedFlowline(surface_h=measurements['spinup_sfc'],
                                          bed_h=bed_h,
-                                         widths=(w0 + 1. *
-                                                 (measurements['spinup_sfc'] -
-                                                  bed_h)
-                                                 ) / geometry['map_dx'],
+                                         widths=(widths_use /
+                                                 geometry['map_dx']),
                                          lambdas=np.zeros(geometry['nx']) + 1.,
                                          map_dx=geometry['map_dx'],
                                          )
 
-    # convert COMBINE MassBalanceModel to OGGM MassBalanceModel
-    oggm_mb_model = oggm_MassBalance(to_numpy_array(mb_model.ela_h),
-                                     grad=to_numpy_array(mb_model.grad))
+    if glacier_state in ['equilibrium', 'advancing', 'retreating']:
+        # convert COMBINE MassBalanceModel to OGGM MassBalanceModel
+        oggm_mb_model = oggm_MassBalance(to_numpy_array(mb_model.ela_h),
+                                         grad=to_numpy_array(mb_model.grad))
 
-    # create a model and let it run
-    model = oggm_FluxModel(oggm_fl, mb_model=oggm_mb_model, y0=0.)
-    model.run_until(measurements['yrs_to_run'])
+        # create a model and let it run
+        model = oggm_FluxModel(oggm_fl, mb_model=oggm_mb_model, y0=0.)
+        model.run_until(measurements['yrs_to_run'])
 
-    # get values of flowline
-    fg_sfc_h = model.fls[0].surface_h
-    fg_widths = model.fls[0].widths_m
+        # get values of flowline
+        fg_run['sfc_h'] = model.fls[0].surface_h
+        fg_run['widths'] = model.fls[0].widths_m
+    elif glacier_state == 'retreating with unknow spinup':
+        # create mb model for speenup
+        spinup_mb_model = oggm_MassBalance(first_guess['spinup_ELA'],
+                                           grad=mb_model['grad_spinup'])
 
-    return fg_sfc_h, fg_widths
+        # run the model for the spinup
+        spinup_model = oggm_FluxModel(oggm_fl,
+                                      mb_model=spinup_mb_model,
+                                      y0=0.)
+        spinup_model.run_until(spinup_yrs)
+
+        # safe the first guess spinup sfc and widths
+        fg_run['spinup_sfc_h'] = spinup_model.fls[0].surface_h
+        fg_run['spinup_widths'] = spinup_model.fls[0].widths_m
+
+        # continue model run with known mass balance
+        known_mb_model = oggm_MassBalance(
+            to_numpy_array(mb_model['model_known'].ela_h),
+            grad=to_numpy_array(mb_model['model_known'].grad))
+
+        final_model = oggm_FluxModel(spinup_model.fls[0],
+                                     mb_model=known_mb_model,
+                                     y0=0.)
+        final_model.run_until(measurements['yrs_to_run'])
+
+        # safe final outcome of first guess run
+        fg_run['sfc_h'] = final_model.fls[0].surface_h
+        fg_run['widths'] = final_model.fls[0].widths_m
+
+    return fg_run
 
 
 def get_reg_parameters(opti_var,
@@ -927,59 +970,3 @@ def plot_result(dl, plot_height=450, plot_width=800):
         final_plot = opti_1_plot
 
     return final_plot.opts(opts.Curve(line_width=3))
-
-
-def get_spinup_sfc(measurements,
-                   mb_model,
-                   first_guess,
-                   minimize_options,
-                   bed_geometry,
-                   geometry,
-                   torch_type='double'):
-    # cost function to find tbias for spinup
-    cost_fct = creat_spinup_cost_fct(measurements,
-                                     mb_model,
-                                     first_guess,
-                                     bed_geometry,
-                                     geometry,
-                                     torch_type)
-
-    # first guess for tbias is 0
-    tbias = 0
-
-    res = minimize(fun=cost_fct,
-                   x0=tbias,
-                   method='L-BFGS-B',
-                   jac=True,
-                   # bounds=bounds,
-                   options=minimize_options,
-                   # callback=dl.callback_fct
-                   )
-
-    # calculate final spinup surface
-    tbias = res.x
-    mb_model.temp_bias = tbias
-    if bed_geometry == 'rectangular':
-        oggm_fl = RectangularBedFlowline(surface_h=first_guess['bed_h'],
-                                         bed_h=first_guess['bed_h'],
-                                         widths=measurements['widths'],
-                                         map_dx=geometry['map_dx'])
-    elif bed_geometry == 'parabolic':
-        oggm_fl = ParabolicBedFlowline(surface_h=first_guess['bed_h'],
-                                       bed_h=first_guess['bed_h'],
-                                       bed_shape=first_guess['shape'],
-                                       map_dx=geometry['map_dx'])
-    elif bed_geometry == 'trapezoidal':
-        oggm_fl = TrapezoidalBedFlowline(surface_h=first_guess['bed_h'],
-                                         bed_h=first_guess['bed_h'],
-                                         widths=first_guess['w0'],
-                                         lambdas=geometry['lambdas'],
-                                         map_dx=geometry['map_dx'],
-                                         )
-
-    final_model = oggm_FluxModel(oggm_fl, mb_model=mb_model, y0=0.)
-    final_model.run_until_equilibrium()
-
-    # TODO: print message with difference of actual and calculated sfc, t_bias
-
-    return final_model.fls[0].surface_h
