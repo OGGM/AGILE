@@ -173,12 +173,28 @@ def cost_fct(unknown_parameter,
                             dtype=torch.bool)
 
     if not spinup_sfc_known:
-        spinup_ELA = torch.tensor(unknown_parameter[0],
-                                  dtype=torch_type,
-                                  requires_grad=True)
-        unknown_parameter = unknown_parameter[1:]
-        spinup_mb_model = LinearMassBalance(spinup_ELA,
-                                            grad=mb_model['grad_spinup'])
+        if (datalogger.two_parameter_option == 'separated') & \
+           (datalogger.opti_var_2 is not None):
+            if opti_var == 'bed_h':
+                spinup_ELA = torch.tensor(unknown_parameter[0],
+                                          dtype=torch_type,
+                                          requires_grad=True)
+                unknown_parameter = unknown_parameter[1:]
+            else:
+                spinup_ELA = torch.tensor(datalogger.spinup_ELA_guessed[-1],
+                                          dtype=torch_type,
+                                          requires_grad=False)
+            spinup_mb_model = LinearMassBalance(spinup_ELA,
+                                                grad=mb_model['grad_spinup'])
+
+        else:
+            spinup_ELA = torch.tensor(unknown_parameter[0],
+                                      dtype=torch_type,
+                                      requires_grad=True)
+            unknown_parameter = unknown_parameter[1:]
+            spinup_mb_model = LinearMassBalance(spinup_ELA,
+                                                grad=mb_model['grad_spinup'])
+
         mb_model = {'spinup_mb_model': spinup_mb_model,
                     'known_mb_model': mb_model['model_known']}
         spinup_yrs = datalogger.spinup_yrs
@@ -403,9 +419,21 @@ def cost_fct(unknown_parameter,
         raise ValueError('Unknown optimisation variable!')
 
     if not spinup_sfc_known:
-        spinup_ELA_grad = spinup_ELA.grad.detach().numpy().astype(np.float64)
-        grad_return = np.append(spinup_ELA_grad,
-                                grad)
+        if (datalogger.two_parameter_option == 'separated') & \
+           (datalogger.opti_var_2 is not None):
+            if opti_var == 'bed_h':
+                spinup_ELA_grad = \
+                    spinup_ELA.grad.detach().numpy().astype(np.float64)
+                grad_return = np.append(spinup_ELA_grad,
+                                        grad)
+            else:
+                spinup_ELA_grad = np.nan
+                grad_return = grad
+        else:
+            spinup_ELA_grad = \
+                spinup_ELA.grad.detach().numpy().astype(np.float64)
+            grad_return = np.append(spinup_ELA_grad,
+                                    grad)
     else:
         grad_return = grad
 

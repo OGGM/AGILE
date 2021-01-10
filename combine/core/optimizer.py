@@ -298,10 +298,30 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
 
             spinup_sfc_known = True
             if glacier_state == 'retreating with unknow spinup':
-                guess_parameter = np.append(dl.first_guess['spinup_ELA'],
-                                            guess_parameter)
                 spinup_sfc_known = False
-                minimize_bounds = bounds['spinup_ELA'] + minimize_bounds
+                # include ELA optimisation with bed_h optimisation
+                if (dl.two_parameter_option == 'separated') & \
+                   (dl.opti_var_2 is not None):
+                    if loop_opti_var == 'bed_h':
+                        # in first main iteration use first guess
+                        if loop == 0:
+                            guess_parameter = \
+                                np.append(dl.first_guess['spinup_ELA'],
+                                          guess_parameter)
+                        else:
+                            guess_parameter = \
+                                np.append(dl.spinup_ELA_guessed[-1],
+                                          guess_parameter)
+                        if use_bounds is True:
+                            minimize_bounds = bounds['spinup_ELA'] + \
+                                minimize_bounds
+
+                else:
+                    guess_parameter = np.append(dl.first_guess['spinup_ELA'],
+                                                guess_parameter)
+                    if use_bounds is True:
+                        minimize_bounds = bounds['spinup_ELA'] + \
+                            minimize_bounds
 
             cost_fct = create_cost_fct(
                 known_parameter=known_parameter,
