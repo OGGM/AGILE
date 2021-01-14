@@ -724,8 +724,10 @@ def get_reg_parameters(opti_var,
                        measurements,
                        geometry,
                        mb_model,
+                       glacier_state,
                        bed_geometry,
                        first_guess,
+                       spinup_yrs=None,
                        torch_type='double',
                        wanted_c_terms=None):
     '''
@@ -807,6 +809,12 @@ def get_reg_parameters(opti_var,
     else:
         raise ValueError('Unknown optimisation variable!')
 
+    spinup_sfc_known = True
+    if glacier_state == 'retreating with unknow spinup':
+        guess_parameter = np.append(first_guess['spinup_ELA'],
+                                    guess_parameter)
+        spinup_sfc_known = False
+
     if wanted_c_terms is None:
         reg_parameters = np.array([1., 1., 1., 1.])
     else:
@@ -821,8 +829,13 @@ def get_reg_parameters(opti_var,
                 dx=geometry['map_dx'],
                 mb_model=mb_model,
                 opti_var=opti_var,
-                two_parameter_option='None',
+                # can use always 'at_once' because cost function is only
+                # evaluated once to get magnitudes of cost terms and no
+                # gradients are needed
+                two_parameter_option='at_once',
                 datalogger=None,
+                spinup_sfc_known=spinup_sfc_known,
+                spinup_yrs=spinup_yrs,
                 only_get_c_terms=True)
 
     c_terms = cost_fct(guess_parameter)
