@@ -21,6 +21,7 @@ def create_cost_fct(known_parameter,
                                   'shape_var': 1},
                     min_w0=10.,
                     spinup_sfc_known=True,
+                    spinup_yrs=None,
                     only_get_c_terms=False,
                     torch_type='double'):
     '''
@@ -74,6 +75,7 @@ def create_cost_fct(known_parameter,
                         grad_scaling=grad_scaling,
                         min_w0=min_w0,
                         spinup_sfc_known=spinup_sfc_known,
+                        spinup_yrs=spinup_yrs,
                         only_get_c_terms=only_get_c_terms,
                         torch_type=torch_type)
 
@@ -95,6 +97,7 @@ def cost_fct(unknown_parameter,
                            'shape_var': 1},
              min_w0=10.,
              spinup_sfc_known=True,
+             spinup_yrs=None,
              only_get_c_terms=False,
              torch_type='double'):
     '''
@@ -160,6 +163,10 @@ def cost_fct(unknown_parameter,
     else:
         torch_type = torch.float
 
+    # save original length of unkown parameter,
+    # needed for potential MemoryOverflowError
+    unknown_paramter_length = len(unknown_parameter)
+
     # try without checks and with bounds
     # check that all parameters are positive
     # if np.any(np.sign(unknown_parameter) == -1):
@@ -173,8 +180,15 @@ def cost_fct(unknown_parameter,
                             dtype=torch.bool)
 
     if not spinup_sfc_known:
-        if (datalogger.two_parameter_option == 'separated') & \
-           (datalogger.opti_var_2 is not None):
+        if only_get_c_terms:
+            spinup_ELA = torch.tensor(unknown_parameter[0],
+                                      dtype=torch_type,
+                                      requires_grad=True)
+            unknown_parameter = unknown_parameter[1:]
+            spinup_mb_model = LinearMassBalance(spinup_ELA,
+                                                grad=mb_model['grad_spinup'])
+        elif (two_parameter_option == 'separated') & \
+             (datalogger.opti_var_2 is not None):
             if opti_var == 'bed_h':
                 spinup_ELA = torch.tensor(unknown_parameter[0],
                                           dtype=torch_type,
@@ -197,10 +211,8 @@ def cost_fct(unknown_parameter,
 
         mb_model = {'spinup_mb_model': spinup_mb_model,
                     'known_mb_model': mb_model['model_known']}
-        spinup_yrs = datalogger.spinup_yrs
     else:
         spinup_ELA = None
-        spinup_yrs = None
 
     # check which parameter should be optimized
     if opti_var == 'bed_h':
@@ -368,7 +380,7 @@ def cost_fct(unknown_parameter,
         print('MemoryError in forward model run (due to a too small '
               'timestep) -> set Costfunction to Inf')
         cost = np.Inf
-        grad = np.empty(len(unknown_parameter)) * np.nan
+        grad = np.empty(unknown_paramter_length) * np.nan
         return cost, grad
 
     # calculate terms of cost function

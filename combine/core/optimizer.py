@@ -112,8 +112,10 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                                             measurements,
                                             geometry,
                                             mb_model,
+                                            glacier_state,
                                             bed_geometry,
                                             first_guess,
+                                            spinup_yrs,
                                             torch_type,
                                             wanted_c_terms)
         print('\n    ---DONE---')
@@ -336,7 +338,8 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                 datalogger=dl,
                 grad_scaling=grad_scaling,
                 min_w0=min_w0,
-                spinup_sfc_known=spinup_sfc_known)
+                spinup_sfc_known=spinup_sfc_known,
+                spinup_yrs=spinup_yrs)
 
             try:
                 res = minimize(fun=cost_fct,
