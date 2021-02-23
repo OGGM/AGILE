@@ -310,21 +310,32 @@ def cost_fct(unknown_parameter,
                                        requires_grad=False)
         true_widths = to_torch_tensor(measurements['widths'], torch_type)
         true_sfc_h = to_torch_tensor(measurements['sfc_h'], torch_type)
-        
-        # in thesis called version with calculation boundary:
-        # shape_var_unknown = torch.where(
-        #    true_widths[ice_mask] >= to_torch_tensor(10., torch_type),
-        #    to_torch_tensor(4., torch_type) *
-        #    (true_sfc_h[ice_mask] - bed_h_unknown) /
-        #    (true_widths[ice_mask])**2,
-        #    to_torch_tensor(4., torch_type) *
-        #    (true_sfc_h[ice_mask] - bed_h_unknown) /
-        #    to_torch_tensor(10., torch_type)**2)
 
-        # default option for calculation
-        shape_var_unknown = to_torch_tensor(4., torch_type) * \
-            (true_sfc_h[ice_mask] - bed_h_unknown) / \
-            (true_widths[ice_mask])**2
+        # choose wich version to use for bed_shape calculation, 0 default
+        bed_shape_calculation_version = 2
+
+        if bed_shape_calculation_version == 0:
+            # calculating with no restrictions
+            shape_var_unknown = to_torch_tensor(4., torch_type) * \
+                                (true_sfc_h[ice_mask] - bed_h_unknown) / \
+                                (true_widths[ice_mask])**2
+        elif bed_shape_calculation_version == 1:
+            # use a minimum width of 10 for calculation, equ. OGGM first guess
+            shape_var_unknown = torch.where(
+                true_widths[ice_mask] >= to_torch_tensor(10., torch_type),
+                to_torch_tensor(4., torch_type) *
+                (true_sfc_h[ice_mask] - bed_h_unknown) /
+                (true_widths[ice_mask])**2,
+                to_torch_tensor(4., torch_type) *
+                (true_sfc_h[ice_mask] - bed_h_unknown) /
+                to_torch_tensor(10., torch_type)**2)
+        elif bed_shape_calculation_version == 2:
+            # define a maximum value of 3
+            shape_var_unknown = torch.clamp(
+                to_torch_tensor(4., torch_type) *
+                (true_sfc_h[ice_mask] - bed_h_unknown) /
+                (true_widths[ice_mask])**2,
+                max=3)
 
         shape_var = torch.empty(sum(list(shape_var_unknown.size() +
                                          shape_var_known.size())),
