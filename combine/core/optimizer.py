@@ -236,15 +236,25 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                     if loop_opti_var == 'bed_h':
                         guess_parameter = dl.first_guessed_opti_var_1
                         known_parameter = dl.known_opti_var_1
-                        geometry_var = np.append(dl.first_guessed_opti_var_2,
-                                                 dl.known_opti_var_2)
+
+                        geometry_var = np.zeros(len(measurements['ice_mask']))
+                        geometry_var[measurements['ice_mask']] = \
+                            dl.first_guessed_opti_var_2
+                        geometry_var[~measurements['ice_mask']] = \
+                            dl.known_opti_var_2
+
                         if use_bounds is True:
                             minimize_bounds = bounds['bed_h']
                     else:
                         guess_parameter = dl.first_guessed_opti_var_2
                         known_parameter = dl.known_opti_var_2
-                        geometry_var = np.append(dl.guessed_opti_var_1[-1],
-                                                 dl.known_opti_var_1)
+
+                        geometry_var = np.zeros(len(measurements['ice_mask']))
+                        geometry_var[measurements['ice_mask']] = \
+                            dl.guessed_opti_var_1[-1]
+                        geometry_var[~measurements['ice_mask']] = \
+                            dl.known_opti_var_1
+
                         if use_bounds is True:
                             minimize_bounds = bounds['shape_var']
                 # if not in first main loop use already guessed variables
@@ -252,15 +262,25 @@ def idealized_inversion_experiment(used_bed_h_geometry='linear',
                     if loop_opti_var == 'bed_h':
                         guess_parameter = dl.guessed_opti_var_1[-1]
                         known_parameter = dl.known_opti_var_1
-                        geometry_var = np.append(dl.guessed_opti_var_2[-1],
-                                                 dl.known_opti_var_2)
+
+                        geometry_var = np.zeros(len(measurements['ice_mask']))
+                        geometry_var[measurements['ice_mask']] = \
+                            dl.guessed_opti_var_2[-1]
+                        geometry_var[~measurements['ice_mask']] = \
+                            dl.known_opti_var_2
+
                         if use_bounds is True:
                             minimize_bounds = bounds['bed_h']
                     else:
                         guess_parameter = dl.guessed_opti_var_2[-1]
                         known_parameter = dl.known_opti_var_2
-                        geometry_var = np.append(dl.guessed_opti_var_1[-1],
-                                                 dl.known_opti_var_1)
+
+                        geometry_var = np.zeros(len(measurements['ice_mask']))
+                        geometry_var[measurements['ice_mask']] = \
+                            dl.guessed_opti_var_1[-1]
+                        geometry_var[~measurements['ice_mask']] = \
+                            dl.known_opti_var_1
+
                         if use_bounds is True:
                             minimize_bounds = bounds['shape_var']
 
