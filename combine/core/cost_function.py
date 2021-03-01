@@ -508,6 +508,7 @@ def cost_fct(unknown_parameter,
                                                shape_var[ice_mask])
             datalogger.save_data_in_datalogger('grads_opti_var_2',
                                                np.empty(len(grad)) * np.nan)
+
     elif opti_var in ['bed_shape', 'w0']:
         # check if currently in separated optimisation
         if datalogger.opti_var_2 is None:
