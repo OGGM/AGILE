@@ -1,1 +1,0 @@
-2020-06-09T11:16:28;compute_centerlines;FileNotFoundError: [Errno 2] No such file or directory: 'Giluwe_test_glacier/Giluwe/geometries.pkl'
