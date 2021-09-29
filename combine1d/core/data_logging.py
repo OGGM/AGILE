@@ -6,7 +6,7 @@ from holoviews import opts
 from combine1d.core.arithmetics import RMSE, mean_BIAS, max_dif
 from combine1d.core.exception import MaxCalculationTimeReached
 import os
-hv.extension('matplotlib')
+hv.extension('bokeh')
 
 
 class DataLogger(object):

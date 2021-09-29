@@ -4,3 +4,8 @@
 *nbgrader.log
 __pycache__
 
+# Packages
+*.egg
+*.egg-info
+eggs
+*.eggs
