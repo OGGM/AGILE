@@ -2,13 +2,18 @@
 # Locals
 import oggm.cfg as cfg
 from oggm.cfg import SEC_IN_YEAR
+from oggm.core.massbalance import ConstantMassBalance
 from oggm.utils import SuperclassMeta
 
 # packages for COMBINE
 import torch
-# help function for type converion
-from combine1d.core.type_conversions import to_torch_tensor
 
+# help functions
+from combine1d.core.type_conversions import to_torch_tensor
+from combine1d.core.torch_interp1d import Interp1d
+
+# other stuff
+from functools import partial
 
 class MassBalanceModel(object, metaclass=SuperclassMeta):
     """Common logic for the mass balance models.
@@ -138,3 +143,57 @@ class LinearMassBalance(MassBalanceModel):
 
     def get_annual_mb(self, heights, **kwargs):
         return self.get_monthly_mb(heights, **kwargs)
+
+
+class ConstantMassBalanceTorch(ConstantMassBalance):
+    """Constant mass-balance during a chosen period.
+    This is useful for equilibrium experiments.
+    This class is adapted from OGGMs ConstantMassBalance for the use of PyTorch
+    """
+
+    def __init__(self, gdir, mu_star=None, bias=None,
+                 y0=None, halfsize=15, filename='climate_historical',
+                 input_filesuffix='', torch_type=torch.double, **kwargs):
+        """Initialize
+        Parameters
+        ----------
+        gdir : GlacierDirectory
+            the glacier directory
+        mu_star : float, optional
+            set to the alternative value of mu* you want to use
+            (the default is to use the calibrated value)
+        bias : float, optional
+            set to the alternative value of the annual bias [mm we yr-1]
+            you want to use (the default is to use the calibrated value)
+        y0 : int, optional, default: tstar
+            the year at the center of the period of interest. The default
+            is to use tstar as center.
+        halfsize : int, optional
+            the half-size of the time window (window size = 2 * halfsize + 1)
+        filename : str, optional
+            set to a different BASENAME if you want to use alternative climate
+            data.
+        input_filesuffix : str
+            the file suffix of the input climate file
+        """
+
+        super(ConstantMassBalanceTorch, self).__init__(gdir, mu_star=mu_star, bias=bias,
+                                                        y0=y0, halfsize=halfsize, filename=filename,
+                                                        input_filesuffix=input_filesuffix, **kwargs)
+
+        self.torch_type = torch_type
+        self._get_annual_mb = None
+        self.initialize_get_annual_mb()
+
+    def initialize_get_annual_mb(self):
+        mb_on_h = self.hbins * 0.
+        for yr in self.years:
+            mb_on_h += self.mbmod.get_annual_mb(self.hbins, year=yr)
+        self._get_annual_mb = partial(Interp1d(),
+                                      to_torch_tensor(self.hbins,
+                                                      torch_type=self.torch_type),
+                                      to_torch_tensor(mb_on_h / len(self.years),
+                                                      torch_type=self.torch_type))
+
+    def get_annual_mb(self, heights, year=None, add_climate=False, **kwargs):
+        return self._get_annual_mb(heights)

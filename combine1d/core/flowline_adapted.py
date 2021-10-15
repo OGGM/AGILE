@@ -398,6 +398,156 @@ class TrapezoidalBedFlowline(Flowline):
         ds['lambdas'] = (['x'],  self._lambdas)
 
 
+class MixedBedFlowline(Flowline):
+    """A Flowline which can take a combination of different shapes (default)
+    The default shape is parabolic. At ice divides a rectangular shape is used.
+    And if the parabola gets too flat a trapezoidal shape is used.
+    """
+
+    def __init__(self, *, line=None, dx=None, map_dx=None, surface_h=None,
+                 bed_h=None, section=None, bed_shape=None,
+                 is_trapezoid=None, lambdas=None, w0_m=None,
+                 rgi_id=None, water_level=None, torch_type=torch.double):
+        """ Instanciate.
+        Parameters
+        ----------
+        line : :py:class:`shapely.geometry.LineString`
+            the geometrical line of a :py:class:`oggm.Centerline`
+        """
+
+        super(MixedBedFlowline, self).__init__(line=line, dx=dx, map_dx=map_dx,
+                                               surface_h=surface_h,
+                                               bed_h=bed_h,
+                                               rgi_id=rgi_id,
+                                               water_level=water_level)
+        assert len(lambdas) == self.nx
+        self._lambdas = to_torch_tensor(lambdas,
+                                        torch_type=torch_type)
+
+        assert len(w0_m) == self.nx
+        self._w0_m = to_torch_tensor(w0_m,
+                                     torch_type=torch_type)
+
+        assert len(bed_shape) == self.nx
+        self.bed_shape = to_torch_tensor(bed_shape,
+                                         torch_type=torch_type)
+
+        assert len(is_trapezoid) == self.nx
+        self.is_trapezoid = to_torch_tensor(is_trapezoid & (lambdas != 0),
+                                            torch_type=torch.bool)
+        self.is_rectangular = to_torch_tensor(is_trapezoid & (lambdas == 0),
+                                              torch_type=torch.bool)
+        self.is_parabolic = to_torch_tensor(~is_trapezoid,
+                                            torch_type=torch.bool)
+
+        # Sanity
+        self.bed_shape[is_trapezoid] = np.NaN
+        self._lambdas[~is_trapezoid] = np.NaN
+        self._w0_m[~is_trapezoid] = np.NaN
+
+        # Indices for different calculations
+        self._ptrap = torch.where(self.is_trapezoid)[0]
+        self._prec = torch.where(self.is_rectangular)[0]
+        self._ppar = torch.where(self.is_parabolic)[0]
+
+        # To speedup calculations if bed is not present
+        self._do_trapeze = torch.any(self.is_trapezoid)
+        self._do_rectangular = torch.any(self.is_rectangular)
+        self._do_parabolic = torch.any(self.is_parabolic)
+
+        assert np.all(section >= 0)
+
+        if (np.any(self._w0_m[is_trapezoid] <= 0) or
+                np.any(~np.isfinite(self._w0_m[is_trapezoid]))):
+            raise ValueError('Trapezoid beds need to have origin widths > 0.')
+
+        assert np.all(self.bed_shape[~is_trapezoid] > 0)
+
+    @property
+    def widths_m(self):
+        """Compute the widths out of H and shape"""
+        out = torch.empty(self.nx,
+                          dtype=self.torch_type,
+                          requires_grad=False)
+        # initialise with NaN to check if there was a calculation at each gridpoint
+        out[:] = np.NaN
+
+        # calculate widths depending on the shape
+        if self._do_trapeze:
+            out[self._ptrap] = self._w0_m[self._ptrap] + self._lambdas[self._ptrap] * self.thick[self._ptrap]
+        if self._do_rectangular:
+            out[self._prec] = self._w0_m[self._prec]
+        if self._do_parabolic:
+            out[self._ppar] = para_width_from_thick.apply(self.bed_shape[self._ppar],
+                                                          self.thick[self._ppar])
+
+        # test that every grid point has a calculated value
+        assert torch.any(torch.isnan(out))
+
+        return out
+
+    @property
+    def section(self):
+        out = torch.empty(self.nx,
+                          dtype=self.torch_type,
+                          requires_grad=False)
+        # initialise with NaN to check if there was a calculation at each gridpoint
+        out[:] = np.NaN
+
+        # calculate section depending on bed shape
+        if self._do_trapeze:
+            out[self._ptrap] = (self.widths_m[self._ptrap] + self._w0_m[self._ptrap]) / 2 * self.thick[self._ptrap]
+        if self._do_rectangular:
+            out[self._prec] = self.widths_m[self._prec] * self.thick[self._prec]
+        if self._do_parabolic:
+            out[self._ppar] = 2./3. * self.widths_m[self._ppar] * self.thick[self._ppar]
+
+        # test that every grid point has a calculated value
+        assert torch.any(torch.isnan(out))
+
+        return out
+
+    @section.setter
+    def section(self, val):
+        out = torch.empty(self.nx,
+                          dtype=self.torch_type,
+                          requires_grad=False)
+        # initialise with NaN to check if there was a calculation at each gridpoint
+        out[:] = np.NaN
+
+        # set new thick depending on bed shape
+        if self._do_trapeze:
+            out[self._ptrap] = (torch.sqrt(self._w0_m[self._ptrap]**2 +
+                                           2 * self._lambdas[self._ptrap] * val[self._ptrap]) -
+                                self._w0_m[self._ptrap]) / self._lambdas[self._ptrap]
+        if self._do_rectangular:
+            out[self._prec] = val[self._prec] / self.widths_m[self._prec]
+        if self._do_parabolic:
+            out[self._ppar] = para_thick_from_section.apply(self.bed_shape[self._ppar], val[self._ppar])
+
+        # test that every grid point has a calculated value
+        assert torch.any(torch.isnan(out))
+
+        self.thick = out
+
+    @utils.lazy_property
+    def shape_str(self):
+        """The bed shape in text (for debug and other things)"""
+        out = np.repeat('rectangular', self.nx)
+        out[self.is_parabolic] = 'parabolic'
+        out[self.is_trapezoid] = 'trapezoid'
+        return out
+
+    def _add_attrs_to_dataset(self, ds):
+        """Add bed specific parameters."""
+
+        ds['section'] = (['x'],  self.section)
+        ds['bed_shape'] = (['x'],  self.bed_shape)
+        ds['is_trapezoid'] = (['x'], self.is_trapezoid)
+        ds['widths_m'] = (['x'], self._w0_m)
+        ds['lambdas'] = (['x'],  self._lambdas)
+
+
 class FlowlineModel(object):
     """Interface to the actual model"""
 
