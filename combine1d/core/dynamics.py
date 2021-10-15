@@ -1,4 +1,6 @@
+import collections
 import torch
+import numpy as np
 from combine1d.core.flowline_adapted import ParabolicBedFlowline
 from combine1d.core.flowline_adapted import RectangularBedFlowline
 from combine1d.core.flowline_adapted import TrapezoidalBedFlowline
@@ -99,3 +101,84 @@ def run_flowline_forward_core(bed_h,
         final_model.run_until(yrs_to_run)
 
     return final_model.fls[0]
+
+
+def run_model_and_get_modeled_obs(flowline, mb_models, Obs):
+    '''
+
+    Parameters
+    ----------
+    flowline: py:class:`oggm.Flowline`
+    mb_models: dict
+        {'MB1': {'mb_model': lala, 'years': np.array([1950, 2010])}}
+    Obs: dict
+        {'Area', {'2010': np.array([23])}, 'dh': {'2010-2015': np.array([45])}}
+
+    Returns
+    -------
+    : dict
+        dict with the same structure as Obs
+    '''
+    # creates a ordered dict with all years and Obs we must save during the forward run
+    needed_Obs = {}
+    for obs_key in Obs.keys():
+        if obs_key == 'dh':
+            needed_years = np.array([], dtype=int)
+            for years in Obs[obs_key].keys():
+                for year in years.split('-'):
+                    if int(year) not in needed_years:
+                        needed_years = np.append(needed_years, int(year))
+            obs_key = 'h'
+        else:
+            needed_years = np.array([int(k) for k in Obs[obs_key].keys()])
+
+        for year in needed_years:
+            if year not in needed_Obs.keys():
+                needed_Obs[year] = [obs_key]
+            else:
+                needed_Obs[year].append(obs_key)
+
+    needed_mdl_Obs = collections.OrderedDict(sorted(needed_Obs.items()))
+
+    # start the actual forward run and get observations from model
+    raw_Obs_mdl = {}
+    for mb_key in mb_models.keys():
+        flux_model = FluxBasedModel(flowline,
+                                    mb_model=mb_models[mb_key]['mb_model'],
+                                    y0=mb_models[mb_key]['years'][0],
+                                    fs=0.,
+                                    mb_elev_feedback='annual')
+
+        # years with observations using the same mass balance model
+        obs_yrs = [k for k in needed_mdl_Obs.keys()
+                   if mb_models[mb_key]['years'][0] < k <= mb_models[mb_key]['years'][1]]
+        for obs_yr in obs_yrs:
+            # let the model run to the year of observation
+            flux_model.run_until(obs_yr)
+
+            # save model counterparts of observation
+            for var in needed_Obs[obs_yr]:
+                if var not in raw_Obs_mdl.keys():
+                    raw_Obs_mdl[var] = {}
+                if var == 'Area':
+                    raw_Obs_mdl[var][obs_yr] = flux_model.fls[0].area_km2
+                if var == 'h':
+                    raw_Obs_mdl[var][obs_yr] = flux_model.fls[0].area_km2
+
+        # save flowline for switching to the next mb_model
+        flowline = flux_model.fls[0]
+
+    # postprocessing mdl observations to get to the given observations (calculate delta values)
+    out = Obs.copy()
+    for var_key in out.keys():
+        if var_key == 'Area':
+            for year in out[var_key].keys():
+                out[var_key][year] = raw_Obs_mdl[var_key][int(year)]
+        if var_key == 'dh':
+            mdl_key = var_key[1]
+            for years in out[var_key].keys():
+                y1, y2 = years.split('-')
+                out[var_key][years] = (raw_Obs_mdl[mdl_key][int(y2)] -
+                                       raw_Obs_mdl[mdl_key][int(y1)])
+
+    return out
