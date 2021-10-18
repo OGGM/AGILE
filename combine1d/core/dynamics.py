@@ -165,6 +165,9 @@ def run_model_and_get_modeled_obs(flowline, mb_models, Obs):
                 if var == 'h':
                     raw_Obs_mdl[var][obs_yr] = flux_model.fls[0].area_km2
 
+        # after getting all obs. run the model to the end of the current mb_model use time
+        flux_model.run_until(mb_models[mb_key]['years'][1])
+
         # save flowline for switching to the next mb_model
         flowline = flux_model.fls[0]
 
