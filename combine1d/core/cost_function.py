@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import time
 
-from combine1d.core.dynamics import run_flowline_forward_core
+from combine1d.core.dynamics import run_flowline_forward_core, run_model_and_get_modeled_obs
 from combine1d.core.type_conversions import to_torch_tensor
 from combine1d.core.massbalance_adapted import LinearMassBalance
 
@@ -376,23 +376,15 @@ def cost_fct(unknown_parameter,
     # check if bed_h and shape_var are the same length
     assert len(bed_h) == len(shape_var), 'Parameters not the same length!!!'
 
+    # Here a spinup run could be conducted, maybe in the future
+    # flowline = do_spinup(flowline, spinup_mb_model)
+
     # forward run of model, try is needed to avoid a memory overflow
     try:
-        model_flowline = run_flowline_forward_core(
-            bed_h=bed_h,
-            shape_var=shape_var,
-            bed_geometry=bed_geometry,
-            mb_model=mb_model,
-            spinup_sfc_h=measurements['spinup_sfc'],
-            spinup_sfc_known=spinup_sfc_known,
-            yrs_to_run=measurements['yrs_to_run'],
-            spinup_yrs=spinup_yrs,
-            map_dx=map_dx,
-            torch_type=torch_type)
+        Obs_mdl = run_model_and_get_modeled_obs(flowline=flowline,
+                                                mb_models=mb_models,
+                                                Obs=Obs)
 
-        model_sfc_h = model_flowline.surface_h
-        model_widths = model_flowline.widths_m
-        model_thicks = model_flowline.thick
     except MemoryError:
         print('MemoryError in forward model run (due to a too small '
               'timestep) -> set Costfunction to Inf')
