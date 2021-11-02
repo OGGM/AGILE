@@ -4,55 +4,13 @@ import time
 
 from combine1d.core.dynamics import run_flowline_forward_core, run_model_and_get_modeled_obs
 from combine1d.core.type_conversions import to_torch_tensor
-from combine1d.core.massbalance_adapted import LinearMassBalance
+from combine1d.core.massbalance_adapted import LinearMassBalance, ConstantMassBalanceTorch
+from combine1d.core.flowline_adapted import MixedBedFlowline
 
 
-def create_cost_fct(known_parameter,
-                    geometry_var,
-                    bed_geometry,
-                    measurements,
-                    reg_parameters,
-                    dx,
-                    mb_model,
-                    opti_var,
-                    two_parameter_option,
-                    datalogger,
-                    grad_scaling={'bed_h': 1,
-                                  'shape_var': 1},
-                    min_w0=10.,
-                    spinup_sfc_known=True,
-                    spinup_yrs=None,
-                    only_get_c_terms=False,
-                    torch_type='double'):
+def create_cost_fct(igdir):
     '''
-    Creating a cost function for the given parameters. For a detailed parameter
-    description look at Docstring of function
-    combine1d.core.cost_function.cost_fct
-
-    Parameters
-    ----------
-    known_parameter : TYPE
-        DESCRIPTION.
-    geometry_var : TYPE
-        DESCRIPTION.
-    bed_geometry : TYPE
-        DESCRIPTION.
-    measurements : TYPE
-        DESCRIPTION.
-    reg_parameters : TYPE
-        DESCRIPTION.
-    dx : TYPE
-        DESCRIPTION.
-    mb_model : TYPE
-        DESCRIPTION.
-    opti_var : TYPE
-        DESCRIPTION.
-    datalogger : TYPE
-        DESCRIPTION.
-    get_c_terms : TYPE, optional
-        DESCRIPTION. The default is False.
-    torch_type : TYPE, optional
-        DESCRIPTION. The default is 'double'.
+    Creating a cost function for the given InversionGlacierDirectory.
 
     Returns
     -------
@@ -60,6 +18,7 @@ def create_cost_fct(known_parameter,
     values (cost, grad)
     '''
 
+    
     def c_fun(unknown_parameter):
         return cost_fct(unknown_parameter,
                         known_parameter,
@@ -82,69 +41,44 @@ def create_cost_fct(known_parameter,
     return c_fun
 
 
-def cost_fct(unknown_parameter,
-             known_parameter,
-             geometry_var,
-             bed_geometry,
-             measurements,
+def cost_fct(unknown_parameters,
+             known_parameters,
+             parameter_indices,
+             igdir,
+             observations,
              reg_parameters,
-             map_dx,
-             mb_model,
-             opti_var,
-             two_parameter_option,
-             datalogger,
-             grad_scaling={'bed_h': 1,
-                           'shape_var': 1},
-             min_w0=10.,
-             spinup_sfc_known=True,
-             spinup_yrs=None,
-             only_get_c_terms=False,
+             mb_models_options,
+             min_w0_m=10.,
+             data_logger=None,
+             spinup_options=None,
              torch_type='double'):
     '''
-    Calculates cost and gradient for the given parameters.
+    Calculates cost and gradient for the given parameters. At the moment only Trapezoidal optimisation. Implicit
+    calculation of w0_m only working with lambdas = 1..
 
     Parameters
     ----------
-    unknown_parameter : :py:class:`numpy.ndarray`
+    unknown_parameters : :py:class:`numpy.ndarray`
         Unknown parameter values for the optimisation variable (ice part of
         the glacier). For simulaneously optimisation of two variables contains
         both unknown variables consecutively.
-    known_parameter : :py:class:`numpy.ndarray`
-        Known parameter values for the optimisation variable (ice free part of
-        the glacier). For simulaneously optimisation of two variables contains
-        both known variables consecutively.
-    geometry_var : :py:class:`numpy.ndarray`
-        If only one optimisation variable contains the second variable which is
-        needed to define the flowline shape.
-    bed_geometry : str
-        Defines the bed shape.
-        Options: 'rectangular', 'parabolic' or 'trapezoidal'
-    measurements : dict
+    known_parameters : dict
+        Known values for the initialisation of the flowline, key same as value
+        must contain: nx, is_trapezoidal, map_dx, dx, line, rgi_id, water_level, section
+        can contain: bed_h, surface_h, bed_shape, lambdas, w0_m, reference_w0_m (dict with widths_m and surface_h, for
+            calculation of w0_m, if w0_m is not a control variable)
+    parameter_indices : dict
+        contains the indices for the creation of the flowline out of the unknown_ and known_parameters
+        'fl_control_ind' : boolen array,  gridpoints along the flowline which are optimised
+        other keys contain the positions in the unknown parameter (e.g. 'bed_h': np.array([0,1,2,3,4]))
+    observations : dict
         Dictionary containing the measurements from:
-            'spinup_sfc_h' : the spinup surface height (start ice height)
-            'sfc_h': the desired ice surface height at the end
-            'widths': the desired widths at the end
-            'yrs_to_run': the number of years the model should run
-            'ice_mask': indicates where ice is located at the end (TRUE = ice)
-    reg_parameters : :py:class:`numpy.ndarray`
-        Regularisation parameters for the individual terms of the cost
-        function.
-    map_dx : float
-        Model grid spacing in meters.
-    mb_model : :py:class:`oggm.core.massbalance.MassBalanceModel`
+    mb_models : :py:class:`oggm.core.massbalance.MassBalanceModel`
         The mass balance model to use.
-    opti_var : str
-        Defines the optimisation parameter. Depending on the bed geometry this
-        could be one ore two.
-        Options for 'rectangular': 'bed_h'.
-        Options for 'parabolic': 'bed_h', 'bed_shape' or 'bed_h and bed_shape'
-        Options for 'trapezoidal': 'bed_h', 'w0' or 'bed_h and w0'
-    datalogger : :py:class:`combine.core.data_logging.DataLogger`
+    min_w0_m : float
+        minimum value for bottom width of trapezoidal bed shapes
+    data_logger : :py:class:`combine.core.data_logging.DataLogger`
         Datalogger to keep track of the calculations.
-    get_c_terms : bool, optional
-        If true the function only returns the cost function terms. This is a
-        shortcut for determining the regularisation parameters only by a
-        scaling of magnitude. The default is False.
     torch_type : str, optional
         Defines type for torch.Tensor. If 'double' use torch.double, otherwise
         use torch.float. The default is 'double'.
@@ -163,6 +97,24 @@ def cost_fct(unknown_parameter,
     else:
         torch_type = torch.float
 
+    # if w0_m is not a control variable calculate a value to match widths calculated from OGGM (using RGIv6)
+    if 'w0_m' not in parameter_indices.keys():
+        known_parameters = add_calculated_w0_m(unknown_parameters, known_parameters, parameter_indices)
+
+    # initialise flowline
+    flowline, fl_control_vars = initialise_MixedBedFlowline(unknown_parameters,
+                                                            known_parameters,
+                                                            parameter_indices,
+                                                            min_w0_m,
+                                                            torch_type)
+
+    mb_models = initialise_MassBalanceModels(igdir,
+                                             unknown_parameters,
+                                             known_parameters,
+                                             parameter_indices,
+                                             mb_models_options,
+                                             torch_type)
+    '''
     # save original length of unkown parameter,
     # needed for potential MemoryOverflowError
     unknown_paramter_length = len(unknown_parameter)
@@ -375,15 +327,18 @@ def cost_fct(unknown_parameter,
 
     # check if bed_h and shape_var are the same length
     assert len(bed_h) == len(shape_var), 'Parameters not the same length!!!'
+    '''
 
-    # Here a spinup run could be conducted, maybe in the future
-    # flowline = do_spinup(flowline, spinup_mb_model)
+    if spinup_options is not None:
+        # Here a spinup run could be conducted, maybe in the future
+        # flowline = do_spinup(flowline, spinup_mb_model)
+        raise NotImplementedError('No spinup possibilities integrated!')
 
     # forward run of model, try is needed to avoid a memory overflow
     try:
         Obs_mdl = run_model_and_get_modeled_obs(flowline=flowline,
                                                 mb_models=mb_models,
-                                                Obs=Obs)
+                                                Obs=observations)
 
     except MemoryError:
         print('MemoryError in forward model run (due to a too small '
@@ -441,7 +396,7 @@ def cost_fct(unknown_parameter,
 
     if not spinup_sfc_known:
         if (datalogger.two_parameter_option == 'iterative') & \
-           (datalogger.opti_var_2 is not None):
+                (datalogger.opti_var_2 is not None):
             if opti_var == 'bed_h':
                 spinup_ELA_grad = \
                     spinup_ELA.grad.detach().numpy().astype(np.float64)
@@ -527,6 +482,119 @@ def cost_fct(unknown_parameter,
                                      datalogger.fct_calls[-1] + 1)
 
     return cost, grad_return
+
+
+def add_calculated_w0_m(unknown_parameters, known_parameters, parameter_indices):
+    rgi_widths = to_torch_tensor(known_parameters['widths_m'], torch_type)
+    rgi_sfc_h = to_torch_tensor(known_parameters['surface_h'], torch_type)
+
+    known_parameters['w0_m'] = torch.empty(known_parameters['nx'],
+                                           dtype=torch_type,
+                                           requires_grad=False)
+
+    # 1. for constant lambda of trapozidal bed geometry
+    known_parameters['w0_m'][parameter_indices['fl_control_ind']] = \
+        torch.clamp(rgi_widths[parameter_indices['fl_control_ind']] -
+                    to_torch_tensor(1., torch_type) *
+                    (rgi_sfc_h[parameter_indices['fl_control_ind']] -
+                     unknown_parameters[parameter_indices['bed_h']]),
+                    min=min_w0_m)
+    known_parameters['w0_m'][~parameter_indices['fl_control_ind']] = float('nan')
+
+    return known_parameters
+
+
+def initialise_MixedBedFlowline(unknown_parameters,
+                                known_parameters,
+                                parameter_indices,
+                                min_w0_m,
+                                torch_type):
+    '''
+    Initialise a MixedBedFlowline for Minimisation. At the moment only Trapezoidal OR Parabolic is supported (maybe
+    integrate something like 'fl_control_ind & is_trapezoidal')!!
+    Parameters
+    ----------
+    unknown_parameters : :py:class:`numpy.ndarray`
+        Unknown parameter values for the optimisation variable (ice part of
+        the glacier). For simulaneously optimisation of two variables contains
+        both unknown variables consecutively.
+    known_parameters : dict
+        Known values for the initialisation of the flowline, key same as value
+        must contain: nx, is_trapezoidal, map_dx, dx, line, rgi_id, water_level
+        can contain: bed_h, surface_h, bed_shape, lambdas, w0_m
+    parameter_indices : dict
+        contains the indices for the creation of the flowline out of the unknown_ and known_parameters
+        'fl_control_ind' : boolen array,  gridpoints along the flowline which are optimised
+        other keys contain the positions in the unknown parameter (e.g. 'bed_h': np.array([0,1,2,3,4]))
+
+    Returns
+    -------
+
+    '''
+    assert known_parameters['nx'] == len(parameter_indices['fl_control_ind'])
+
+    fl_control_ind = to_torch_tensor(parameter_indices['fl_control_ind'],
+                                     torch_type=torch.bool,
+                                     requires_grad=False)
+
+    # initialise all potential control variables for flowline as empty tensor and fill them accordingly
+    all_vars = ['bed_h', 'surface_h', 'lambdas', 'w0_m', 'bed_shape']
+    fl_vars_total = {}  # they are used for actual initialisation
+    fl_control_vars = {}  # are used for reading out the gradients later
+    for var in all_vars:
+        fl_vars_total[var] = torch.empty(known_parameters['nx'],
+                                         dtype=torch_type,
+                                         requires_grad=False)
+
+        if var in parameter_indices.keys():
+            fl_control_vars[var] = torch.tensor(unknown_parameters[parameter_indices[var]],
+                                                dtype=torch_type,
+                                                requires_grad=True)
+
+            fl_vars_total[var][fl_control_ind] = fl_control_vars[var]
+            fl_vars_total[var][~fl_control_ind] = to_torch_tensor(known_parameters[var],
+                                                                  torch_type=torch_type,
+                                                                  requires_grad=False)
+
+        else:
+            fl_vars_total[var] = to_torch_tensor(known_parameters[var],
+                                                 torch_type=torch_type,
+                                                 requires_grad=False)
+
+    fl = MixedBedFlowline(line=known_parameters['line'],
+                          dx=known_parameters['dx'],
+                          map_dx=known_parameters['map_dx'],
+                          surface_h=fl_vars_total['surface_h'],
+                          bed_h=fl_vars_total['bed_h'],
+                          section=known_parameters['section'],
+                          bed_shape=fl_vars_total['bed_shape'],
+                          is_trapezoid=known_parameters['is_trapezoid'],
+                          lambdas=fl_vars_total['lambdas'],
+                          w0_m=fl_vars_total['w0_m'],
+                          rgi_id=known_parameters['rgi_id'],
+                          water_level=known_parameters['water_level'],
+                          torch_type=torch_type)
+
+    return fl, fl_control_vars
+
+
+def initialise_MassBalanceModels(igdir,
+                                 mb_models_options,  # {'MB1': {'type': 'constant', 'years': np.array([1950, 2010])}}
+                                 torch_type):
+    mb_models = {}
+    for mb_opt in mb_models_options:
+        if mb_models_options[mb_opt]['type'] == 'constant':
+            y0 = int(np.mean(mb_models_options[mb_opt]['years']))
+            halfsize = int(y0 - mb_models_options[mb_opt]['years'][0])
+            mb_models[mb_opt] = {'mb_model': ConstantMassBalanceTorch(igdir,
+                                                                      y0=y0,
+                                                                      halfsize=halfsize,
+                                                                      torch_type=torch_type),
+                                 'years': mb_models_options[mb_opt]['years']}
+        else:
+            raise NotImplementedError('The MassBalance type ' + mb_models_options[mb_opt]['type'] + ' is not '
+                                      'implemented!')
+    return mb_models  # {'MB1': {'mb_model': lala, 'years': np.array([1950, 2010])}}
 
 
 def get_cost_terms(model_sfc_h,
