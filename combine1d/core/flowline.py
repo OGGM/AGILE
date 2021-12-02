@@ -5,6 +5,7 @@
 # Builtins
 from collections import OrderedDict
 from time import gmtime, strftime
+import warnings
 
 # External libs
 import torch
@@ -39,7 +40,7 @@ class Flowline(Centerline):
 
     def __init__(self, line=None, dx=1, map_dx=None,
                  surface_h=None, bed_h=None, rgi_id=None,
-                 water_level=None, torch_type=torch.float):
+                 water_level=None, torch_type=torch.double, device='cpu'):
         """ Initialize a Flowline
 
         Parameters
@@ -67,27 +68,39 @@ class Flowline(Centerline):
         if dx is None:
             dx = 1
         if line is None:
-            coords = np.arange(0, len(surface_h)-0.5, dx)
-            line = shpg.LineString(np.vstack([coords, coords*0.]).T)
+            coords = np.arange(0, len(surface_h) - 0.5, dx)
+            line = shpg.LineString(np.vstack([coords, coords * 0.]).T)
 
         super(Flowline, self).__init__(line, dx, surface_h)
 
         self.torch_type = torch_type
+        self.device = device
 
-        # check type of bed_h
         if type(bed_h) != torch.Tensor:
-            raise TypeError('bed_h must be torch.Tensor!!!')
-        self.bed_h = bed_h
+            self.bed_h = torch.tensor(bed_h,
+                                      dtype=self.torch_type,
+                                      device=device,
+                                      requires_grad=False)
+        else:
+            self.bed_h = bed_h
 
-        surface_h = to_torch_tensor(surface_h, self.torch_type)
-        thick = (surface_h - self.bed_h).detach().clone()
+        if type(surface_h) != torch.Tensor:
+            surface_h = torch.tensor(surface_h,
+                                     dtype=self.torch_type,
+                                     device=device,
+                                     requires_grad=False)
+        thick = surface_h - self.bed_h
         self.thick = torch.clamp(thick,
                                  min=0)
 
-        self.spinup_sfc_h = surface_h
-
-        self.map_dx = to_torch_tensor(map_dx, self.torch_type)
-        self.dx = to_torch_tensor(dx, self.torch_type)
+        self.map_dx = torch.tensor(map_dx,
+                                   dtype=self.torch_type,
+                                   device=self.device,
+                                   requires_grad=False)
+        self.dx = torch.tensor(dx,
+                               dtype=self.torch_type,
+                               device=self.device,
+                               requires_grad=False)
         self.dx_meter = self.map_dx * self.dx
         self.rgi_id = rgi_id
         self.water_level = water_level
@@ -110,14 +123,22 @@ class Flowline(Centerline):
     @surface_h.setter
     def surface_h(self, value):
         if type(value) != torch.Tensor:
-            value = to_torch_tensor(value, self.torch_type)
+            raise TypeError('surface_h must be torch.Tensor!!!')
         self.thick = value - self.bed_h
 
     @property
     def bin_area_m2(self):
         # area of the grid point
         # this takes the ice thickness into account
-        return torch.where(self.thick > 0, self.widths_m, 0) * self.dx_meter
+        return torch.where(self.thick > torch.tensor(0,
+                                                     dtype=self.torch_type,
+                                                     device=self.device,
+                                                     requires_grad=False),
+                           self.widths_m, torch.tensor(0,
+                                                       dtype=self.torch_type,
+                                                       device=self.device,
+                                                       requires_grad=False)
+                           ) * self.dx_meter
 
     @property
     def length_m(self):
@@ -131,11 +152,14 @@ class Flowline(Centerline):
 
     @property
     def volume_m3(self):
-        return torch.sum(self.section * self.dx_meter)
+        return torch.sum(self.section * self.dx_meter, dim=0, keepdim=True)
 
     @property
     def volume_km3(self):
-        return self.volume_m3 * 1e-9
+        return self.volume_m3 * torch.tensor(1e-9,
+                                             dtype=self.torch_type,
+                                             device=self.device,
+                                             requires_grad=False)
 
     def _vol_below_level(self, water_level=0):
 
@@ -160,7 +184,10 @@ class Flowline(Centerline):
 
     @property
     def volume_bsl_km3(self):
-        return self.volume_bsl_m3 * 1e-9
+        return self.volume_bsl_m3 * torch.tensor(1e-9,
+                                                 dtype=self.torch_type,
+                                                 device=self.device,
+                                                 requires_grad=False)
 
     @property
     def volume_bwl_m3(self):
@@ -168,16 +195,22 @@ class Flowline(Centerline):
 
     @property
     def volume_bwl_km3(self):
-        return self.volume_bwl_m3 * 1e-9
+        return self.volume_bwl_m3 * torch.tensor(1e-9,
+                                                 dtype=self.torch_type,
+                                                 device=self.device,
+                                                 requires_grad=False)
 
     @property
     def area_m2(self):
         # TODO: take calving bucket into account
-        return torch.sum(self.bin_area_m2)
+        return torch.sum(self.bin_area_m2, dim=0, keepdim=True)
 
     @property
     def area_km2(self):
-        return self.area_m2 * 1e-6
+        return self.area_m2 * torch.tensor(1e-6,
+                                           dtype=self.torch_type,
+                                           device=self.device,
+                                           requires_grad=False)
 
     def _add_attrs_to_dataset(self, ds):
         """Add bed specific parameters."""
@@ -192,8 +225,8 @@ class Flowline(Centerline):
         ds.coords['x'] = np.arange(nx)
         ds.coords['c'] = [0, 1]
         ds['linecoords'] = (['x', 'c'], np.asarray(self.line.coords))
-        ds['surface_h'] = (['x'],  h)
-        ds['bed_h'] = (['x'],  self.bed_h)
+        ds['surface_h'] = (['x'], h)
+        ds['bed_h'] = (['x'], self.bed_h)
         ds.attrs['class'] = type(self).__name__
         ds.attrs['map_dx'] = self.map_dx
         ds.attrs['dx'] = self.dx
@@ -249,7 +282,7 @@ class ParabolicBedFlowline(Flowline):
 
     @property
     def section(self):
-        return 2./3. * self.widths_m * self.thick
+        return 2. / 3. * self.widths_m * self.thick
 
     @section.setter
     def section(self, val):
@@ -266,7 +299,7 @@ class ParabolicBedFlowline(Flowline):
 
     def _add_attrs_to_dataset(self, ds):
         """Add bed specific parameters."""
-        ds['bed_shape'] = (['x'],  self.bed_shape)
+        ds['bed_shape'] = (['x'], self.bed_shape)
 
 
 class RectangularBedFlowline(Flowline):
@@ -320,7 +353,7 @@ class RectangularBedFlowline(Flowline):
 
     def _add_attrs_to_dataset(self, ds):
         """Add bed specific parameters."""
-        ds['widths'] = (['x'],  self._widths)
+        ds['widths'] = (['x'], self._widths)
 
 
 class TrapezoidalBedFlowline(Flowline):
@@ -375,7 +408,7 @@ class TrapezoidalBedFlowline(Flowline):
 
     @section.setter
     def section(self, val):
-        thick = (torch.sqrt(self._w0_m**2 + 2 * self._lambdas * val) -
+        thick = (torch.sqrt(self._w0_m ** 2 + 2 * self._lambdas * val) -
                  self._w0_m) / self._lambdas
         self.thick = thick
         # val = to_torch_tensor(val, self.torch_type)
@@ -394,8 +427,8 @@ class TrapezoidalBedFlowline(Flowline):
 
     def _add_attrs_to_dataset(self, ds):
         """Add bed specific parameters."""
-        ds['widths'] = (['x'],  self.widths)
-        ds['lambdas'] = (['x'],  self._lambdas)
+        ds['widths'] = (['x'], self.widths)
+        ds['lambdas'] = (['x'], self._lambdas)
 
 
 class MixedBedFlowline(Flowline):
@@ -407,7 +440,7 @@ class MixedBedFlowline(Flowline):
     def __init__(self, *, line=None, dx=None, map_dx=None, surface_h=None,
                  bed_h=None, section=None, bed_shape=None,
                  is_trapezoid=None, lambdas=None, w0_m=None,
-                 rgi_id=None, water_level=None, torch_type=torch.double):
+                 rgi_id=None, water_level=None, torch_type=torch.double, device='cpu'):
         """ Instanciate.
         Parameters
         ----------
@@ -419,26 +452,42 @@ class MixedBedFlowline(Flowline):
                                                surface_h=surface_h,
                                                bed_h=bed_h,
                                                rgi_id=rgi_id,
-                                               water_level=water_level)
+                                               water_level=water_level,
+                                               torch_type=torch_type, device=device)
         assert len(lambdas) == self.nx
-        self._lambdas = to_torch_tensor(lambdas,
-                                        torch_type=torch_type)
+        if type(lambdas) != torch.Tensor:
+            self._lambdas = torch.tensor(lambdas,
+                                         dtype=self.torch_type,
+                                         device=self.device,
+                                         requires_grad=False)
+        else:
+            self._lambdas = lambdas
 
         assert len(w0_m) == self.nx
-        self._w0_m = to_torch_tensor(w0_m,
-                                     torch_type=torch_type)
+        if type(w0_m) != torch.Tensor:
+            self._w0_m = torch.tensor(w0_m,
+                                      dtype=self.torch_type,
+                                      device=self.device,
+                                      requires_grad=False)
+        else:
+            self._w0_m = w0_m
 
         assert len(bed_shape) == self.nx
-        self.bed_shape = to_torch_tensor(bed_shape,
-                                         torch_type=torch_type)
+        if type(bed_shape) == torch.Tensor:
+            warnings.warn('Gradient calculation not possible for bed_shape!')
+        self.bed_shape = torch.tensor(bed_shape,
+                                      dtype=self.torch_type,
+                                      device=self.device,
+                                      requires_grad=False)
 
         assert len(is_trapezoid) == self.nx
-        self.is_trapezoid = to_torch_tensor(is_trapezoid & (lambdas != 0),
-                                            torch_type=torch.bool)
-        self.is_rectangular = to_torch_tensor(is_trapezoid & (lambdas == 0),
-                                              torch_type=torch.bool)
-        self.is_parabolic = to_torch_tensor(~is_trapezoid,
-                                            torch_type=torch.bool)
+        is_trapezoid_torch = torch.tensor(is_trapezoid,
+                                          dtype=torch.bool,
+                                          device=self.device,
+                                          requires_grad=False)
+        self.is_trapezoid = is_trapezoid_torch & (lambdas != 0)
+        self.is_rectangular = is_trapezoid_torch & (lambdas == 0)
+        self.is_parabolic = ~is_trapezoid_torch
 
         # Sanity
         self.bed_shape[is_trapezoid] = np.NaN
@@ -455,34 +504,50 @@ class MixedBedFlowline(Flowline):
         self._do_rectangular = torch.any(self.is_rectangular)
         self._do_parabolic = torch.any(self.is_parabolic)
 
-        assert np.all(section >= 0)
+        # some number tensors for calculation
+        self.number_two = torch.tensor(2.,
+                                       dtype=self.torch_type,
+                                       device=self.device,
+                                       requires_grad=False)
+        self.number_three = torch.tensor(3.,
+                                         dtype=self.torch_type,
+                                         device=self.device,
+                                         requires_grad=False)
 
-        if (np.any(self._w0_m[is_trapezoid] <= 0) or
-                np.any(~np.isfinite(self._w0_m[is_trapezoid]))):
+        if (torch.any(self._w0_m[is_trapezoid] <= 0) or
+                torch.any(~torch.isfinite(self._w0_m[is_trapezoid]))):
             raise ValueError('Trapezoid beds need to have origin widths > 0.')
 
-        assert np.all(self.bed_shape[~is_trapezoid] > 0)
+        assert torch.all(self.bed_shape[~is_trapezoid] > 0)
+
+        assert np.all(section >= 0)
+        assert torch.allclose(torch.tensor(section, dtype=self.torch_type, device=self.device),
+                              self.section)
 
     @property
     def widths_m(self):
         """Compute the widths out of H and shape"""
         out = torch.empty(self.nx,
                           dtype=self.torch_type,
+                          device=self.device,
                           requires_grad=False)
         # initialise with NaN to check if there was a calculation at each gridpoint
         out[:] = np.NaN
 
         # calculate widths depending on the shape
         if self._do_trapeze:
-            out[self._ptrap] = self._w0_m[self._ptrap] + self._lambdas[self._ptrap] * self.thick[self._ptrap]
+            out[self._ptrap] = self._w0_m[self._ptrap] + self._lambdas[self._ptrap] * self.thick[
+                self._ptrap]
         if self._do_rectangular:
             out[self._prec] = self._w0_m[self._prec]
         if self._do_parabolic:
             out[self._ppar] = para_width_from_thick.apply(self.bed_shape[self._ppar],
-                                                          self.thick[self._ppar])
+                                                          self.thick[self._ppar],
+                                                          self.torch_type,
+                                                          self.device)
 
         # test that every grid point has a calculated value
-        assert torch.any(torch.isnan(out))
+        assert torch.any(~torch.isnan(out))
 
         return out
 
@@ -490,20 +555,23 @@ class MixedBedFlowline(Flowline):
     def section(self):
         out = torch.empty(self.nx,
                           dtype=self.torch_type,
+                          device=self.device,
                           requires_grad=False)
         # initialise with NaN to check if there was a calculation at each gridpoint
         out[:] = np.NaN
 
         # calculate section depending on bed shape
         if self._do_trapeze:
-            out[self._ptrap] = (self.widths_m[self._ptrap] + self._w0_m[self._ptrap]) / 2 * self.thick[self._ptrap]
+            out[self._ptrap] = (self.widths_m[self._ptrap] + self._w0_m[self._ptrap]) / \
+                               self.number_two * self.thick[self._ptrap]
         if self._do_rectangular:
             out[self._prec] = self.widths_m[self._prec] * self.thick[self._prec]
         if self._do_parabolic:
-            out[self._ppar] = 2./3. * self.widths_m[self._ppar] * self.thick[self._ppar]
+            out[self._ppar] = self.number_two / self.number_three * self.widths_m[self._ppar] * \
+                              self.thick[self._ppar]
 
         # test that every grid point has a calculated value
-        assert torch.any(torch.isnan(out))
+        assert torch.any(~torch.isnan(out))
 
         return out
 
@@ -511,22 +579,27 @@ class MixedBedFlowline(Flowline):
     def section(self, val):
         out = torch.empty(self.nx,
                           dtype=self.torch_type,
+                          device=self.device,
                           requires_grad=False)
         # initialise with NaN to check if there was a calculation at each gridpoint
         out[:] = np.NaN
 
         # set new thick depending on bed shape
         if self._do_trapeze:
-            out[self._ptrap] = (torch.sqrt(self._w0_m[self._ptrap]**2 +
-                                           2 * self._lambdas[self._ptrap] * val[self._ptrap]) -
+            out[self._ptrap] = (torch.sqrt(self._w0_m[self._ptrap].pow(2) +
+                                           self.number_two * self._lambdas[self._ptrap] *
+                                           val[self._ptrap]) -
                                 self._w0_m[self._ptrap]) / self._lambdas[self._ptrap]
         if self._do_rectangular:
             out[self._prec] = val[self._prec] / self.widths_m[self._prec]
         if self._do_parabolic:
-            out[self._ppar] = para_thick_from_section.apply(self.bed_shape[self._ppar], val[self._ppar])
+            out[self._ppar] = para_thick_from_section.apply(self.bed_shape[self._ppar],
+                                                            val[self._ppar],
+                                                            self.torch_type,
+                                                            self.device)
 
         # test that every grid point has a calculated value
-        assert torch.any(torch.isnan(out))
+        assert torch.any(~torch.isnan(out))
 
         self.thick = out
 
@@ -541,11 +614,11 @@ class MixedBedFlowline(Flowline):
     def _add_attrs_to_dataset(self, ds):
         """Add bed specific parameters."""
 
-        ds['section'] = (['x'],  self.section)
-        ds['bed_shape'] = (['x'],  self.bed_shape)
+        ds['section'] = (['x'], self.section)
+        ds['bed_shape'] = (['x'], self.bed_shape)
         ds['is_trapezoid'] = (['x'], self.is_trapezoid)
         ds['widths_m'] = (['x'], self._w0_m)
-        ds['lambdas'] = (['x'],  self._lambdas)
+        ds['lambdas'] = (['x'], self._lambdas)
 
 
 class FlowlineModel(object):
@@ -619,6 +692,8 @@ class FlowlineModel(object):
         self._tributary_indices = None
         self.reset_flowlines(flowlines, inplace=inplace)
 
+        self.torch_type = self.fls[0].torch_type
+        self.device = self.fls[0].device
         # update flowline spinup states at initialisation
         self.fls[0].spinup_sfc_h = self.fls[0].surface_h
         self.fls[0].spinup_widths = self.fls[0].widths_m
@@ -628,25 +703,36 @@ class FlowlineModel(object):
             glen_a = cfg.PARAMS['glen_a']
         if fs is None:
             fs = cfg.PARAMS['fs']
-        self.glen_a = to_torch_tensor(glen_a,
-                                      self.fls[0].torch_type,
-                                      requires_grad=False)
-        self.fs = to_torch_tensor(fs,
-                                  self.fls[0].torch_type,
-                                  requires_grad=False)
-        self.glen_n = to_torch_tensor(cfg.PARAMS['glen_n'],
-                                      self.fls[0].torch_type,
-                                      requires_grad=False)
-        self.rho = to_torch_tensor(cfg.PARAMS['ice_density'],
-                                   self.fls[0].torch_type,
+        self.glen_a = torch.tensor(glen_a,
+                                   dtype=self.torch_type,
+                                   device=self.device,
                                    requires_grad=False)
+        self.fs = torch.tensor(fs,
+                               dtype=self.torch_type,
+                               device=self.device,
+                               requires_grad=False)
+        self.glen_n = torch.tensor(cfg.PARAMS['glen_n'],
+                                   dtype=self.torch_type,
+                                   device=self.device,
+                                   requires_grad=False)
+        self.rho = torch.tensor(cfg.PARAMS['ice_density'],
+                                dtype=self.torch_type,
+                                device=self.device,
+                                requires_grad=False)
         if check_for_boundaries is None:
             check_for_boundaries = cfg.PARAMS[('error_when_glacier_reaches_'
                                                'boundaries')]
         self.check_for_boundaries = check_for_boundaries
 
         # we keep glen_a as input, but for optimisation we stick to "fd"
-        self._fd = 2. / (self.glen_n + 2) * self.glen_a
+        self._fd = torch.tensor(2.,
+                                dtype=self.torch_type,
+                                device=self.device,
+                                requires_grad=False) / \
+                   (self.glen_n + torch.tensor(2.,
+                                               dtype=self.torch_type,
+                                               device=self.device,
+                                               requires_grad=False)) * self.glen_a
 
         # Calving shenanigans
         self.calving_m3_since_y0 = 0.  # total calving since time y0
@@ -710,16 +796,16 @@ class FlowlineModel(object):
             ide = fl.flows_to_indice
             if fl.flows_to.nx >= 9:
                 gk = GAUSSIAN_KERNEL[9]
-                id0 = ide-4
-                id1 = ide+5
+                id0 = ide - 4
+                id1 = ide + 5
             elif fl.flows_to.nx >= 7:
                 gk = GAUSSIAN_KERNEL[7]
-                id0 = ide-3
-                id1 = ide+4
+                id0 = ide - 3
+                id1 = ide + 4
             elif fl.flows_to.nx >= 5:
                 gk = GAUSSIAN_KERNEL[5]
-                id0 = ide-2
-                id1 = ide+3
+                id0 = ide - 2
+                id1 = ide + 3
             trib_ind.append((idl, id0, id1, gk))
 
         self._tributary_indices = trib_ind
@@ -730,35 +816,47 @@ class FlowlineModel(object):
 
     @property
     def area_m2(self):
-        return np.sum([f.area_m2 for f in self.fls])
+        return torch.sum(torch.cat([f.area_m2 for f in self.fls], 0))
 
     @property
     def volume_m3(self):
-        return np.sum([f.volume_m3 for f in self.fls])
+        return torch.sum(torch.cat([f.volume_m3 for f in self.fls], 0))
 
     @property
     def volume_km3(self):
-        return self.volume_m3 * 1e-9
+        return self.volume_m3 * torch.tensor(1e-9,
+                                             dtype=self.torch_type,
+                                             device=self.device,
+                                             requires_grad=False)
 
     @property
     def volume_bsl_m3(self):
-        return np.sum([f.volume_bsl_m3 for f in self.fls])
+        return torch.sum(torch.cat([f.volume_bsl_m3 for f in self.fls], 0))
 
     @property
     def volume_bsl_km3(self):
-        return self.volume_bsl_m3 * 1e-9
+        return self.volume_bsl_m3 * torch.tensor(1e-9,
+                                                 dtype=self.torch_type,
+                                                 device=self.device,
+                                                 requires_grad=False)
 
     @property
     def volume_bwl_m3(self):
-        return np.sum([f.volume_bwl_m3 for f in self.fls])
+        return torch.sum(torch.cat([f.volume_bwl_m3 for f in self.fls], 0))
 
     @property
     def volume_bwl_km3(self):
-        return self.volume_bwl_m3 * 1e-9
+        return self.volume_bwl_m3 * torch.tensor(1e-9,
+                                                 dtype=self.torch_type,
+                                                 device=self.device,
+                                                 requires_grad=False)
 
     @property
     def area_km2(self):
-        return self.area_m2 * 1e-6
+        return self.area_m2 * torch.tensor(1e-6,
+                                           dtype=self.torch_type,
+                                           device=self.device,
+                                           requires_grad=False)
 
     @property
     def length_m(self):
@@ -769,11 +867,8 @@ class FlowlineModel(object):
 
         Optimized so that no mb model call is necessary at each step.
         """
-        # Version with OGGM MassBalanceModel use with torch.no_grad()
-        # with torch.no_grad():
         # Do we even have to optimise?
         if self.mb_elev_feedback == 'always':
-            # Version with OGGM MassBalanceModel
             return self._mb_call(heights, year=year, fl_id=fl_id, fls=fls)
 
         # Ok, user asked for it
@@ -796,7 +891,6 @@ class FlowlineModel(object):
         if self._mb_current_date == date:
             if fl_id not in self._mb_current_out:
                 # We need to reset just this tributary
-                # Version with OGGM MassBalanceModel
                 self._mb_current_out[fl_id] = self._mb_call(heights,
                                                             year=year,
                                                             fl_id=fl_id,
@@ -878,19 +972,28 @@ class FlowlineModel(object):
         # We force timesteps to monthly frequencies for consistent results
         # among use cases (monthly or yearly output) and also to prevent
         # "too large" steps in the adaptive scheme.
-        ts = utils.monthly_timeseries(self.yr, y1)
+        ts = utils.monthly_timeseries(self.yr.detach().numpy()
+                                      if type(self.yr) == torch.Tensor
+                                      else self.yr, y1)
 
         # Add the last date to be sure we end on it
         ts = np.append(ts, y1)
+        ts = torch.tensor(ts,
+                          dtype=self.torch_type,
+                          device=self.device,
+                          requires_grad=False)
 
         self.iterations = 0
         # Loop over the steps we want to meet
         for y in ts:
-            t = (y - self.y0) * SEC_IN_YEAR
+            t = (y - self.y0) * torch.tensor(SEC_IN_YEAR,
+                                             dtype=self.torch_type,
+                                             device=self.device,
+                                             requires_grad=False)
             # because of CFL, step() doesn't ensure that the end date is met
             # lets run the steps until we reach our desired date
             while self.t < t:
-                self.step(t-self.t)
+                self.step(t - self.t)
                 self.iterations = self.iterations + 1
 
             # Check for domain bounds
@@ -947,7 +1050,7 @@ class FlowlineModel(object):
                                      'mass-balance model with an unambiguous '
                                      'hemisphere.')
         # time
-        yearly_time = np.arange(np.floor(self.yr), np.floor(y1)+1)
+        yearly_time = np.arange(np.floor(self.yr), np.floor(y1) + 1)
 
         if store_monthly_step is None:
             store_monthly_step = self.mb_step == 'monthly'
@@ -955,7 +1058,7 @@ class FlowlineModel(object):
         if store_monthly_step:
             monthly_time = utils.monthly_timeseries(self.yr, y1)
         else:
-            monthly_time = np.arange(np.floor(self.yr), np.floor(y1)+1)
+            monthly_time = np.arange(np.floor(self.yr), np.floor(y1) + 1)
 
         sm = cfg.PARAMS['hydro_month_' + self.mb_model.hemisphere]
 
@@ -1056,7 +1159,7 @@ class FlowlineModel(object):
             diag_ds['length_m'].data[i] = self.length_m
             try:
                 ela_m = self.mb_model.get_ela(year=yr, fls=self.fls,
-                                              fl_id=len(self.fls)-1)
+                                              fl_id=len(self.fls) - 1)
                 diag_ds['ela_m'].data[i] = ela_m
             except BaseException:
                 # We really don't want to stop the model for some ELA issues
@@ -1087,7 +1190,7 @@ class FlowlineModel(object):
             ds['ts_width_m'] = xr.DataArray(w, dims=('time', 'x'),
                                             coords=varcoords)
             if self.is_tidewater:
-                ds['ts_calving_bucket_m3'] = xr.DataArray(b, dims=('time', ),
+                ds['ts_calving_bucket_m3'] = xr.DataArray(b, dims=('time',),
                                                           coords=varcoords)
             run_ds.append(ds)
 
@@ -1138,7 +1241,7 @@ class RectangularBedDiffusiveFlowlineModel(FlowlineModel):
     The actual model, only valid for RectangularBedFlowline"""
 
     def __init__(self, flowlines, mb_model=None, y0=0., glen_a=None, fs=0.,
-                 fixed_dt=None, min_dt=SEC_IN_DAY, max_dt=31*SEC_IN_DAY,
+                 fixed_dt=None, min_dt=SEC_IN_DAY, max_dt=31 * SEC_IN_DAY,
                  inplace=False, cfl_nr=0.165, **kwargs):
         """ Instanciate.
 
@@ -1152,11 +1255,11 @@ class RectangularBedDiffusiveFlowlineModel(FlowlineModel):
         """
 
         super(RectangularBedDiffusiveFlowlineModel, self).__init__(flowlines,
-                                                          mb_model=mb_model,
-                                                          y0=y0, glen_a=glen_a,
-                                                          fs=fs,
-                                                          inplace=inplace,
-                                                          **kwargs)
+                                                                   mb_model=mb_model,
+                                                                   y0=y0, glen_a=glen_a,
+                                                                   fs=fs,
+                                                                   inplace=inplace,
+                                                                   **kwargs)
 
         if len(self.fls) > 1:
             raise ValueError('Model does not work with tributaries.')
@@ -1178,7 +1281,7 @@ class RectangularBedDiffusiveFlowlineModel(FlowlineModel):
         Nx = self.fls[0].nx
         self.k = np.arange(0, Nx)
         self.k_right = np.arange(1, Nx)
-        self.k_left = np.arange(0, Nx-1)
+        self.k_left = np.arange(0, Nx - 1)
         self.k_stag = np.arange(0, Nx + 1)
         self.kp_stag = np.arange(1, Nx + 1)
         self.km_stag = np.arange(0, Nx)
@@ -1226,9 +1329,9 @@ class RectangularBedDiffusiveFlowlineModel(FlowlineModel):
         w_stag[1:-1] = (w[self.k_left] + w[self.k_right]) / 2
 
         # Diffusivity on staggered grid
-        D = ((2 / (n + 2) * self.glen_a * H_stag**2 + self.fs) *
-             w_stag * (self.rho*G)**n * H_stag**n *
-             torch.abs(S_grad)**(n - 1))
+        D = ((2 / (n + 2) * self.glen_a * H_stag ** 2 + self.fs) *
+             w_stag * (self.rho * G) ** n * H_stag ** n *
+             torch.abs(S_grad) ** (n - 1))
 
         # flux on staggered grid
         q = D * S_grad
@@ -1237,7 +1340,7 @@ class RectangularBedDiffusiveFlowlineModel(FlowlineModel):
         q_grad = (q[self.kp_stag] - q[self.km_stag]) / dx
 
         # choose timestap as long as possible to fullfill cfl criterion
-        dt_stab = self.cfl_nr * dx**2 / torch.max(torch.abs(D))
+        dt_stab = self.cfl_nr * dx ** 2 / torch.max(torch.abs(D))
 
         dt_use = min(dt_stab, dt)
 
@@ -1256,7 +1359,7 @@ class FluxBasedModel(FlowlineModel):
     """The actual model used for COMBINE1D"""
 
     def __init__(self, flowlines, mb_model=None, y0=0., glen_a=None, fs=None,
-                 fixed_dt=None, min_dt=SEC_IN_DAY, max_dt=31*SEC_IN_DAY,
+                 fixed_dt=None, min_dt=SEC_IN_DAY, max_dt=31 * SEC_IN_DAY,
                  inplace=False, cfl_nr=0.02, **kwargs):
         """ Instanciate.
 
@@ -1279,31 +1382,53 @@ class FluxBasedModel(FlowlineModel):
             raise ValueError('Model does not work with tributaries.')
 
         # datatype for torch tensors
-        dtype = self.fls[0].torch_type
+        self.torch_type = self.fls[0].torch_type
+        self.device = self.fls[0].device
 
         self.dt_warning = False,
         if fixed_dt is not None:
             min_dt = fixed_dt
             max_dt = fixed_dt
         self.min_dt = torch.tensor(min_dt,
-                                   dtype=dtype,
+                                   dtype=self.torch_type,
+                                   device=self.device,
                                    requires_grad=False)
         self.max_dt = torch.tensor(max_dt,
-                                   dtype=dtype,
+                                   dtype=self.torch_type,
+                                   device=self.device,
                                    requires_grad=False)
         # defines cfl criterion
         self.cfl_nr = torch.tensor(cfl_nr,
-                                   dtype=dtype,
+                                   dtype=self.torch_type,
+                                   device=self.device,
                                    requires_grad=False)
 
         # define indices for time step
         Nx = self.fls[0].nx
         # for calculation on staggered grid
-        self.k_right = np.hstack([np.arange(0, Nx), Nx-1])
+        self.k_right = np.hstack([np.arange(0, Nx), Nx - 1])
         self.k_left = np.hstack([0, np.arange(0, Nx)])
         # for calculation on unstaggerd grid
         self.kp_stag = np.arange(1, Nx + 1)
         self.km_stag = np.arange(0, Nx)
+
+        # define some numbers as tensors for calculation
+        self.number_two = torch.tensor(2,
+                                       dtype=self.torch_type,
+                                       device=self.device,
+                                       requires_grad=False)
+        self.number_one = torch.tensor(1,
+                                       dtype=self.torch_type,
+                                       device=self.device,
+                                       requires_grad=False)
+        self.number_zero = torch.tensor(0,
+                                        dtype=self.torch_type,
+                                        device=self.device,
+                                        requires_grad=False)
+        self.number_ten = torch.tensor(10,
+                                       dtype=self.torch_type,
+                                       device=self.device,
+                                       requires_grad=False)
 
     def step(self, dt):
         """Advance one step."""
@@ -1314,7 +1439,6 @@ class FluxBasedModel(FlowlineModel):
 
         fl = self.fls[0]
         dx = fl.dx_meter
-        dtype = self.fls[0].torch_type
         n = self.glen_n
 
         H = fl.thick
@@ -1326,18 +1450,18 @@ class FluxBasedModel(FlowlineModel):
         S_grad = (S[self.k_right] - S[self.k_left]) / dx
 
         # Thickness on staggered grid
-        H_stag = (H[self.k_left] + H[self.k_right]) / 2
+        H_stag = (H[self.k_left] + H[self.k_right]) / self.number_two
 
         # Section on staggered grid
-        CS_stag = (CS[self.k_left] + CS[self.k_right]) / 2
+        CS_stag = (CS[self.k_left] + CS[self.k_right]) / self.number_two
 
         # TODO: Implement shape factor function
-        sf_stag = 1
+        sf_stag = self.number_one
 
         # velocity on staggered grid
-        u_stag = ((self.rho * G * S_grad)**n *
-                  (self._fd * H_stag**(n + 1) * sf_stag**n +
-                   self.fs * H_stag**(n - 1)))
+        u_stag = ((self.rho * G * S_grad) ** n *
+                  (self._fd * H_stag ** (n + self.number_one) * sf_stag ** n +
+                   self.fs * H_stag ** (n - self.number_one)))
 
         # flux on staggered grid
         q = u_stag * CS_stag
@@ -1353,11 +1477,13 @@ class FluxBasedModel(FlowlineModel):
         else:
             dt_cfl = self.cfl_nr * dx / divisor
 
-        dt = to_torch_tensor(dt, dtype)
+        if type(dt) != torch.Tensor:
+            dt = torch.tensor(dt,
+                              dtype=self.torch_type,
+                              device=self.device,
+                              requires_grad=False)
         dt_use = torch.clamp(torch.min(dt_cfl, dt),
-                             torch.tensor(0.,
-                                          dtype=dtype,
-                                          requires_grad=False),
+                             self.number_zero,
                              self.max_dt)
 
         # check timestep that timestep is at least max_dt / 100, to avoid
@@ -1372,9 +1498,7 @@ class FluxBasedModel(FlowlineModel):
 
         # allow parabolic bed to grow
         m_dot_use = m_dot * torch.where((m_dot > 0.) & (w == 0),
-                                        torch.tensor(10.,
-                                                     dtype=dtype,
-                                                     requires_grad=False),
+                                        self.number_ten,
                                         w)
 
         # calculate new cross section area and filter for negative ones

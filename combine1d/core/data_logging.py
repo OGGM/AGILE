@@ -1,237 +1,85 @@
 import torch
 import numpy as np
 import xarray as xr
-import holoviews as hv
-from holoviews import opts
+import time
 from combine1d.core.arithmetics import RMSE, mean_BIAS, max_dif
 from combine1d.core.exception import MaxCalculationTimeReached
 import os
-hv.extension('bokeh')
+import warnings
+import copy
+from oggm.core.flowline import FileModel
 
 
 class DataLogger(object):
 
-    def __init__(self, bed_geometry, opti_parameter, two_parameter_option,
-                 main_iterations_iterative, geometry, measurements,
-                 first_guess, fg_run, reg_parameters,
-                 used_bed_h_geometry, used_along_glacier_geometry,
-                 minimize_options, max_time_minimize, solver, glacier_state,
-                 mb_opts, grad_scaling, filename_suffix, task_id):
-        # first save all initial data for idealized experiment
-        self.bed_geometry = bed_geometry
-        self.opti_parameter = opti_parameter
-        self.geometry = geometry
-        self.measurements = measurements
-        self.first_guess = first_guess
-        self.fg_run = fg_run
-        self.reg_parameters = reg_parameters
-        self.geometry_bed_h = used_bed_h_geometry
-        self.along_glacier_geometry = used_along_glacier_geometry
-        self.glacier_state = glacier_state
-        self.ice_mask = self.measurements['ice_mask']
-        self.mb_opts = mb_opts
-        self.two_parameter_option = two_parameter_option
-        self.solver = solver
-        self.minimize_options = minimize_options
-        self.max_time_minimize = max_time_minimize
-        self.main_iterations_iterative = main_iterations_iterative
-        self.filename_suffix = filename_suffix
-        self.grad_scaling = grad_scaling
-        self.spinup_yrs = []
+    def __init__(self, gdir, fls_init, inversion_input, climate_filename,
+                 climate_filesuffix, output_filesuffix):
 
-        # task_id only needed for cluster computation
-        self.task_id = task_id
+        self.gdir = gdir
+        # first extract all needed data (is also a check that everything is there before starting)
+        self.inversion_input = inversion_input
+        self.obs_reg_parameters = inversion_input['obs_reg_parameters']
+        self.regularisation_terms = inversion_input['regularisation_terms']
+        self.control_vars = inversion_input['control_vars']
+        self.observations = inversion_input['observations']
+        self.mb_models_settings = inversion_input['mb_models_settings']
+        self.min_w0_m = inversion_input['min_w0_m']
+        self.spinup_options = inversion_input['spinup_options']
+        self.solver = inversion_input['solver']
+        self.minimize_options = inversion_input['minimize_options']
+        self.max_time_minimize = inversion_input['max_time_minimize']
 
-        # define some variables needed for all bed_geometries
-        self.costs = np.empty((0, 1))
-        self.c_terms = np.empty((0, len(self.reg_parameters)))
-        self.sfc_h = np.empty((0, self.geometry['nx']))
-        self.true_sfc_h = self.measurements['sfc_h']
-        self.widths = np.empty((0, self.geometry['nx']))
-        self.true_widths = self.measurements['widths']
-        self.time_needed = np.empty((0, 1))
-
-        # variable to keep track in which main iteration the algorithm is at
-        # the current minimisation, only needed for iterative optimisation
-        self.current_main_iterations = np.empty((0, 1))
-
-        # variable to keep track of time
-        self.start_time = None
-        self.total_computing_time = 'no time recorded'
-        self.fct_calls = np.array([0])
-        # save optimisation variable of current iteration
-        self.opti_var_iteration = np.empty((0, 1))
-        # save step indices for filtering out steps only needed by the
-        # minimisation algorithm
-        self.step_indices = np.empty((0, 1), dtype=np.int_)
-        # variable to keep track of the main iterations,
-        # only needed for iterative optimisation of two parameters
-        self.main_iterations = np.empty((0, 1), dtype=np.int_)
-
-        # help variable for two optimisation variables
-        two_opti_parameter_options = ['iterative', 'explicit', 'implicit']
-
-        # create variables according to the bed_geometry and opti_parameter
-        if bed_geometry == 'rectangular':
-            if opti_parameter == 'bed_h':
-                self.opti_var_1 = 'bed_h'
-                self.opti_var_2 = None
-                self.geometry_var = 'widths'
-
-            else:
-                raise ValueError('Unknown optimisation parameter for '
-                                 'rectangular!')
-
-        elif bed_geometry == 'parabolic':
-            if opti_parameter == 'bed_h':
-                self.opti_var_1 = 'bed_h'
-                self.opti_var_2 = None
-                self.geometry_var = 'bed_shape'
-
-            elif opti_parameter == 'bed_shape':
-                self.opti_var_1 = 'bed_shape'
-                self.opti_var_2 = None
-                self.geometry_var = 'bed_h'
-
-            elif opti_parameter == 'bed_h and bed_shape':
-                self.opti_var_1 = 'bed_h'
-                self.opti_var_2 = 'bed_shape'
-
-                if two_parameter_option not in two_opti_parameter_options:
-                    raise ValueError('Unknown optimisation option for two '
-                                     'parameters!')
-
-            else:
-                raise ValueError('Unknown optimisation parameter for '
-                                 'parabolic!')
-
-        elif bed_geometry == 'trapezoidal':
-            if opti_parameter == 'bed_h':
-                self.opti_var_1 = 'bed_h'
-                self.opti_var_2 = None
-                self.geometry_var = 'w0'
-
-            elif opti_parameter == 'w0':
-                self.opti_var_1 = 'w0'
-                self.opti_var_2 = None
-                self.geometry_var = 'bed_h'
-
-            elif opti_parameter == 'bed_h and w0':
-                self.opti_var_1 = 'bed_h'
-                self.opti_var_2 = 'w0'
-
-                if two_parameter_option not in two_opti_parameter_options:
-                    raise ValueError('Unknown optimisation option for two '
-                                     'parameters!')
-
-            else:
-                raise ValueError('Unknown optimisation parameter for '
-                                 'trapezoidal!')
-
+        # if cuda is wanted check if available
+        if inversion_input['device'] == 'cuda':
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            if self.device == "cpu":
+                warnings.warn('Cuda was selected for calculation but is not available! '
+                              'Continue calculation on cpu!')
         else:
-            raise ValueError('Unknown bed geometry!')
+            self.device = "cpu"
 
-        # save the true and the first guess for optimisation variable 1
-        self.true_opti_var_1 = self.geometry[self.opti_var_1][self.ice_mask]
-        self.first_guessed_opti_var_1 = self.first_guess[self.opti_var_1]
-        self.known_opti_var_1 = self.geometry[self.opti_var_1][~self.ice_mask]
-        # variable for saving the iteration output
-        self.guessed_opti_var_1 = np.empty((0, self.geometry['nx']))
-        # variable for gradients
-        self.grads_opti_var_1 = np.empty((0, self.geometry['nx']))
-        # variable to save last message of minimisation algorithm
-        self.message_opti_var_1 = ''
+        if inversion_input['torch_type'] == 'float':
+            self.torch_type = torch.float
+        elif inversion_input['torch_type'] == 'double':
+            self.torch_type = torch.double
+        else:
+            raise ValueError('Unknown torch type ' + inversion_input['torch_type'] + '!')
 
-        # check if second optimisation variable is needed
-        if self.opti_var_2 is not None:
-            # safe the true and the first guess for optimisation variable 2
-            self.true_opti_var_2 = \
-                self.geometry[self.opti_var_2][self.ice_mask]
-            self.first_guessed_opti_var_2 = self.first_guess[self.opti_var_2]
-            self.known_opti_var_2 = \
-                self.geometry[self.opti_var_2][~self.ice_mask]
-            # variable for saving the iteration output
-            self.guessed_opti_var_2 = np.empty((0, self.geometry['nx']))
-            # variable for gradients
-            self.grads_opti_var_2 = np.empty((0, self.geometry['nx']))
-            # variable to save last message of minimisation algorithm
-            self.message_opti_var_2 = ''
+        self.flowline_init = fls_init[0]
+        self.ice_mask = np.where(self.flowline_init.thick > 10e-2, True, False)
+        self.climate_filename = climate_filename
+        self.climate_filesuffix = climate_filesuffix
+        self.output_filesuffix = output_filesuffix
 
-        if self.glacier_state == 'retreating with unknow spinup':
-            self.spinup_ELA_guessed = np.empty((0, 1))
-            self.spinup_ELA_grad = np.empty((0, 1))
-            self.spinup_sfc_h_guessed = np.empty((0, self.geometry['nx']))
-            self.spinup_widths_guessed = np.empty((0, self.geometry['nx']))
+        # save time of initialisation, maybe reset later
+        self.start_time = time.time()
 
-        # create info Text for callback_fct
+        # define variables which are filled during the minimisation run
+        self.costs = None
+        self.c_terms = None
+        self.time_needed = None
+        self.flowlines = None
+        self.end_time = None
+        self.known_parameters = None
+        self.len_unknown_parameter = None
+        self.parameter_indices = None
+        self.unknown_parameters = None
+        self.fct_calls = np.array([0])
+        self.step_indices = np.array([0])  # include zero to save outcome of first guess run
+
+        self.filename = 'COMBINE_inversion_results'
+
+        # create info Text for callback_fct TODO: think about showing the evolution of the c_terms
         self.info_text = '''
 
     Iteration: {iteration:d}
-    Optimisation Variable: {opti_var}
     Total Function calls: {fct_call:d}
+    Needed Time: {time_needed:g}
     Cost: {cost:g}
-    {opti_var_1} RMSE: {opti_var_1_rmse:g}
-    {opti_var_1} Bias: {opti_var_1_bias:g}
-    {opti_var_1} Max_diff: {opti_var_1_max_dif:g}'''
-        if self.opti_var_2 is not None:
-            self.info_text += '''
-    {opti_var_2} RMSE: {opti_var_2_rmse:g}
-    {opti_var_2} Bias: {opti_var_2_bias:g}
-    {opti_var_2} Max_diff: {opti_var_2_max_dif:g}'''
-        if self.glacier_state == 'retreating with unknow spinup':
-            self.info_text += '''
-    spinup ELA diff: {spinup_ELA_diff:g}'''
+    '''
 
-        # define filename to save output at the end
-        if bed_geometry == 'rectangular':
-            self.filename = 'rec_'
-        elif bed_geometry == 'parabolic':
-            self.filename = 'par_'
-        elif bed_geometry == 'trapezoidal':
-            self.filename = 'tra_'
-        else:
-            raise ValueError('Unknown bed geometry!')
-
-        if self.geometry_bed_h == 'linear':
-            self.filename += 'line_'
-        elif self.geometry_bed_h == 'cliff':
-            self.filename += 'clif_'
-        elif self.geometry_bed_h == 'random':
-            self.filename += 'rand_'
-        elif self.geometry_bed_h == 'HEF':
-            self.filename += 'HEF_'
-        else:
-            raise ValueError('Unknown bed height geometry!')
-
-        if self.along_glacier_geometry == 'constant':
-            self.filename += 'cons_'
-        elif self.along_glacier_geometry == 'random':
-            self.filename += 'rand_'
-        elif self.along_glacier_geometry == 'wide_top':
-            self.filename += 'wide_'
-        elif self.along_glacier_geometry == 'HEF':
-            self.filename += ''
-        else:
-            raise ValueError('Unknown along glacier geometry!')
-
-        if self.glacier_state == 'equilibrium':
-            self.filename += 'equ_'
-        elif self.glacier_state == 'advancing':
-            self.filename += 'adv_'
-        elif self.glacier_state == 'retreating':
-            self.filename += 'ret_'
-        elif self.glacier_state == 'retreating with unknow spinup':
-            self.filename += 'ret_spinup_'
-        else:
-            raise ValueError('Unknown glacier state!')
-
-        self.filename += self.opti_var_1
-
-        if self.opti_var_2 is not None:
-            self.filename += '_and_'
-            self.filename += self.opti_var_2
-            self.filename += '_'
-            self.filename += self.two_parameter_option
+    def add_true_bed(self):
+        raise NotImplementedError('Not added yet!')
 
     def save_data_in_datalogger(self, var, data):
         if type(data) == torch.Tensor:
@@ -240,7 +88,12 @@ class DataLogger(object):
             data = np.array(data)
 
         current_var = getattr(self, var)
-        new_var = np.reshape(np.append(current_var, data), (-1, data.size))
+
+        if current_var is None:
+            new_var = data
+        else:
+            new_var = np.reshape(np.append(current_var, data), (-1, data.size))
+
         setattr(self, var, new_var)
 
     def callback_fct(self, x0):
@@ -252,35 +105,10 @@ class DataLogger(object):
             self.step_indices = np.append(self.step_indices, i)
             # define the arguments for the shown text
             args = {'iteration': len(self.step_indices),
-                    'opti_var': self.opti_var_iteration[-1][0],
                     'fct_call': self.fct_calls[-1],
+                    'time_needed': self.time_needed[-1],
                     'cost': self.costs[-1][0],
-                    'opti_var_1': self.opti_var_1,
-                    'opti_var_1_rmse': RMSE(self.guessed_opti_var_1[-1],
-                                            self.true_opti_var_1),
-                    'opti_var_1_bias': mean_BIAS(self.guessed_opti_var_1[-1],
-                                                 self.true_opti_var_1),
-                    'opti_var_1_max_dif': max_dif(self.guessed_opti_var_1[-1],
-                                                  self.true_opti_var_1)
                     }
-
-            # include arguments for second optimisation variable
-            if self.opti_var_2 is not None:
-                args.update(
-                    {'opti_var_2': self.opti_var_2,
-                     'opti_var_2_rmse': RMSE(self.guessed_opti_var_2[-1],
-                                             self.true_opti_var_2),
-                     'opti_var_2_bias': mean_BIAS(self.guessed_opti_var_2[-1],
-                                                  self.true_opti_var_2),
-                     'opti_var_2_max_dif': max_dif(self.guessed_opti_var_2[-1],
-                                                   self.true_opti_var_2)
-                     })
-
-            if self.glacier_state == 'retreating with unknow spinup':
-                args.update(
-                    {'spinup_ELA_diff': (self.spinup_ELA_guessed[-1] -
-                                         self.mb_opts['ELA'][0])[0]
-                     })
 
             # show text
             print(self.info_text.format(**args))
@@ -289,14 +117,6 @@ class DataLogger(object):
                 # raise an exception if maximum calculation time is reached
                 if self.time_needed[-1] > self.max_time_minimize:
                     raise MaxCalculationTimeReached()
-
-    def main_iteration_callback(self):
-        if self.two_parameter_option == 'iterative':
-            text = '''
---------------------------------------------------
-Main Iteration number {iteration:d}:'''
-            arg = {'iteration': self.main_iterations[-1]}
-            print(text.format(**arg))
 
     def squeeze_generic(self, a, axes_to_keep=[0]):
         out_s = [s for i, s in enumerate(a.shape)
@@ -307,32 +127,17 @@ Main Iteration number {iteration:d}:'''
         # Filter all "exploratory" model runs to only get "real" iteration
         # steps
         index = self.step_indices
-        self.grads_opti_var_1 = self.grads_opti_var_1[index]
         self.costs = self.squeeze_generic(self.costs[index])
         self.c_terms = self.c_terms[index]
-        self.sfc_h = self.sfc_h[index]
-        self.widths = self.widths[index]
         self.time_needed = self.squeeze_generic(self.time_needed[index])
-        # + 1 in index because fct_calls starts with [0] and not empty
+        self.flowline = self.flowline[index]
+        self.unknown_parameters = self.unknown_parameters[index]
         self.fct_calls = self.squeeze_generic(self.fct_calls[index + 1])
-        self.opti_var_iteration = self.squeeze_generic(
-            self.opti_var_iteration[index])
-        self.guessed_opti_var_1 = self.guessed_opti_var_1[index]
-        if self.opti_var_2 is not None:
-            self.guessed_opti_var_2 = self.guessed_opti_var_2[index]
-            self.grads_opti_var_2 = self.grads_opti_var_2[index]
-        if self.main_iterations.size is not None:
-            self.current_main_iterations = self.squeeze_generic(
-                self.current_main_iterations[index])
-        if self.glacier_state == 'retreating with unknow spinup':
-            self.spinup_ELA_guessed = self.squeeze_generic(
-                self.spinup_ELA_guessed[index])
-            self.spinup_ELA_grad = self.squeeze_generic(
-                self.spinup_ELA_grad[index])
-            self.spinup_sfc_h_guessed = self.spinup_sfc_h_guessed[index]
-            self.spinup_widths_guessed = self.spinup_widths_guessed[index]
 
     def create_and_save_dataset(self):
+        if True:
+            raise NotImplementedError('Need update!')
+
         dataset = xr.Dataset(
             data_vars={
                 'spinup_sfc_h':
@@ -403,7 +208,7 @@ Main Iteration number {iteration:d}:'''
                  self.geometry[self.opti_var_2])
             dataset.attrs['optimisation of two variables'] = \
                 self.two_parameter_option
-            dataset.attrs['last minimisation message' + self.opti_var_2] =\
+            dataset.attrs['last minimisation message' + self.opti_var_2] = \
                 self.message_opti_var_2
 
         # add options of minimisation function with prefix 'minimize_'
@@ -501,19 +306,13 @@ Main Iteration number {iteration:d}:'''
 
             dataset.attrs['maxiter_reached'] = 'no'
             if (self.opti_var_2 is None) or \
-               (self.two_parameter_option in ['explicit', 'implicit']):
+                    (self.two_parameter_option in ['explicit', 'implicit']):
                 if (len(self.step_indices) ==
-                   self.minimize_options['maxiter']):
-                    # self.filename += '_maxiter'
-                    # task_id only needed for cluster computation
-                    # self.filename += ('_' + str(self.task_id))
+                        self.minimize_options['maxiter']):
                     dataset.attrs['maxiter_reached'] = 'yes'
             elif self.two_parameter_option == 'iterative':
                 if self.current_main_iterations[-1] == \
-                   self.main_iterations_iterative:
-                    # self.filename += '_maxiter'
-                    # task_id only needed for cluster computation
-                    # self.filename += ('_' + str(self.task_id))
+                        self.main_iterations_iterative:
                     dataset.attrs['maxiter_reached'] = 'yes'
             else:
                 raise ValueError('Somthing went wrong by checking if maxiter'
@@ -527,7 +326,7 @@ Main Iteration number {iteration:d}:'''
         if (self.filename + '.nc') in list_of_files:
             for file_nr in range(10):
                 if (self.filename + '_' + str(file_nr) + '.nc') \
-                   not in list_of_files:
+                        not in list_of_files:
                     self.filename += ('_' + str(file_nr))
                     break
                 if file_nr == 9:
@@ -535,226 +334,69 @@ Main Iteration number {iteration:d}:'''
                                      'name!')
 
         # save dataset as netcdf
-        dataset.to_netcdf(self.filename + '.nc')
+        dataset.to_netcdf(self.filename + self.output_filesuffix + '.nc')
 
-    def save_result_plot(self, plot_height=450, plot_width=800):
-        x = self.geometry['distance_along_glacier']
 
-        # start with first optimisation variable
-        y1_final_guess = np.zeros(len(x))
-        y1_first_guess = np.zeros(len(x))
+def initialise_DataLogger(gdir, inversion_input_filesuffix='_combine', init_model_filesuffix=None,
+                          init_model_fls=None, climate_filename='climate_historical',
+                          climate_filesuffix='', output_filesuffix='_combine'):
+    '''
+    extract information out of gdir and save in datalogger.
 
-        y1_final_guess[self.ice_mask] = self.guessed_opti_var_1[-1]
-        y1_final_guess[~self.ice_mask] = self.known_opti_var_1
+    Parameters
+    ----------
+    gdir
 
-        y1_first_guess[self.ice_mask] = self.first_guessed_opti_var_1
-        y1_first_guess[~self.ice_mask] = self.known_opti_var_1
+    Returns
+    -------
 
-        # if only one
-        if self.opti_parameter in ['bed_h', 'bed_shape', 'w0']:
-            y2_final_guess = None
-            y2_first_guess = None
+    '''
 
-        elif self.opti_parameter in ['bed_h and bed_shape', 'bed_h and w0']:
-            y2_final_guess = np.zeros(len(x))
-            y2_first_guess = np.zeros(len(x))
+    if init_model_filesuffix is not None:
+        fp = gdir.get_filepath('model_geometry',
+                               filesuffix=init_model_filesuffix)
+        fmod = FileModel(fp)
+        init_model_fls = fmod.fls
 
-            y2_final_guess[self.ice_mask] = self.guessed_opti_var_2[-1]
-            y2_final_guess[~self.ice_mask] = self.known_opti_var_2
+    if init_model_fls is None:
+        fls_init = gdir.read_pickle('model_flowlines')
+    else:
+        fls_init = copy.deepcopy(init_model_fls)
 
-            y2_first_guess[self.ice_mask] = self.first_guessed_opti_var_2
-            y2_first_guess[~self.ice_mask] = self.known_opti_var_2
+    if len(fls_init) > 1:
+        raise NotImplementedError('COMBINE only works with single flowlines!')
 
-        else:
-            raise ValueError('Unknown optimisation parameter!')
+    # include check if inversion_input file exist
+    if not os.path.isfile(gdir.get_filepath('inversion_input',
+                                            filesuffix=inversion_input_filesuffix)):
+        raise AttributeError('inversion_input' + inversion_input_filesuffix +
+                             ' file not found!')
+    inversion_input = gdir.read_pickle(filename='inversion_input',
+                                       filesuffix=inversion_input_filesuffix)
 
-        # plot for first optimisation variable
-        diff_estimated_opti_1 = hv.Curve((x,
-                                          y1_final_guess -
-                                          self.geometry[self.opti_var_1]),
-                                         'distance',
-                                         'diff ' + self.opti_var_1,
-                                         label=('diff estimated ' +
-                                                self.opti_var_1))
+    # here fill 'observations' with initial flowline values if needed
+    rgi_yr = gdir.rgi_date
 
-        diff_first_guess_opti_1 = hv.Curve((x,
-                                            y1_first_guess -
-                                            self.geometry[self.opti_var_1]),
-                                           'distance',
-                                           'diff ' + self.opti_var_1,
-                                           label=('diff first guess ' +
-                                                  self.opti_var_1))
+    def check_if_year_is_given(obs_check):
+        if inversion_input['observations'][obs_check] == {}:
+            inversion_input['observations'][obs_check] = {str(rgi_yr): []}
+        return [key for key in inversion_input['observations'][obs_check].keys()][0]
 
-        zero_line_opti_1 = hv.Curve((x,
-                                     np.zeros(len(x))),
-                                    'distance',
-                                    'diff ' + self.opti_var_1
-                                    ).opts(color='black',
-                                           show_grid=True)
+    for obs in inversion_input['observations'].keys():
+        if obs == 'fl_surface_h:m':
+            yr_obs = check_if_year_is_given(obs)
+            inversion_input['observations'][obs][yr_obs] = fls_init[0].surface_h
+        if obs == 'fl_widths:m':
+            yr_obs = check_if_year_is_given(obs)
+            inversion_input['observations'][obs][yr_obs] = fls_init[0].widths_m
+        if obs == 'fl_total_area:m2':
+            yr_obs = check_if_year_is_given(obs)
+            inversion_input['observations'][obs][yr_obs] = fls_init[0].area_m2
+        if obs == 'fl_total_area:km2':
+            yr_obs = check_if_year_is_given(obs)
+            inversion_input['observations'][obs][yr_obs] = fls_init[0].area_km2
 
-        rmse_opti_1 = hv.Curve(([0], [0]),
-                               'distance',
-                               'diff ' + self.opti_var_1,
-                               label='RMSE: {:.4f}'.format(
-                                   RMSE(self.guessed_opti_var_1[-1],
-                                        self.true_opti_var_1))
-                               ).opts(visible=False)
+    data_logger = DataLogger(gdir, fls_init, inversion_input, climate_filename,
+                             climate_filesuffix, output_filesuffix)
 
-        bias_opti_1 = hv.Curve(([0], [0]),
-                               'distance',
-                               'diff ' + self.opti_var_1,
-                               label='BIAS: {:.4f}'.format(
-                                   mean_BIAS(self.guessed_opti_var_1[-1],
-                                             self.true_opti_var_1))
-                               ).opts(visible=False)
-
-        diff_opti_1 = hv.Curve(([0], [0]),
-                               'distance',
-                               'diff ' + self.opti_var_1,
-                               label='DIFF: {:.4f}'.format(
-                                   max_dif(self.guessed_opti_var_1[-1],
-                                           self.true_opti_var_1))
-                               ).opts(visible=False)
-
-        opti_1_plot = (zero_line_opti_1 *
-                       diff_first_guess_opti_1 *
-                       diff_estimated_opti_1 *
-                       rmse_opti_1 *
-                       bias_opti_1 *
-                       diff_opti_1
-                       ).opts(xaxis='top',
-                              legend_position='best')
-
-        if y2_final_guess is not None:
-            # plot for first optimisation variable
-            diff_estimated_opti_2 = hv.Curve((x,
-                                              y2_final_guess -
-                                              self.geometry[self.opti_var_2]),
-                                             'distance',
-                                             'diff ' + self.opti_var_2,
-                                             label='diff estimated ' +
-                                             self.opti_var_2)
-
-            diff_first_guess_opti_2 = hv.Curve((x,
-                                                y2_first_guess -
-                                                self.geometry[self.opti_var_2]
-                                                ),
-                                               'distance',
-                                               'diff ' + self.opti_var_2,
-                                               label='diff first guess ' +
-                                               self.opti_var_2)
-
-            zero_line_opti_2 = hv.Curve((x,
-                                         np.zeros(len(x))),
-                                        'distance',
-                                        'diff ' + self.opti_var_2
-                                        ).opts(color='black',
-                                               show_grid=True)
-
-            rmse_opti_2 = hv.Curve(([0], [0]),
-                                   'distance',
-                                   'diff ' + self.opti_var_2,
-                                   label='RMSE: {:.4f}'.format(
-                                       RMSE(self.guessed_opti_var_2[-1],
-                                            self.true_opti_var_2))
-                                   ).opts(visible=False)
-
-            bias_opti_2 = hv.Curve(([0], [0]),
-                                   'distance',
-                                   'diff ' + self.opti_var_2,
-                                   label='BIAS: {:.4f}'.format(
-                                       mean_BIAS(self.guessed_opti_var_2[-1],
-                                                 self.true_opti_var_2))
-                                   ).opts(visible=False)
-
-            diff_opti_2 = hv.Curve(([0], [0]),
-                                   'distance',
-                                   'diff ' + self.opti_var_2,
-                                   label='DIFF: {:.4f}'.format(
-                                       max_dif(self.guessed_opti_var_2[-1],
-                                               self.true_opti_var_2))
-                                   ).opts(visible=False)
-
-            opti_2_plot = (zero_line_opti_2 *
-                           diff_first_guess_opti_2 *
-                           diff_estimated_opti_2 *
-                           rmse_opti_2 *
-                           bias_opti_2 *
-                           diff_opti_2
-                           ).opts(xaxis='bottom',
-                                  legend_position='best')
-
-            final_plot = (opti_1_plot.opts(aspect=4,
-                                           fontsize={'ticks': 15,
-                                                     'labels': 25,
-                                                     'legend': 20,
-                                                     'legend_title': 20},
-                                           show_frame=True) +
-                          opti_2_plot.opts(aspect=4,
-                                           xaxis='bottom',
-                                           show_grid=True,
-                                           fontsize={'ticks': 15,
-                                                     'labels': 25,
-                                                     'legend': 20,
-                                                     'legend_title': 20},
-                                           show_frame=True)).cols(1)
-
-            final_plot.opts(sublabel_format='',
-                            tight=True,
-                            fig_inches=20,
-                            fontsize={'title': 27})
-
-        else:
-            final_plot = opti_1_plot.opts(aspect=2,
-                                          fig_inches=20,
-                                          show_frame=True,
-                                          fontsize={'ticks': 15,
-                                                    'labels': 25,
-                                                    'legend': 20,
-                                                    'legend_title': 20,
-                                                    'title': 27})
-
-        final_plot.opts(title=(self.filename + '\n reg_par = ' +
-                               str(self.reg_parameters) + ', iterations: ' +
-                               str(len(self.step_indices)) + ', fct_calls: ' +
-                               str(self.fct_calls[-1])))
-        final_plot.opts(opts.Curve(linewidth=3))
-
-        hv.save(final_plot,
-                self.filename,
-                fmt='pdf')
-
-        return final_plot
-
-    def plot_glacier_bed(self):
-        glacier_bed = hv.Curve((self.geometry['distance_along_glacier'],
-                                self.geometry['bed_h']),
-                               'distance',
-                               'height',
-                               label='glacier bed'
-                               ).opts(line_color='black',
-                                      width=600,
-                                      height=400)
-
-        glacier_sfc = hv.Curve((self.geometry['distance_along_glacier'],
-                                self.measurements['sfc_h']),
-                               'distance',
-                               'height',
-                               label='glacier surface'
-                               ).opts(line_color='blue',
-                                      width=600,
-                                      height=400)
-
-        return (glacier_bed * glacier_sfc).opts(opts.Curve(line_width=3))
-
-    def plot_glacier_shape(self):
-        glacier_shape = hv.Curve((self.geometry['distance_along_glacier'],
-                                  self.geometry['bed_shapes']),
-                                 'distance',
-                                 'shape factor',
-                                 label='glacier shape factor'
-                                 ).opts(line_color='black',
-                                        width=600,
-                                        height=400)
-
-        return (glacier_shape).opts(opts.Curve(line_width=3))
+    return data_logger
