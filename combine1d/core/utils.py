@@ -17,12 +17,6 @@ from oggm.exceptions import InvalidParamsError
 from combine2d.core.data_logging import write_pickle, load_pickle
 # TODO: move pickle methods
 
-EXTENDED_BASENAMES = {
-
-}
-
-DEFAULT_REG_PARAMETERS = np.array([0.1, 0, 0, 0])
-
 
 class InversionGlacierDirectory(GlacierDirectory):
     """GlacierDirectory for synthetic cases and glaciers, which are not
@@ -37,55 +31,10 @@ class InversionGlacierDirectory(GlacierDirectory):
 
         super(InversionGlacierDirectory, self).__init__(rgi_entity, base_dir, reset, from_tar, delete_tar)
 
-        # if base_dir is None:
-        #     if not cfg.PATHS.get('working_dir', None):
-        #         raise ValueError("Need a valid PATHS['working_dir']!")
-        #     base_dir = os.path.join(cfg.PATHS['working_dir'], case.name)
-
-        # entity = {'min_x': case.extent[0, 0],
-        #          'max_x': case.extent[1, 0],
-        #          'min_y': case.extent[0, 1],
-        #          'max_y': case.extent[1, 1],
-        #          'name': case.name}
-
-        # self.extent_ll = case.extent.T
-        # [[entity['min_x'], entity['max_x']],
-        #                  [entity['min_y'], entity['max_y']]]
-
-        # Could choose different dummy RGI as well
-        # self.rgi_id = 'RGI00-00.00000'
-        # self.glims_id = '00'
-        #self.rgi_area_km2 = 0.rgi_area_km2
-        # self.cenlon = (case.extent[1, 0] + case.extent[0, 0]) / 2.
-        # self.cenlat = (case.extent[1, 1] + case.extent[0, 1]) / 2.
-        # self.rgi_region = '00'
-        # self.rgi_subregion = '00-00'
-        # self.rgi_version = '00'
-        #
-        # self.name = case.name
-        # self.glacier_type = 'Ice Cap'
-        # self.terminus_type = 'Land-terminating'
-        #
-        # self.is_tidewater = self.terminus_type in ['Marine-terminating',
-        #                                            'Lake-terminating']
-        # self.inversion_calving_rate = 0.
-        # self.is_icecap = self.glacier_type == 'Ice cap'
-
-        # Hemisphere
-        # self.hemisphere = 'sh' if self.cenlat < 0 else 'nh'
-
-        # The divides dirs are created by gis.define_glacier_region, but we
-        # make the root dir
-        # self.dir = os.path.join(base_dir, self.name)
-        # if reset and os.path.exists(self.dir):
-        #     shutil.rmtree(self.dir)
-        # mkdir(self.dir)
-
-        # logging file
-        # self.logfile = os.path.join(self.dir, 'log.txt')
-
-        # Optimization
-        #self._mbdf = None
+        # add aditional BASENAMES used by the Inversion
+        cfg.add_to_basenames('inversion_settings', 'inversion_settings.pkl', 'Contains the needed information for the '
+                                                                             'COMBINE inversion. TODO: doc needed '
+                                                                             'information')
 
 
     def _reproject_and_write_shapefile(self, entity, filesuffix=''):
@@ -193,14 +142,12 @@ class InversionGlacierDirectory(GlacierDirectory):
         """Dictionary with settings for the inversion"""
         return load_pickle(self.get_filepath('inversion_settings'))
 
-    def write_inversion_settings(self, mb_spinup=None,
-                                 mb_forward_run=None, yrs_spinup=2000,
-                                 yrs_forward_run=500,
-                                 fg_slope_cutoff_angle=5.0,
-                                 fg_shape_factor=1.0,
-                                 fg_min_height=None,
-                                 fg_interp_boundary=False,
-                                 reg_parameters=DEFAULT_REG_PARAMETERS,
+    def write_inversion_settings(self,
+                                 control_vars=['bed_h'],
+                                 mb_models_settings={'MB1': {'type': 'constant', 'years': np.array([1950, 2016])}},
+                                 min_w0_m=10.,
+                                 observations=None,  # {'Area', {'2010': np.array([23])}}
+                                 reg_parameters=None,  # [0, 0.1, 10]
                                  solver='L-BFGS-B', minimize_options=None,
                                  inversion_subdir='0', log_minimize_steps=True,
                                  bounds_min_max=None):
@@ -209,6 +156,7 @@ class InversionGlacierDirectory(GlacierDirectory):
 
         Parameters
         ----------
+        control_vars
         mb_spinup
         mb_forward_run
         yrs_spinup
@@ -224,13 +172,9 @@ class InversionGlacierDirectory(GlacierDirectory):
         Nothing
         """
 
+        if control_vars is None:
+            control_vars = ['bed_h']
         inv_settings = locals()
         inv_settings.pop('self')
-        inv_settings['case'] = self.case
 
-        if type(reg_parameters) is np.ndarray:
-            inv_settings['reg_parameters'] = reg_parameters.tolist()
-        elif type(reg_parameters) is torch.Tensor:
-            inv_settings['reg_parameters'] = \
-                reg_parameters.detach().numpy.tolist()
         write_pickle(inv_settings, self.get_filepath('inversion_settings'))

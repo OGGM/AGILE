@@ -1,10 +1,9 @@
 import torch
 import contextlib
 
-class Interp1d(torch.autograd.Function):
-    def __call__(self, x, y, xnew, out=None):
-        return self.forward(x, y, xnew, out)
 
+class Interp1d(torch.autograd.Function):
+    @staticmethod
     def forward(ctx, x, y, xnew, out=None):
         """
         Linear 1D interpolation on the GPU for Pytorch. Downloaded from https://github.com/aliutkus/torchinterp1d.

@@ -4,7 +4,7 @@ from holoviews import opts
 from combine1d.core.cost_function import create_cost_fct
 from combine1d.core.arithmetics import magnitude
 from combine1d.core.type_conversions import to_numpy_array
-from combine1d.core.massbalance_adapted import LinearMassBalance
+from combine1d.core.massbalance import LinearMassBalance
 from oggm.core.massbalance import LinearMassBalance as oggm_MassBalance
 from oggm.core.flowline import FluxBasedModel as oggm_FluxModel
 from oggm.core.flowline import RectangularBedFlowline

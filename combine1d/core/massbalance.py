@@ -4,16 +4,18 @@ import oggm.cfg as cfg
 from oggm.cfg import SEC_IN_YEAR
 from oggm.core.massbalance import ConstantMassBalance
 from oggm.utils import SuperclassMeta
+from oggm.utils._funcs import date_to_floatyear, floatyear_to_date
 
 # packages for COMBINE
 import torch
 
 # help functions
-from combine1d.core.type_conversions import to_torch_tensor
 from combine1d.core.torch_interp1d import Interp1d
 
 # other stuff
 from functools import partial
+import numpy as np
+
 
 class MassBalanceModel(object, metaclass=SuperclassMeta):
     """Common logic for the mass balance models.
@@ -25,12 +27,16 @@ class MassBalanceModel(object, metaclass=SuperclassMeta):
         necessary for automated ELA search.
     """
 
-    def __init__(self, torch_type=torch.double):
+    def __init__(self, torch_type=torch.double, device='cpu'):
         """ Initialize."""
         self.valid_bounds = None
         self.hemisphere = None
         self.torch_type = torch_type
-        self.rho = to_torch_tensor(cfg.PARAMS['ice_density'], self.torch_type)
+        self.device = device
+        self.rho = torch.tensor(cfg.PARAMS['ice_density'],
+                                dtype=self.torch_type,
+                                device=self.device,
+                                requires_grad=False)
 
     def get_monthly_mb(self, heights, year=None, fl_id=None, fls=None):
         """Monthly mass-balance at given altitude(s) for a moment in time.
@@ -87,7 +93,7 @@ class LinearMassBalance(MassBalanceModel):
     """Constant mass-balance as a linear function of altitude.
     """
 
-    def __init__(self, ela_h, grad=3., max_mb=None, torch_type=torch.double):
+    def __init__(self, ela_h, grad=3., max_mb=None, torch_type=torch.double, device='cpu'):
         """ Initialize.
         Parameters
         ----------
@@ -104,21 +110,33 @@ class LinearMassBalance(MassBalanceModel):
             context, but we implemented a simple empirical rule:
             + 1K -> ELA + 150 m
         """
-        super(LinearMassBalance, self).__init__(torch_type=torch_type)
+        super(LinearMassBalance, self).__init__(torch_type=torch_type, device=device)
         self.hemisphere = 'nh'
         self.valid_bounds = [-1e4, 2e4]  # in m
-        self.orig_ela_h = to_torch_tensor(ela_h,
-                                          torch_type=self.torch_type)
-        self.ela_h = to_torch_tensor(ela_h,
-                                     torch_type=self.torch_type)
-        self.grad = to_torch_tensor(grad,
-                                    torch_type=self.torch_type)
-        self.max_mb = to_torch_tensor(max_mb,
-                                      torch_type=self.torch_type)
-        self._temp_bias = to_torch_tensor(0,
-                                          torch_type=self.torch_type)
-        self.SEC_IN_YEAR = to_torch_tensor(SEC_IN_YEAR,
-                                           torch_type=self.torch_type)
+        self.orig_ela_h = torch.tensor(ela_h,
+                                       dtype=self.torch_type,
+                                       device=self.device,
+                                       requires_grad=False)
+        self.ela_h = torch.tensor(ela_h,
+                                  dtype=self.torch_type,
+                                  device=self.device,
+                                  requires_grad=False)
+        self.grad = torch.tensor(grad,
+                                 dtype=self.torch_type,
+                                 device=self.device,
+                                 requires_grad=False)
+        self.max_mb = torch.tensor(max_mb,
+                                   dtype=self.torch_type,
+                                   device=self.device,
+                                   requires_grad=False)
+        self._temp_bias = torch.tensor(0,
+                                       dtype=self.torch_type,
+                                       device=self.device,
+                                       requires_grad=False)
+        self.SEC_IN_YEAR = torch.tensor(SEC_IN_YEAR,
+                                        dtype=self.torch_type,
+                                        device=self.device,
+                                        requires_grad=False)
 
     @property
     def temp_bias(self):
@@ -128,14 +146,21 @@ class LinearMassBalance(MassBalanceModel):
     @temp_bias.setter
     def temp_bias(self, value):
         """Temperature bias to change the ELA."""
-        value = to_torch_tensor(value,
-                                torch_type=self.torch_type)
-        self.ela_h = self.orig_ela_h + value * 150
+        value = torch.tensor(value,
+                             dtype=self.torch_type,
+                             device=self.device,
+                             requires_grad=False)
+        self.ela_h = self.orig_ela_h + value * torch.tensor(150,
+                                                            dtype=self.torch_type,
+                                                            device=self.device,
+                                                            requires_grad=False)
         self._temp_bias = value
 
     def get_monthly_mb(self, heights, **kwargs):
-        heights = to_torch_tensor(heights,
-                                  torch_type=self.torch_type)
+        heights = torch.tensor(heights,
+                               dtype=self.torch_type,
+                               device=self.device,
+                               requires_grad=False)
         mb = (heights - self.ela_h) * self.grad
         if self.max_mb is not None:
             torch.clamp(mb, max=self.max_mb)
@@ -153,7 +178,7 @@ class ConstantMassBalanceTorch(ConstantMassBalance):
 
     def __init__(self, gdir, mu_star=None, bias=None,
                  y0=None, halfsize=15, filename='climate_historical',
-                 input_filesuffix='', torch_type=torch.double, **kwargs):
+                 input_filesuffix='', torch_type=torch.double, device='cpu', **kwargs):
         """Initialize
         Parameters
         ----------
@@ -178,22 +203,65 @@ class ConstantMassBalanceTorch(ConstantMassBalance):
         """
 
         super(ConstantMassBalanceTorch, self).__init__(gdir, mu_star=mu_star, bias=bias,
-                                                        y0=y0, halfsize=halfsize, filename=filename,
-                                                        input_filesuffix=input_filesuffix, **kwargs)
+                                                       y0=y0, halfsize=halfsize, filename=filename,
+                                                       input_filesuffix=input_filesuffix, **kwargs)
 
         self.torch_type = torch_type
+        self.device = device
         self._get_annual_mb = None
+        self._get_monthly_mb = None
         self.initialize_get_annual_mb()
+        self.initialize_get_monthly_mb()
 
     def initialize_get_annual_mb(self):
         mb_on_h = self.hbins * 0.
         for yr in self.years:
             mb_on_h += self.mbmod.get_annual_mb(self.hbins, year=yr)
-        self._get_annual_mb = partial(Interp1d(),
-                                      to_torch_tensor(self.hbins,
-                                                      torch_type=self.torch_type),
-                                      to_torch_tensor(mb_on_h / len(self.years),
-                                                      torch_type=self.torch_type))
+
+        def interp1d_wrapper(x, y):
+            def out(xnew):
+                return Interp1d.apply(x, y, xnew)
+
+            return out
+
+        self._get_annual_mb = interp1d_wrapper(x=torch.tensor(self.hbins,
+                                                              dtype=self.torch_type,
+                                                              device=self.device,
+                                                              requires_grad=False),
+                                               y=torch.tensor(mb_on_h / len(self.years),
+                                                              dtype=self.torch_type,
+                                                              device=self.device,
+                                                              requires_grad=False))
 
     def get_annual_mb(self, heights, year=None, add_climate=False, **kwargs):
-        return self._get_annual_mb(heights)
+        return torch.squeeze(self._get_annual_mb(heights))
+
+    def initialize_get_monthly_mb(self):
+        # monthly MB
+        months = np.arange(12) + 1
+        _get_monthly_mb = []
+
+        def interp1d_wrapper(x, y):
+            def out(xnew):
+                return Interp1d.apply(x, y, xnew)
+            return out
+
+        for m in months:
+            mb_on_h = self.hbins * 0.
+            for yr in self.years:
+                yr = date_to_floatyear(yr, m)
+                mb_on_h += self.mbmod.get_monthly_mb(self.hbins, year=yr)
+            _get_monthly_mb.append(interp1d_wrapper(
+                x=torch.tensor(self.hbins,
+                               dtype=self.torch_type,
+                               device=self.device,
+                               requires_grad=False),
+                y=torch.tensor(mb_on_h / len(self.years),
+                               dtype=self.torch_type,
+                               device=self.device,
+                               requires_grad=False)))
+        self._get_monthly_mb = _get_monthly_mb
+
+    def get_monthly_mb(self, heights, year=None, add_climate=False, **kwargs):
+        yr, m = floatyear_to_date(year)
+        return torch.squeeze(self._get_monthly_mb[m - 1](heights))

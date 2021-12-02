@@ -2,7 +2,7 @@ import torch
 import numpy as np
 
 
-def to_torch_tensor(val, torch_type, requires_grad=False):
+def to_torch_tensor(val, torch_type, device='cpu', requires_grad=False):
     if type(val) == np.ndarray:
         val = torch.from_numpy(val).to(torch_type)
     elif val is None:

@@ -2,13 +2,13 @@ import numpy as np
 import torch
 import time
 
-from combine1d.core.dynamics import run_flowline_forward_core, run_model_and_get_modeled_obs
+from combine1d.core.dynamics import run_model_and_get_temporal_model_data
 from combine1d.core.type_conversions import to_torch_tensor
-from combine1d.core.massbalance_adapted import LinearMassBalance, ConstantMassBalanceTorch
-from combine1d.core.flowline_adapted import MixedBedFlowline
+from combine1d.core.massbalance import LinearMassBalance, ConstantMassBalanceTorch
+from combine1d.core.flowline import MixedBedFlowline
 
 
-def create_cost_fct(igdir):
+def create_cost_fct(data_logger):
     '''
     Creating a cost function for the given InversionGlacierDirectory.
 
@@ -18,70 +18,79 @@ def create_cost_fct(igdir):
     values (cost, grad)
     '''
 
-    
-    def c_fun(unknown_parameter):
-        return cost_fct(unknown_parameter,
-                        known_parameter,
-                        geometry_var,
-                        bed_geometry,
-                        measurements,
-                        reg_parameters,
-                        dx,
-                        mb_model,
-                        opti_var,
-                        two_parameter_option,
-                        datalogger,
-                        grad_scaling=grad_scaling,
-                        min_w0=min_w0,
-                        spinup_sfc_known=spinup_sfc_known,
-                        spinup_yrs=spinup_yrs,
-                        only_get_c_terms=only_get_c_terms,
-                        torch_type=torch_type)
+    known_parameters = get_known_parameters(data_logger)
+    data_logger.known_parameters = known_parameters
+
+    # here create now the indices for all control variables of the unknown_parameters variable
+    parameter_indices = get_indices_for_unknown_parameters(data_logger)
+    data_logger.parameter_indices = parameter_indices
+
+    def c_fun(unknown_parameters):
+        return cost_fct(unknown_parameters,
+                        data_logger)
 
     return c_fun
 
 
-def cost_fct(unknown_parameters,
-             known_parameters,
-             parameter_indices,
-             igdir,
-             observations,
-             reg_parameters,
-             mb_models_options,
-             min_w0_m=10.,
-             data_logger=None,
-             spinup_options=None,
-             torch_type='double'):
+def get_known_parameters(data_logger):
+    """TODO"""
+    control_vars = data_logger.control_vars
+    fl = data_logger.flowline_init
+    ice_mask = data_logger.ice_mask
+
+    known_parameters = dict()
+
+    # save guard if new control vars are added
+    potential_control_vars = ['bed_h', 'surface_h', 'lambdas', 'w0_m']
+
+    # extract the ice free parts of variables of the control_vars which are assumed to be known
+    for con_var in control_vars:
+        if con_var not in potential_control_vars:
+            raise NotImplementedError('Control var not implemented!')
+
+        if con_var in ['lambdas', 'w0_m']:
+            prefix_var = '_'
+        else:
+            prefix_var = ''
+
+        known_parameters[con_var] = getattr(fl, prefix_var + con_var)[~ice_mask]
+
+    return known_parameters
+
+
+def get_indices_for_unknown_parameters(data_logger):
+    """TODO"""
+    parameter_indices = dict()
+    current_start_ind = 0
+    ice_grid_points = sum(data_logger.ice_mask)
+    for control_var in data_logger.control_vars:
+        # for these variables the length is assumed to be the whole ice area
+        if control_var in ['bed_h', 'w0_m', 'surface_h', 'lambdas']:
+            parameter_indices[control_var] = np.arange(current_start_ind,
+                                                       current_start_ind + ice_grid_points)
+            current_start_ind += ice_grid_points
+        else:
+            raise NotImplementedError('This control var is not implemented!')
+
+    # save the number (length) of the resulting unknown_parameter array
+    data_logger.len_unknown_parameter = current_start_ind
+
+    return parameter_indices
+
+
+def cost_fct(unknown_parameters, data_logger):
     '''
-    Calculates cost and gradient for the given parameters. At the moment only Trapezoidal optimisation. Implicit
-    calculation of w0_m only working with lambdas = 1..
+    Calculates cost and gradient for the given parameters. At the moment only Trapezoidal
+    optimisation.
 
     Parameters
     ----------
     unknown_parameters : :py:class:`numpy.ndarray`
         Unknown parameter values for the optimisation variable (ice part of
-        the glacier). For simulaneously optimisation of two variables contains
+        the glacier). For simultaneously optimisation of two variables contains
         both unknown variables consecutively.
-    known_parameters : dict
-        Known values for the initialisation of the flowline, key same as value
-        must contain: nx, is_trapezoidal, map_dx, dx, line, rgi_id, water_level, section
-        can contain: bed_h, surface_h, bed_shape, lambdas, w0_m, reference_w0_m (dict with widths_m and surface_h, for
-            calculation of w0_m, if w0_m is not a control variable)
-    parameter_indices : dict
-        contains the indices for the creation of the flowline out of the unknown_ and known_parameters
-        'fl_control_ind' : boolen array,  gridpoints along the flowline which are optimised
-        other keys contain the positions in the unknown parameter (e.g. 'bed_h': np.array([0,1,2,3,4]))
-    observations : dict
-        Dictionary containing the measurements from:
-    mb_models : :py:class:`oggm.core.massbalance.MassBalanceModel`
-        The mass balance model to use.
-    min_w0_m : float
-        minimum value for bottom width of trapezoidal bed shapes
     data_logger : :py:class:`combine.core.data_logging.DataLogger`
-        Datalogger to keep track of the calculations.
-    torch_type : str, optional
-        Defines type for torch.Tensor. If 'double' use torch.double, otherwise
-        use torch.float. The default is 'double'.
+        Keep track of all variables during the calculation.
 
     Returns
     -------
@@ -91,278 +100,43 @@ def cost_fct(unknown_parameters,
         The gradient for each unknown_parameter with respect to the cost value.
 
     '''
-    # check which data type should be used for calculation
-    if torch_type == 'double':
-        torch_type = torch.double
-    else:
-        torch_type = torch.float
 
-    # if w0_m is not a control variable calculate a value to match widths calculated from OGGM (using RGIv6)
-    if 'w0_m' not in parameter_indices.keys():
-        known_parameters = add_calculated_w0_m(unknown_parameters, known_parameters, parameter_indices)
+    flowline, fl_control_vars = initialise_flowline(unknown_parameters,
+                                                    data_logger)
 
-    # initialise flowline
-    flowline, fl_control_vars = initialise_MixedBedFlowline(unknown_parameters,
-                                                            known_parameters,
-                                                            parameter_indices,
-                                                            min_w0_m,
-                                                            torch_type)
+    mb_models, mb_control_vars = initialise_mb_models(unknown_parameters,
+                                                      data_logger)
 
-    mb_models = initialise_MassBalanceModels(igdir,
-                                             unknown_parameters,
-                                             known_parameters,
-                                             parameter_indices,
-                                             mb_models_options,
-                                             torch_type)
-    '''
-    # save original length of unkown parameter,
-    # needed for potential MemoryOverflowError
-    unknown_paramter_length = len(unknown_parameter)
-
-    # ice mask is needed for cost calculation and to put parameters together
-    ice_mask = torch.tensor(measurements['ice_mask'],
-                            requires_grad=False,
-                            dtype=torch.bool)
-
-    if not spinup_sfc_known:
-        if only_get_c_terms:
-            spinup_ELA = torch.tensor(unknown_parameter[0],
-                                      dtype=torch_type,
-                                      requires_grad=True)
-            unknown_parameter = unknown_parameter[1:]
-            spinup_mb_model = LinearMassBalance(spinup_ELA,
-                                                grad=mb_model['grad_spinup'])
-        elif (two_parameter_option == 'iterative') & \
-             (datalogger.opti_var_2 is not None):
-            if opti_var == 'bed_h':
-                spinup_ELA = torch.tensor(unknown_parameter[0],
-                                          dtype=torch_type,
-                                          requires_grad=True)
-                unknown_parameter = unknown_parameter[1:]
-            else:
-                spinup_ELA = torch.tensor(datalogger.spinup_ELA_guessed[-1],
-                                          dtype=torch_type,
-                                          requires_grad=False)
-            spinup_mb_model = LinearMassBalance(spinup_ELA,
-                                                grad=mb_model['grad_spinup'])
-
-        else:
-            spinup_ELA = torch.tensor(unknown_parameter[0],
-                                      dtype=torch_type,
-                                      requires_grad=True)
-            unknown_parameter = unknown_parameter[1:]
-            spinup_mb_model = LinearMassBalance(spinup_ELA,
-                                                grad=mb_model['grad_spinup'])
-
-        mb_model = {'spinup_mb_model': spinup_mb_model,
-                    'known_mb_model': mb_model['model_known']}
-    else:
-        spinup_ELA = None
-
-    # check which parameter should be optimized
-    if opti_var == 'bed_h':
-        bed_h_unknown = torch.tensor(unknown_parameter,
-                                     dtype=torch_type,
-                                     requires_grad=True)
-        bed_h_known = torch.tensor(known_parameter,
-                                   dtype=torch_type,
-                                   requires_grad=False)
-        bed_h = torch.empty(sum(list(bed_h_unknown.size() +
-                                     bed_h_known.size())),
-                            dtype=torch_type,
-                            requires_grad=False)
-        bed_h[ice_mask] = bed_h_unknown
-        bed_h[~ice_mask] = bed_h_known
-
-        shape_var = torch.tensor(geometry_var,
-                                 dtype=torch_type,
-                                 requires_grad=False)
-
-    elif opti_var in ['bed_shape', 'w0']:
-        shape_var_unknown = torch.tensor(unknown_parameter,
-                                         dtype=torch_type,
-                                         requires_grad=True)
-        shape_var_known = torch.tensor(known_parameter,
-                                       dtype=torch_type,
-                                       requires_grad=False)
-        shape_var = torch.empty(sum(list(shape_var_unknown.size() +
-                                         shape_var_known.size())),
-                                dtype=torch_type,
-                                requires_grad=False)
-        shape_var[ice_mask] = shape_var_unknown
-        shape_var[~ice_mask] = shape_var_known
-
-        bed_h = torch.tensor(geometry_var,
-                             dtype=torch_type,
-                             requires_grad=False)
-
-    elif ((two_parameter_option == 'explicit') &
-          (opti_var in ['bed_h and bed_shape', 'bed_h and w0'])):
-        split_point_unknown = int(len(unknown_parameter) / 2)
-        split_point_known = int(len(known_parameter) / 2)
-
-        bed_h_unknown = unknown_parameter[:split_point_unknown]
-        bed_h_unknown = torch.tensor(bed_h_unknown,
-                                     dtype=torch_type,
-                                     requires_grad=True)
-
-        bed_h_known = known_parameter[:split_point_known]
-        bed_h_known = torch.tensor(bed_h_known,
-                                   dtype=torch_type,
-                                   requires_grad=False)
-
-        bed_h = torch.empty(sum(list(bed_h_unknown.size() +
-                                     bed_h_known.size())),
-                            dtype=torch_type,
-                            requires_grad=False)
-        bed_h[ice_mask] = bed_h_unknown
-        bed_h[~ice_mask] = bed_h_known
-
-        shape_var_unknown = unknown_parameter[split_point_unknown:]
-        shape_var_unknown = torch.tensor(shape_var_unknown,
-                                         dtype=torch_type,
-                                         requires_grad=True)
-
-        shape_var_known = known_parameter[split_point_known:]
-        shape_var_known = torch.tensor(shape_var_known,
-                                       dtype=torch_type,
-                                       requires_grad=False)
-
-        shape_var = torch.empty(sum(list(shape_var_unknown.size() +
-                                         shape_var_known.size())),
-                                dtype=torch_type,
-                                requires_grad=False)
-        shape_var[ice_mask] = shape_var_unknown
-        shape_var[~ice_mask] = shape_var_known
-
-    elif ((two_parameter_option == 'implicit') &
-          (opti_var == 'bed_h and bed_shape')):
-        bed_h_unknown = torch.tensor(unknown_parameter,
-                                     dtype=torch_type,
-                                     requires_grad=True)
-        bed_h_known = torch.tensor(known_parameter,
-                                   dtype=torch_type,
-                                   requires_grad=False)
-        bed_h = torch.empty(sum(list(bed_h_unknown.size() +
-                                     bed_h_known.size())),
-                            dtype=torch_type,
-                            requires_grad=False)
-        bed_h[ice_mask] = bed_h_unknown
-        bed_h[~ice_mask] = bed_h_known
-
-        shape_var_known = torch.tensor(geometry_var,
-                                       dtype=torch_type,
-                                       requires_grad=False)
-        true_widths = to_torch_tensor(measurements['widths'], torch_type)
-        true_sfc_h = to_torch_tensor(measurements['sfc_h'], torch_type)
-
-        # choose wich version to use for bed_shape calculation, 0 default
-        bed_shape_calculation_version = 2
-
-        if bed_shape_calculation_version == 0:
-            # calculating with no restrictions
-            shape_var_unknown = to_torch_tensor(4., torch_type) * \
-                                (true_sfc_h[ice_mask] - bed_h_unknown) / \
-                                (true_widths[ice_mask])**2
-        elif bed_shape_calculation_version == 1:
-            # use a minimum width of 10 for calculation, equ. OGGM first guess
-            shape_var_unknown = torch.where(
-                true_widths[ice_mask] >= to_torch_tensor(10., torch_type),
-                to_torch_tensor(4., torch_type) *
-                (true_sfc_h[ice_mask] - bed_h_unknown) /
-                (true_widths[ice_mask])**2,
-                to_torch_tensor(4., torch_type) *
-                (true_sfc_h[ice_mask] - bed_h_unknown) /
-                to_torch_tensor(10., torch_type)**2)
-        elif bed_shape_calculation_version == 2:
-            # define a maximum value of 3
-            shape_var_unknown = torch.clamp(
-                to_torch_tensor(4., torch_type) *
-                (true_sfc_h[ice_mask] - bed_h_unknown) /
-                (true_widths[ice_mask])**2,
-                max=3)
-
-        shape_var = torch.empty(sum(list(shape_var_unknown.size() +
-                                         shape_var_known.size())),
-                                dtype=torch_type,
-                                requires_grad=False)
-        shape_var[ice_mask] = shape_var_unknown
-        shape_var[~ice_mask] = shape_var_known
-
-    elif ((two_parameter_option == 'implicit') &
-          (opti_var == 'bed_h and w0')):
-        bed_h_unknown = torch.tensor(unknown_parameter,
-                                     dtype=torch_type,
-                                     requires_grad=True)
-        bed_h_known = torch.tensor(known_parameter,
-                                   dtype=torch_type,
-                                   requires_grad=False)
-        bed_h = torch.empty(sum(list(bed_h_unknown.size() +
-                                     bed_h_known.size())),
-                            dtype=torch_type,
-                            requires_grad=False)
-        bed_h[ice_mask] = bed_h_unknown
-        bed_h[~ice_mask] = bed_h_known
-
-        shape_var_known = torch.tensor(geometry_var,
-                                       dtype=torch_type,
-                                       requires_grad=False)
-        true_widths = to_torch_tensor(measurements['widths'], torch_type)
-        true_sfc_h = to_torch_tensor(measurements['sfc_h'], torch_type)
-        # 1. for constant lambda of trapozidal bed geometry
-        shape_var_unknown = torch.clamp(true_widths[ice_mask] -
-                                        to_torch_tensor(1., torch_type) *
-                                        (true_sfc_h[ice_mask] - bed_h_unknown),
-                                        min=min_w0)
-        shape_var = torch.empty(sum(list(shape_var_unknown.size() +
-                                         shape_var_known.size())),
-                                dtype=torch_type,
-                                requires_grad=False)
-        shape_var[ice_mask] = shape_var_unknown
-        shape_var[~ice_mask] = shape_var_known
-
-    else:
-        raise ValueError('Unknown combination of opti var and '
-                         'two parameter option!')
-
-    # check if bed_h and shape_var are the same length
-    assert len(bed_h) == len(shape_var), 'Parameters not the same length!!!'
-    '''
-
-    if spinup_options is not None:
+    if data_logger.spinup_options is not None:
         # Here a spinup run could be conducted, maybe in the future
         # flowline = do_spinup(flowline, spinup_mb_model)
         raise NotImplementedError('No spinup possibilities integrated!')
 
+    observations = data_logger.observations
+
     # forward run of model, try is needed to avoid a memory overflow
     try:
-        Obs_mdl = run_model_and_get_modeled_obs(flowline=flowline,
-                                                mb_models=mb_models,
-                                                Obs=observations)
+        observations_mdl, final_fl = run_model_and_get_temporal_model_data(
+            flowline=flowline,
+            mb_models=mb_models,
+            observations=observations)
 
     except MemoryError:
         print('MemoryError in forward model run (due to a too small '
               'timestep) -> set Costfunction to Inf')
         cost = np.Inf
-        grad = np.empty(unknown_paramter_length) * np.nan
+        grad = np.empty(len(unknown_parameters)) * np.nan
         return cost, grad
 
+    # CONTINUE HERE
     # calculate terms of cost function
-    c_terms = get_cost_terms(
-        model_sfc_h=model_sfc_h,
-        model_widths=model_widths,
-        model_thicks=model_thicks,
-        model_bed_h=bed_h,
-        true_sfc_h=measurements['sfc_h'],
-        true_widths=measurements['widths'],
-        true_ice_mask=measurements['ice_mask'],
-        reg_parameters=reg_parameters,
-        dx=map_dx,
-        torch_type=torch_type)
-
-    # shortcut when regularisation parameters are searched
-    if only_get_c_terms:
-        return c_terms.detach().numpy().astype(np.float64)
+    c_terms = get_cost_terms(observations,
+                             observations_mdl,
+                             final_fl,  # for regularisation term 'smoothed_bed'
+                             data_logger=data_logger,  # for reg_parameters
+                             dx=known_parameters['map_dx'] * known_parameters['dx'],
+                             torch_type=torch_type,
+                             )
 
     # sum up cost function terms
     c = c_terms.sum()
@@ -373,238 +147,185 @@ def cost_fct(unknown_parameters,
     # convert cost to numpy array
     cost = c.detach().numpy().astype(np.float64)
 
-    # get gradient/s and convert to numpy array
-    if opti_var == 'bed_h':
-        grad = bed_h_unknown.grad.detach().numpy().astype(np.float64)
-    elif opti_var in ['bed_shape', 'w0']:
-        grad = shape_var_unknown.grad.detach().numpy().astype(np.float64)
-    elif opti_var in ['bed_h and bed_shape', 'bed_h and w0']:
-        if two_parameter_option == 'explicit':
-            grad_bed_h = \
-                bed_h_unknown.grad.detach().numpy().astype(np.float64) * \
-                grad_scaling['bed_h']
-            grad_shape_var = \
-                shape_var_unknown.grad.detach().numpy().astype(np.float64) * \
-                grad_scaling['shape_var']
-            grad = np.append(grad_bed_h, grad_shape_var)
-        elif two_parameter_option == 'implicit':
-            grad = bed_h_unknown.grad.detach().numpy().astype(np.float64)
-        else:
-            raise ValueError('Unknown two opti parameter option!')
-    else:
-        raise ValueError('Unknown optimisation variable!')
+    # get gradient/s as numpy array
+    grad = get_gradients(fl_control_vars,
+                         mb_control_vars,
+                         parameter_indices,
+                         length=len(unknown_parameters))
 
-    if not spinup_sfc_known:
-        if (datalogger.two_parameter_option == 'iterative') & \
-                (datalogger.opti_var_2 is not None):
-            if opti_var == 'bed_h':
-                spinup_ELA_grad = \
-                    spinup_ELA.grad.detach().numpy().astype(np.float64)
-                grad_return = np.append(spinup_ELA_grad,
-                                        grad)
-            else:
-                spinup_ELA_grad = np.nan
-                grad_return = grad
-        else:
-            spinup_ELA_grad = \
-                spinup_ELA.grad.detach().numpy().astype(np.float64)
-            grad_return = np.append(spinup_ELA_grad,
-                                    grad)
-    else:
-        grad_return = grad
+    # save data in data_logger
+    data_logger.save_data_in_datalogger('flowline', final_fl)
+    data_logger.save_data_in_datalogger('costs', cost)
+    data_logger.save_data_in_datalogger('c_terms', c_terms)
+    data_logger.save_data_in_datalogger('unknown_parameters', unknown_parameters)
+    data_logger.save_data_in_datalogger('time_needed',
+                                        time.time() - data_logger.start_time)
 
-    # save data in datalogger
-    datalogger.save_data_in_datalogger('costs', cost)
-    datalogger.save_data_in_datalogger('c_terms', c_terms)
-    datalogger.save_data_in_datalogger('sfc_h', model_sfc_h)
-    datalogger.save_data_in_datalogger('widths', model_widths)
-    datalogger.save_data_in_datalogger('opti_var_iteration', opti_var)
-    datalogger.save_data_in_datalogger('current_main_iterations',
-                                       datalogger.main_iterations[-1])
-    datalogger.save_data_in_datalogger('time_needed',
-                                       time.time() - datalogger.start_time)
+    data_logger.fct_calls = np.append(data_logger.fct_calls,
+                                      data_logger.fct_calls[-1] + 1)
 
-    if not spinup_sfc_known:
-        datalogger.save_data_in_datalogger('spinup_ELA_guessed', spinup_ELA)
-        datalogger.save_data_in_datalogger('spinup_ELA_grad', spinup_ELA_grad)
-        datalogger.save_data_in_datalogger('spinup_sfc_h_guessed',
-                                           model_flowline.spinup_sfc_h)
-        datalogger.save_data_in_datalogger('spinup_widths_guessed',
-                                           model_flowline.spinup_widths)
-
-    if opti_var == 'bed_h':
-        datalogger.save_data_in_datalogger('guessed_opti_var_1', bed_h_unknown)
-        datalogger.save_data_in_datalogger('grads_opti_var_1', grad)
-        # save second variable if currently in iterative optimisation
-        if datalogger.opti_var_2 is not None:
-            datalogger.save_data_in_datalogger('guessed_opti_var_2',
-                                               shape_var[ice_mask])
-            datalogger.save_data_in_datalogger('grads_opti_var_2',
-                                               np.empty(len(grad)) * np.nan)
-
-    elif opti_var in ['bed_shape', 'w0']:
-        # check if currently in iterative optimisation
-        if datalogger.opti_var_2 is None:
-            datalogger.save_data_in_datalogger('guessed_opti_var_1',
-                                               shape_var_unknown)
-            datalogger.save_data_in_datalogger('grads_opti_var_1', grad)
-        else:
-            datalogger.save_data_in_datalogger('guessed_opti_var_1',
-                                               bed_h[ice_mask])
-            datalogger.save_data_in_datalogger('grads_opti_var_1',
-                                               np.empty(len(grad)) * np.nan)
-
-            datalogger.save_data_in_datalogger('guessed_opti_var_2',
-                                               shape_var_unknown)
-            datalogger.save_data_in_datalogger('grads_opti_var_2', grad)
-
-    elif opti_var in ['bed_h and bed_shape', 'bed_h and w0']:
-        if two_parameter_option == 'explicit':
-            datalogger.save_data_in_datalogger('guessed_opti_var_1',
-                                               bed_h_unknown)
-            datalogger.save_data_in_datalogger('grads_opti_var_1', grad_bed_h)
-            datalogger.save_data_in_datalogger('guessed_opti_var_2',
-                                               shape_var_unknown)
-            datalogger.save_data_in_datalogger('grads_opti_var_2',
-                                               grad_shape_var)
-        elif two_parameter_option == 'implicit':
-            datalogger.save_data_in_datalogger('guessed_opti_var_1',
-                                               bed_h_unknown)
-            datalogger.save_data_in_datalogger('grads_opti_var_1', grad)
-            datalogger.save_data_in_datalogger('guessed_opti_var_2',
-                                               shape_var_unknown)
-            datalogger.save_data_in_datalogger('grads_opti_var_2',
-                                               np.empty(len(grad)) * np.nan)
-    else:
-        raise ValueError('Unknown optimisation variable!')
-
-    datalogger.fct_calls = np.append(datalogger.fct_calls,
-                                     datalogger.fct_calls[-1] + 1)
-
-    return cost, grad_return
+    return cost, grad
 
 
-def add_calculated_w0_m(unknown_parameters, known_parameters, parameter_indices):
-    rgi_widths = to_torch_tensor(known_parameters['widths_m'], torch_type)
-    rgi_sfc_h = to_torch_tensor(known_parameters['surface_h'], torch_type)
+def add_calculated_w0_m(unknown_parameters, known_parameters, parameter_indices, min_w0_m,
+                        torch_type):
+    rgi_widths = to_torch_tensor(known_parameters['reference_w0_m']['widths_m'], torch_type)
+    rgi_sfc_h = to_torch_tensor(known_parameters['reference_w0_m']['surface_h'], torch_type)
 
     known_parameters['w0_m'] = torch.empty(known_parameters['nx'],
                                            dtype=torch_type,
                                            requires_grad=False)
 
     # 1. for constant lambda of trapozidal bed geometry
-    known_parameters['w0_m'][parameter_indices['fl_control_ind']] = \
-        torch.clamp(rgi_widths[parameter_indices['fl_control_ind']] -
+    known_parameters['w0_m'][parameter_indices['ice_mask']] = \
+        torch.clamp(rgi_widths[parameter_indices['ice_mask']] -
                     to_torch_tensor(1., torch_type) *
-                    (rgi_sfc_h[parameter_indices['fl_control_ind']] -
+                    (rgi_sfc_h[parameter_indices['ice_mask']] -
                      unknown_parameters[parameter_indices['bed_h']]),
                     min=min_w0_m)
-    known_parameters['w0_m'][~parameter_indices['fl_control_ind']] = float('nan')
+    known_parameters['w0_m'][~parameter_indices['ice_mask']] = float('nan')
 
     return known_parameters
 
 
-def initialise_MixedBedFlowline(unknown_parameters,
-                                known_parameters,
-                                parameter_indices,
-                                min_w0_m,
-                                torch_type):
-    '''
-    Initialise a MixedBedFlowline for Minimisation. At the moment only Trapezoidal OR Parabolic is supported (maybe
-    integrate something like 'fl_control_ind & is_trapezoidal')!!
+def initialise_flowline(unknown_parameters, data_logger):
+    """
+    Initialise a MixedBedFlowline for Minimisation. At the moment only Trapezoidal unknown is
+    supported (maybe integrate something like 'fl_control_ind & is_trapezoid')!!
     Parameters
     ----------
     unknown_parameters : :py:class:`numpy.ndarray`
         Unknown parameter values for the optimisation variable (ice part of
         the glacier). For simulaneously optimisation of two variables contains
         both unknown variables consecutively.
-    known_parameters : dict
-        Known values for the initialisation of the flowline, key same as value
-        must contain: nx, is_trapezoidal, map_dx, dx, line, rgi_id, water_level
-        can contain: bed_h, surface_h, bed_shape, lambdas, w0_m
-    parameter_indices : dict
-        contains the indices for the creation of the flowline out of the unknown_ and known_parameters
-        'fl_control_ind' : boolen array,  gridpoints along the flowline which are optimised
-        other keys contain the positions in the unknown parameter (e.g. 'bed_h': np.array([0,1,2,3,4]))
+    data_logger : TODO
 
     Returns
     -------
 
-    '''
-    assert known_parameters['nx'] == len(parameter_indices['fl_control_ind'])
+    """
 
-    fl_control_ind = to_torch_tensor(parameter_indices['fl_control_ind'],
-                                     torch_type=torch.bool,
-                                     requires_grad=False)
+    torch_type = data_logger.torch_type
+    device = data_logger.device
+    nx = data_logger.flowline_init.nx
+    parameter_indices = data_logger.parameter_indices
+    known_parameters = data_logger.known_parameters
+    fl_init = data_logger.flowline_init
 
-    # initialise all potential control variables for flowline as empty tensor and fill them accordingly
-    all_vars = ['bed_h', 'surface_h', 'lambdas', 'w0_m', 'bed_shape']
+    ice_mask = torch.tensor(data_logger.ice_mask,
+                            dtype=torch.bool,
+                            device=device,
+                            requires_grad=False)
+
+    # initialise all potential control variables for flowline as empty tensor and fill them
+    all_potential_control_vars = ['bed_h', 'surface_h', 'lambdas', 'w0_m']
     fl_vars_total = {}  # they are used for actual initialisation
     fl_control_vars = {}  # are used for reading out the gradients later
-    for var in all_vars:
-        fl_vars_total[var] = torch.empty(known_parameters['nx'],
+    for var in all_potential_control_vars:
+        fl_vars_total[var] = torch.empty(nx,
                                          dtype=torch_type,
+                                         device=device,
                                          requires_grad=False)
 
         if var in parameter_indices.keys():
             fl_control_vars[var] = torch.tensor(unknown_parameters[parameter_indices[var]],
                                                 dtype=torch_type,
+                                                device=device,
                                                 requires_grad=True)
 
-            fl_vars_total[var][fl_control_ind] = fl_control_vars[var]
-            fl_vars_total[var][~fl_control_ind] = to_torch_tensor(known_parameters[var],
-                                                                  torch_type=torch_type,
-                                                                  requires_grad=False)
+            fl_vars_total[var][ice_mask] = fl_control_vars[var]
+            fl_vars_total[var][~ice_mask] = torch.tensor(known_parameters[var],
+                                                         dtype=torch_type,
+                                                         device=device,
+                                                         requires_grad=False)
 
         else:
-            fl_vars_total[var] = to_torch_tensor(known_parameters[var],
-                                                 torch_type=torch_type,
-                                                 requires_grad=False)
+            # if w0_m is no control variable it is calculated to fit widths_m of flowline_init
+            if var == 'w0_m':
+                init_widths = torch.tensor(fl_init.widths_m,
+                                           dtype=torch_type,
+                                           device=device,
+                                           requires_grad=False)
+                init_sfc_h = torch.tensor(fl_init.surface_h,
+                                          dtype=torch_type,
+                                          device=device,
+                                          requires_grad=False)
+                lambdas = torch.tensor(fl_init._lambdas,
+                                       dtype=torch_type,
+                                       device=device,
+                                       requires_grad=False)
 
-    fl = MixedBedFlowline(line=known_parameters['line'],
-                          dx=known_parameters['dx'],
-                          map_dx=known_parameters['map_dx'],
+                fl_vars_total[var][ice_mask] = \
+                    torch.clamp(init_widths[ice_mask] - lambdas[ice_mask] *
+                                (init_sfc_h[ice_mask] - fl_vars_total['bed_h'][ice_mask]),
+                                min=data_logger.min_w0_m)
+                fl_vars_total[var][~ice_mask] = torch.tensor(fl_init._w0_m[~data_logger.ice_mask],
+                                                             dtype=torch_type,
+                                                             device=device,
+                                                             requires_grad=False)
+            else:
+                if var == 'lambdas':
+                    prefix = '_'
+                else:
+                    prefix = ''
+                fl_vars_total[var] = to_torch_tensor(getattr(fl_init, prefix + var),
+                                                     torch_type=torch_type,
+                                                     device=device,
+                                                     requires_grad=False)
+
+    fl = MixedBedFlowline(line=fl_init.line,
+                          dx=fl_init.dx,
+                          map_dx=fl_init.map_dx,
                           surface_h=fl_vars_total['surface_h'],
                           bed_h=fl_vars_total['bed_h'],
-                          section=known_parameters['section'],
-                          bed_shape=fl_vars_total['bed_shape'],
-                          is_trapezoid=known_parameters['is_trapezoid'],
+                          section=fl_init.section,
+                          bed_shape=fl_init.bed_shape,
+                          is_trapezoid=fl_init.is_trapezoid,
                           lambdas=fl_vars_total['lambdas'],
                           w0_m=fl_vars_total['w0_m'],
-                          rgi_id=known_parameters['rgi_id'],
-                          water_level=known_parameters['water_level'],
-                          torch_type=torch_type)
+                          rgi_id=fl_init.rgi_id,
+                          water_level=fl_init.water_level,
+                          torch_type=torch_type,
+                          device=device)
 
     return fl, fl_control_vars
 
 
-def initialise_MassBalanceModels(igdir,
-                                 mb_models_options,  # {'MB1': {'type': 'constant', 'years': np.array([1950, 2010])}}
-                                 torch_type):
+def initialise_mb_models(unknown_parameters,
+                         data_logger):
+    """TODO"""
+    mb_models_settings = data_logger.mb_models_settings
+    torch_type = data_logger.torch_type
+    device = data_logger.device
+    gdir = data_logger.gdir
+
     mb_models = {}
-    for mb_opt in mb_models_options:
-        if mb_models_options[mb_opt]['type'] == 'constant':
-            y0 = int(np.mean(mb_models_options[mb_opt]['years']))
-            halfsize = int(y0 - mb_models_options[mb_opt]['years'][0])
-            mb_models[mb_opt] = {'mb_model': ConstantMassBalanceTorch(igdir,
-                                                                      y0=y0,
-                                                                      halfsize=halfsize,
-                                                                      torch_type=torch_type),
-                                 'years': mb_models_options[mb_opt]['years']}
+    for mb_mdl_set in mb_models_settings:
+        if mb_models_settings[mb_mdl_set]['type'] == 'constant':
+            y_start = mb_models_settings[mb_mdl_set]['years'][0]
+            y_end = mb_models_settings[mb_mdl_set]['years'][1]
+            # -1 because period defined as [y0 - halfsize, y0 + halfsize + 1]
+            y0 = (y_start + y_end - 1) / 2
+            halfsize = (y_end - y_start - 1) / 2
+            mb_models[mb_mdl_set] = {'mb_model': ConstantMassBalanceTorch(gdir,
+                                                                          y0=y0,
+                                                                          halfsize=halfsize,
+                                                                          torch_type=torch_type,
+                                                                          device=device),
+                                     'years': mb_models_settings[mb_mdl_set]['years']}
         else:
-            raise NotImplementedError('The MassBalance type ' + mb_models_options[mb_opt]['type'] + ' is not '
-                                      'implemented!')
-    return mb_models  # {'MB1': {'mb_model': lala, 'years': np.array([1950, 2010])}}
+            raise NotImplementedError("The MassBalance type "
+                                      f"{mb_models_settings[mb_mdl_set]['type']} is not "
+                                      "implemented!")
+
+    mb_control_var = {}  # only needed if in future control variables are included in MB-Models
+    return mb_models, mb_control_var
 
 
-def get_cost_terms(model_sfc_h,
-                   model_widths,
-                   model_thicks,
-                   model_bed_h,
-                   true_sfc_h,
-                   true_widths,
-                   true_ice_mask,
-                   reg_parameters,
+def get_cost_terms(observations,
+                   observations_mdl,
+                   flowline,
+                   data_logger,
                    dx,
                    torch_type):
     '''
@@ -612,22 +333,9 @@ def get_cost_terms(model_sfc_h,
 
     Parameters
     ----------
-    model_sfc_h : :py:class:`torch.Tensor`
-        Surface heights of the modeled glacier.
-    model_widths : :py:class:`torch.Tensor`
-        Widths of the modeled glacier.
-    model_thicks : :py:class:`torch.Tensor`
-        Thickness of the modeled glacier.
-    model_bed_h : :py:class:`torch.Tensor`
-        Bed heights of the modeled glacier.
-    true_sfc_h : :py:class:`numpy.ndarray`
-        Surface heights from measurements.
-    true_widths : :py:class:`numpy.ndarray`
-        Widths from measurements.
-    true_ice_mask : :py:class:`numpy.ndarray`
-        Ice maks from measurements (1 = ice, 0 = no ice).
-    reg_parameters : :py:class:`numpy.ndarray`
-        Regularisation parameters for the individual terms.
+    observations_mdl
+    observations
+    data_logger
     dx : float
         Model grid spacing in meters.
     torch_type : :py:class:`torch.dtype`
@@ -639,28 +347,89 @@ def get_cost_terms(model_sfc_h,
         Contains the four terms of the final cost function.
 
     '''
-    # calculate cost terms
-    costs = torch.zeros(4,
+    # calculate difference between observations and model
+    dObs, nObs = calculate_difference_between_observation_and_model(observations, observations_mdl)
+
+    # see if reg parameters need to be specified
+    if data_logger.reg_parameters == 'scale':
+        # as a first step scale to Observation values
+        define_reg_parameters(observations, data_logger, torch_type)
+
+    reg_parameters = data_logger.reg_parameters
+
+    # define number of cost terms
+    if data_logger.reg_terms is not None:
+        n_costs = nObs + len(data_logger.reg_terms.keys())
+    else:
+        n_costs = nObs
+
+    costs = torch.zeros(n_costs,
                         dtype=torch_type)
 
-    ice_mask = to_torch_tensor(true_ice_mask, torch.bool)
+    # to keep track of current calculated cost term
+    i_costs = 0
 
-    # misfit between modeled and measured surface height for points with ice
-    true_sfc_h = to_torch_tensor(true_sfc_h, torch_type)
-    costs[0] = reg_parameters[0] * (true_sfc_h[ice_mask] -
-                                    model_sfc_h[ice_mask]).pow(2).sum()
+    # calculate cost terms
+    for ob in dObs.keys():
+        for year in dObs[ob].keys():
+            costs[i_costs] = reg_parameters[ob][year] * dObs[ob][year]
+            i_costs += 1
 
-    # misfit between modeled and measured width for points with ice
-    true_widths = to_torch_tensor(true_widths, torch_type)
-    costs[1] = reg_parameters[1] * ((true_widths[ice_mask] -
-                                     model_widths[ice_mask])).pow(2).sum()
-
-    # pnelalize ice outside of glacier outline
-    costs[2] = reg_parameters[2] * (true_sfc_h[~ice_mask] -
-                                    model_sfc_h[~ice_mask]).pow(2).sum()
-
-    # smoothnes of glacier bed, use mean of forward and backward
-    db_dx = (model_bed_h[1:] - model_bed_h[:-1]) / dx
-    costs[3] = reg_parameters[3] * db_dx.pow(2).sum()
+    # calculate regularisation terms
+    for reg_term in data_logger.reg_terms.keys():
+        if reg_term == 'smoothed_bed':
+            b = flowline.bed_h
+            db_dx = (b[1:] - b[:-1]) / dx
+            reg_par = to_torch_tensor(data_logger.reg_terms[reg_term],
+                                      torch_type=torch_type,
+                                      requires_grad=False)
+            costs[i_costs] = reg_par * db_dx.pow(2).sum()
 
     return costs
+
+
+def calculate_difference_between_observation_and_model(observations, observations_mdl, torch_type):
+    dobs = observations.copy()
+    nobs = 0
+    for ob in observations.keys():
+        for year in observations[ob]:
+            nobs += 1
+            dobs[ob][year] = (to_torch_tensor(observations[ob][year], torch_type=torch_type) -
+                              observations_mdl[ob][year]).pow(2).sum()
+
+    return dobs, nobs
+
+
+def define_reg_parameters(observations, data_logger, torch_type):
+    reg_parameters = observations.copy()
+
+    # reference Magnitude to scale to, arbitrary
+    ref_magnitude = torch.tensor([100.], dtype=torch_type, requires_grad=False)
+
+    # loop through Obs and choose reg_parameters to scale to the absolute value of Observation,
+    # the calculated reg_parameters are squared because the differences (obs-mdl) are also squared in cost calculation
+    for ob in observations.keys():
+        for year in observations[ob].keys():
+            # sum is used for observations along the flowline
+            tmp_obs = to_torch_tensor(observations[ob][year], torch_type=torch_type,
+                                      requires_grad=False).sum()
+            reg_parameters[ob][year] = (ref_magnitude / tmp_obs).pow(2)
+            # TODO: incorporate use of reg_parameter_relative_scaling
+
+    data_logger.reg_parameters = reg_parameters
+
+
+def get_gradients(fl_control_vars, mb_control_vars, parameter_indices, length):
+    grad = np.zeros(length, dtype='float64')
+
+    for var in parameter_indices.keys():
+        if var in fl_control_vars.keys():
+            grad[parameter_indices[var]] = fl_control_vars[var].grad.detach().numpy().astype(
+                np.float64)
+        elif var in mb_control_vars.keys():
+            grad[parameter_indices[var]] = mb_control_vars[var].grad.detach().numpy().astype(
+                np.float64)
+        else:
+            raise NotImplementedError('No gradient available for ' + var + '!')
+
+    return grad
