@@ -242,7 +242,39 @@ class TestCostFct:
         assert len(grad) == len(unknown_parameters)
         assert type(grad) == np.ndarray
 
-    def test_cost_fct(self, data_logger, unknown_parameters):
+    def test_cost_fct(self, data_logger, unknown_parameters, observations):
+        flowline, fl_control_vars = initialise_flowline(unknown_parameters,
+                                                        data_logger)
+        mb_models, mb_control_vars = initialise_mb_models(unknown_parameters,
+                                                          data_logger)
+
+        observations_mdl, final_fl = \
+            run_model_and_get_temporal_model_data(flowline, mb_models,
+                                                  observations)
+
+        # now add artificial observation values
+        for obs_var in observations.keys():
+            for year in observations[obs_var].keys():
+                observations[obs_var][year] = \
+                    observations_mdl[obs_var][year].detach().numpy().astype(
+                        np.float64) + 10.
+
+        data_logger.observations = observations
+        data_logger.obs_reg_parameters = {'scale': {'fl_total_area:m2': 1.,
+                                                    'fl_total_area:km2': 10.,
+                                                    'area:m2': 1.,
+                                                    'area:km2': 10.,
+                                                    'dh:m': 1.,
+                                                    'fl_surface_h:m': 2.,
+                                                    'fl_widths:m': 5.}}
+
+        cost, grad = cost_fct(unknown_parameters, data_logger)
+
+        assert type(cost) == np.ndarray
+        assert cost.size == 1
+        assert type(grad) == np.ndarray
+        assert len(grad) == len(unknown_parameters)
+
         data_logger.spinup_options = 'do_spinup'
         with pytest.raises(NotImplementedError, match='No spinup possibilities integrated!'):
             cost_fct(unknown_parameters, data_logger)
