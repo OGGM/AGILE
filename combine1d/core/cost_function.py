@@ -81,8 +81,8 @@ def get_indices_for_unknown_parameters(data_logger):
 
 def cost_fct(unknown_parameters, data_logger):
     '''
-    Calculates cost and gradient for the given parameters. At the moment only Trapezoidal
-    optimisation.
+    Calculates cost and gradient for the given parameters. At the moment only
+    Trapezoidal optimisation.
 
     Parameters
     ----------
@@ -148,7 +148,7 @@ def cost_fct(unknown_parameters, data_logger):
     # get gradient/s as numpy array
     grad = get_gradients(fl_control_vars,
                          mb_control_vars,
-                         parameter_indices,
+                         data_logger,
                          length=len(unknown_parameters))
 
     # save data in data_logger
@@ -441,7 +441,8 @@ def define_reg_parameters(data_logger):
     data_logger.obs_reg_parameters = reg_parameters
 
 
-def get_gradients(fl_control_vars, mb_control_vars, parameter_indices, length):
+def get_gradients(fl_control_vars, mb_control_vars, data_logger, length):
+    parameter_indices = data_logger.parameter_indices
     grad = np.zeros(length, dtype='float64')
 
     for var in parameter_indices.keys():

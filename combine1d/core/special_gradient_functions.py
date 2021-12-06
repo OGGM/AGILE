@@ -4,7 +4,10 @@ from torch.autograd.function import Function
 
 class para_width_from_thick(Function):
     @staticmethod
-    def forward(ctx, shape, thick, torch_type, device):
+    def forward(ctx, shape, thick):
+        torch_type = thick.dtype
+        device = thick.device
+
         result = torch.sqrt(torch.tensor(4.,
                                          dtype=torch_type,
                                          device=device,
@@ -50,7 +53,10 @@ class para_width_from_thick(Function):
 
 class para_thick_from_section(Function):
     @staticmethod
-    def forward(ctx, shape, section, torch_type, device):
+    def forward(ctx, shape, section):
+        torch_type = section.dtype
+        device = section.device
+
         result = (torch.tensor(0.75,
                                dtype=torch_type,
                                device=device) * section * torch.sqrt(shape)).pow(2. / 3.)
