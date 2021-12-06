@@ -92,7 +92,7 @@ def get_default_inversion_settings(get_doc=False):
            "parameter). Options: " \
            "'smoothed_bed' adds a term which prefer smoother beds. " \
            "Default: {'smoothed_bed': 1}"
-    _default = {'smoothed_bed': 1}
+    _default = {'smoothed_bed': 1.}
     add_setting()
 
     _key = "spinup_options"
