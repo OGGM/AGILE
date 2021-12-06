@@ -54,6 +54,37 @@ class TestCreateCostFct:
         assert isinstance(cost_fct, types.FunctionType)
 
 
+def get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
+                                   observations):
+    flowline, fl_control_vars = initialise_flowline(unknown_parameters,
+                                                    data_logger)
+    mb_models, mb_control_vars = initialise_mb_models(unknown_parameters,
+                                                      data_logger)
+
+    observations_mdl, final_fl = \
+        run_model_and_get_temporal_model_data(flowline, mb_models,
+                                              observations)
+
+    # now add artificial observation values
+    for obs_var in observations.keys():
+        for year in observations[obs_var].keys():
+            observations[obs_var][year] = \
+                observations_mdl[obs_var][year].detach().numpy().astype(
+                    np.float64) + 10.
+
+    data_logger.observations = observations
+    data_logger.obs_reg_parameters = {'scale': {'fl_total_area:m2': 1.,
+                                                'fl_total_area:km2': 10.,
+                                                'area:m2': 1.,
+                                                'area:km2': 10.,
+                                                'dh:m': 1.,
+                                                'fl_surface_h:m': 2.,
+                                                'fl_widths:m': 5.}}
+
+    return flowline, fl_control_vars, mb_models, mb_control_vars, \
+           observations_mdl, final_fl, data_logger
+
+
 class TestCostFct:
     @pytest.fixture(scope='function')
     def unknown_parameters(self, data_logger):
@@ -92,21 +123,12 @@ class TestCostFct:
     def test_calculate_difference_between_observation_and_model(self, data_logger,
                                                                 unknown_parameters,
                                                                 observations):
-        flowline, fl_control_vars = initialise_flowline(unknown_parameters,
-                                                        data_logger)
-        mb_models, mb_control_var = initialise_mb_models(unknown_parameters,
-                                                         data_logger)
-
-        observations_mdl, final_fl = \
-            run_model_and_get_temporal_model_data(flowline, mb_models,
-                                                  observations)
-
-        # now add artificial observation values
-        for obs_var in observations.keys():
-            for year in observations[obs_var].keys():
-                observations[obs_var][year] = \
-                    observations_mdl[obs_var][year].detach().numpy().astype(
-                        np.float64) + 10.
+        flowline, fl_control_vars, mb_models, mb_control_vars, \
+        observations_mdl, final_fl, data_logger = get_prepared_data_for_cost_fct(
+            unknown_parameters, data_logger, observations)
+        c_terms = get_cost_terms(observations_mdl,
+                                 final_fl,
+                                 data_logger)
 
         dobs, nobs = calculate_difference_between_observation_and_model(
             observations,
@@ -162,30 +184,9 @@ class TestCostFct:
 
     def test_get_cost_terms(self, data_logger, unknown_parameters,
                             observations):
-        flowline, fl_control_vars = initialise_flowline(unknown_parameters,
-                                                        data_logger)
-        mb_models, mb_control_var = initialise_mb_models(unknown_parameters,
-                                                         data_logger)
-
-        observations_mdl, final_fl = \
-            run_model_and_get_temporal_model_data(flowline, mb_models,
-                                                  observations)
-
-        # now add artificial observation values
-        for obs_var in observations.keys():
-            for year in observations[obs_var].keys():
-                observations[obs_var][year] = \
-                    observations_mdl[obs_var][year].detach().numpy().astype(
-                        np.float64) + 10.
-
-        data_logger.observations = observations
-        data_logger.obs_reg_parameters = {'scale': {'fl_total_area:m2': 1.,
-                                                    'fl_total_area:km2': 10.,
-                                                    'area:m2': 1.,
-                                                    'area:km2': 10.,
-                                                    'dh:m': 1.,
-                                                    'fl_surface_h:m': 2.,
-                                                    'fl_widths:m': 5.}}
+        flowline, fl_control_vars, mb_models, mb_control_vars, \
+        observations_mdl, final_fl, data_logger = get_prepared_data_for_cost_fct(
+            unknown_parameters, data_logger, observations)
 
         c_terms = get_cost_terms(observations_mdl,
                                  final_fl,
@@ -198,30 +199,9 @@ class TestCostFct:
 
     def test_get_gradients(self, data_logger, unknown_parameters,
                            observations):
-        flowline, fl_control_vars = initialise_flowline(unknown_parameters,
-                                                        data_logger)
-        mb_models, mb_control_vars = initialise_mb_models(unknown_parameters,
-                                                          data_logger)
-
-        observations_mdl, final_fl = \
-            run_model_and_get_temporal_model_data(flowline, mb_models,
-                                                  observations)
-
-        # now add artificial observation values
-        for obs_var in observations.keys():
-            for year in observations[obs_var].keys():
-                observations[obs_var][year] = \
-                    observations_mdl[obs_var][year].detach().numpy().astype(
-                        np.float64) + 10.
-
-        data_logger.observations = observations
-        data_logger.obs_reg_parameters = {'scale': {'fl_total_area:m2': 1.,
-                                                    'fl_total_area:km2': 10.,
-                                                    'area:m2': 1.,
-                                                    'area:km2': 10.,
-                                                    'dh:m': 1.,
-                                                    'fl_surface_h:m': 2.,
-                                                    'fl_widths:m': 5.}}
+        flowline, fl_control_vars, mb_models, mb_control_vars, \
+        observations_mdl, final_fl, data_logger = get_prepared_data_for_cost_fct(
+            unknown_parameters, data_logger, observations)
 
         c_terms = get_cost_terms(observations_mdl,
                                  final_fl,
@@ -243,30 +223,9 @@ class TestCostFct:
         assert type(grad) == np.ndarray
 
     def test_cost_fct(self, data_logger, unknown_parameters, observations):
-        flowline, fl_control_vars = initialise_flowline(unknown_parameters,
-                                                        data_logger)
-        mb_models, mb_control_vars = initialise_mb_models(unknown_parameters,
-                                                          data_logger)
-
-        observations_mdl, final_fl = \
-            run_model_and_get_temporal_model_data(flowline, mb_models,
-                                                  observations)
-
-        # now add artificial observation values
-        for obs_var in observations.keys():
-            for year in observations[obs_var].keys():
-                observations[obs_var][year] = \
-                    observations_mdl[obs_var][year].detach().numpy().astype(
-                        np.float64) + 10.
-
-        data_logger.observations = observations
-        data_logger.obs_reg_parameters = {'scale': {'fl_total_area:m2': 1.,
-                                                    'fl_total_area:km2': 10.,
-                                                    'area:m2': 1.,
-                                                    'area:km2': 10.,
-                                                    'dh:m': 1.,
-                                                    'fl_surface_h:m': 2.,
-                                                    'fl_widths:m': 5.}}
+        flowline, fl_control_vars, mb_models, mb_control_vars, \
+        observations_mdl, final_fl, data_logger = get_prepared_data_for_cost_fct(
+            unknown_parameters, data_logger, observations)
 
         cost, grad = cost_fct(unknown_parameters, data_logger)
 
