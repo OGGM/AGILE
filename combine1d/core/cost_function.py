@@ -152,7 +152,7 @@ def cost_fct(unknown_parameters, data_logger):
                          length=len(unknown_parameters))
 
     # save data in data_logger
-    data_logger.save_data_in_datalogger('flowline', final_fl)
+    data_logger.save_data_in_datalogger('flowlines', final_fl)
     data_logger.save_data_in_datalogger('costs', cost)
     data_logger.save_data_in_datalogger('c_terms', c_terms)
     data_logger.save_data_in_datalogger('unknown_parameters', unknown_parameters)
