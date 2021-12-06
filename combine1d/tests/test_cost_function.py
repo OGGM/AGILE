@@ -10,7 +10,7 @@ from combine1d.core.cost_function import (get_indices_for_unknown_parameters,
                                           initialise_mb_models, get_cost_terms,
                                           cost_fct,
                                           calculate_difference_between_observation_and_model,
-                                          define_reg_parameters)
+                                          define_reg_parameters, get_gradients)
 from combine1d.core.first_guess import get_first_guess
 from combine1d.core.dynamics import run_model_and_get_temporal_model_data
 
@@ -195,6 +195,52 @@ class TestCostFct:
         for c_term in c_terms:
             assert c_term != []
             assert type(c_term) == torch.Tensor
+
+    def test_get_gradients(self, data_logger, unknown_parameters,
+                           observations):
+        flowline, fl_control_vars = initialise_flowline(unknown_parameters,
+                                                        data_logger)
+        mb_models, mb_control_vars = initialise_mb_models(unknown_parameters,
+                                                          data_logger)
+
+        observations_mdl, final_fl = \
+            run_model_and_get_temporal_model_data(flowline, mb_models,
+                                                  observations)
+
+        # now add artificial observation values
+        for obs_var in observations.keys():
+            for year in observations[obs_var].keys():
+                observations[obs_var][year] = \
+                    observations_mdl[obs_var][year].detach().numpy().astype(
+                        np.float64) + 10.
+
+        data_logger.observations = observations
+        data_logger.obs_reg_parameters = {'scale': {'fl_total_area:m2': 1.,
+                                                    'fl_total_area:km2': 10.,
+                                                    'area:m2': 1.,
+                                                    'area:km2': 10.,
+                                                    'dh:m': 1.,
+                                                    'fl_surface_h:m': 2.,
+                                                    'fl_widths:m': 5.}}
+
+        c_terms = get_cost_terms(observations_mdl,
+                                 final_fl,
+                                 data_logger)
+
+        # sum up cost function terms
+        c = c_terms.sum()
+
+        # calculate the gradient for the optimisation parameter
+        c.backward()
+
+        # here try to get the gradients
+        grad = get_gradients(fl_control_vars,
+                             mb_control_vars,
+                             data_logger,
+                             length=len(unknown_parameters))
+
+        assert len(grad) == len(unknown_parameters)
+        assert type(grad) == np.ndarray
 
     def test_cost_fct(self, data_logger, unknown_parameters):
         data_logger.spinup_options = 'do_spinup'

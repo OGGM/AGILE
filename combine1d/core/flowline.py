@@ -542,9 +542,7 @@ class MixedBedFlowline(Flowline):
             out[self._prec] = self._w0_m[self._prec]
         if self._do_parabolic:
             out[self._ppar] = para_width_from_thick.apply(self.bed_shape[self._ppar],
-                                                          self.thick[self._ppar],
-                                                          self.torch_type,
-                                                          self.device)
+                                                          self.thick[self._ppar])
 
         # test that every grid point has a calculated value
         assert torch.any(~torch.isnan(out))
@@ -594,9 +592,7 @@ class MixedBedFlowline(Flowline):
             out[self._prec] = val[self._prec] / self.widths_m[self._prec]
         if self._do_parabolic:
             out[self._ppar] = para_thick_from_section.apply(self.bed_shape[self._ppar],
-                                                            val[self._ppar],
-                                                            self.torch_type,
-                                                            self.device)
+                                                            val[self._ppar])
 
         # test that every grid point has a calculated value
         assert torch.any(~torch.isnan(out))
