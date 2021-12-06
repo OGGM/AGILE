@@ -36,21 +36,6 @@ def mb_models(data_logger, unknown_parameters):
 
 
 class TestDynamicRunWithModelObservations:
-    @pytest.fixture(scope='function')
-    def observations(self):
-        return {'fl_surface_h:m': {'2003': []},
-                'fl_widths:m': {'2003': []},
-                'fl_total_area:m2': {'2003': []},
-                'fl_total_area:km2': {'2003': []},
-                'area:m2': {'2000': [],
-                            '2005': [],
-                            '2009': []},
-                'area:km2': {'2002': [],
-                             '2007': []},
-                'dh:m': {'2000-2005': [],
-                         '2005-2010': []}
-                }
-
     def test_construct_needed_model_data(self, observations):
         needed_model_data = construct_needed_model_data(observations)
 

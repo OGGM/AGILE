@@ -52,6 +52,22 @@ def all_supported_control_vars():
     return ['bed_h', 'surface_h', 'lambdas', 'w0_m']
 
 
+@pytest.fixture(scope='function')
+def observations():
+    return {'fl_surface_h:m': {'2003': []},
+            'fl_widths:m': {'2003': []},
+            'fl_total_area:m2': {'2003': []},
+            'fl_total_area:km2': {'2003': []},
+            'area:m2': {'2000': [],
+                        '2005': [],
+                        '2009': []},
+            'area:km2': {'2002': [],
+                         '2007': []},
+            'dh:m': {'2000-2005': [],
+                     '2005-2010': []}
+            }
+
+
 @pytest.fixture(scope='function', params=[['bed_h'], ['surface_h', 'w0_m'], 'all'],
                 ids=['bed_h', 'sfc_h & w0_m', 'all'])
 def data_logger_init(request, hef_gdir, all_supported_control_vars):
