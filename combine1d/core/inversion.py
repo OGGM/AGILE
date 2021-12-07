@@ -51,6 +51,34 @@ def get_default_inversion_settings(get_doc=False):
     _default = 10.
     add_setting()
 
+    _key = "min_ice_thickness"
+    _doc = "Minimum allowed ice thickness in m, calculated from surface height" \
+           "of initial flowline. " \
+           "Default: 0.1"
+    _default = 0.1
+    add_setting()
+
+    _key = "max_ice_thickness"
+    _doc = "Maximum allowed ice thickness in m, calculated from surface height" \
+           "of initial flowline. " \
+           "Default: 1000"
+    _default = 1000.
+    add_setting()
+
+    _key = "max_deviation_surface_h"
+    _doc = "Maximum allowed deviation of surface_h in m, calculated from " \
+           "surface height of initial flowline. " \
+           "Default: 1000"
+    _default = 1000.
+    add_setting()
+
+    _key = "limits_lambda"
+    _doc = "Allowed limits for lambda (the angle of trapezoidal side wall)," \
+           "0 -> 90°, 2 -> 45°. " \
+           "Default: (0., 4.)"
+    _default = (0., 4.)
+    add_setting()
+
     _key = "observations"
     _doc = "Gives the observations which should be matched during the minimisation. Organised " \
            "in a dictionary with keys giving  'measurement:unit' (e.g. 'area:m2' or 'area:km2')," \
@@ -84,7 +112,7 @@ def get_default_inversion_settings(get_doc=False):
            "multiple with the given numbers (from example above this means a mismatch of 1% " \
            "to 'fl_surface_h' is equally weighted as a 10% mismatch to 'fl_widths_m'). " \
            "Default: {'scale': {'fl_surface_h': 1., 'fl_widths_m': 1.}}"
-    _default = {'scale': {'fl_surface_h': 1., 'fl_widths_m': 1.}}
+    _default = {'scale': {'fl_surface_h:m': 1., 'fl_widths:m': 1.}}
     add_setting()
 
     _key = "regularisation_terms"
@@ -146,9 +174,34 @@ def prepare_for_combine_inversion(gdir, inversion_settings=None, filesuffix='_co
     gdir.write_pickle(inversion_settings, filename='inversion_input', filesuffix=filesuffix)
 
 
-def get_control_var_bounds(paramterer_indices):
-    # use parameter_indices keys
-    raise NotImplementedError('Bound calculation not integrated!')
+def get_control_var_bounds(data_logger):
+    bounds = np.zeros(data_logger.len_unknown_parameter, dtype='object')
+
+    for var in data_logger.parameter_indices.keys():
+        var_indices = data_logger.parameter_indices[var]
+        if var == 'bed_h':
+            fl = data_logger.flowline_init
+            ice_mask = data_logger.ice_mask
+            bounds[var_indices] = [(sfc_h - data_logger.max_ice_thickness,
+                                    sfc_h + data_logger.min_ice_thickness)
+                                   for sfc_h in fl.surface_h[ice_mask]]
+        elif var == 'surface_h':
+            fl = data_logger.flowline_init
+            ice_mask = data_logger.ice_mask
+            bounds[var_indices] = [(sfc_h - data_logger.max_deviation_surface_h,
+                                    sfc_h + data_logger.max_deviation_surface_h)
+                                   for sfc_h in fl.surface_h[ice_mask]]
+        elif var == 'lambdas':
+            bounds[var_indices] = [data_logger.limits_lambda]
+        elif var == 'w0_m':
+            fl = data_logger.flowline_init
+            ice_mask = data_logger.ice_mask
+            bounds[var_indices] = [(data_logger.min_w0_m, max_w0_m)
+                                   for max_w0_m in fl.widths_m[ice_mask]]
+        else:
+            raise NotImplementedError(f'{var}')
+
+    return bounds
 
 
 @entity_task(log, writes=['model_flowlines'])
@@ -173,6 +226,7 @@ def combine_inversion(gdir, inversion_input_filesuffix='_combine', init_model_fi
 
     bounds = get_control_var_bounds(data_logger)
 
+    # continue here
     try:
         res = minimize(fun=cost_fct,
                        x0=first_guess,
@@ -196,4 +250,5 @@ def combine_inversion(gdir, inversion_input_filesuffix='_combine', init_model_fi
         # save results to netcdf file
         data_logger.create_and_save_dataset()
 
-    gdir.write_pickle(data_logger['flowline'][-1], 'model_flowlines', filesuffix=output_filesuffix)
+    gdir.write_pickle(data_logger['flowlines'][-1], 'model_flowlines',
+                      filesuffix=output_filesuffix)
