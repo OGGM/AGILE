@@ -4,8 +4,7 @@ import torch
 import time
 
 from combine1d.core.dynamics import run_model_and_get_temporal_model_data
-from combine1d.core.type_conversions import to_torch_tensor
-from combine1d.core.massbalance import LinearMassBalance, ConstantMassBalanceTorch
+from combine1d.core.massbalance import ConstantMassBalanceTorch
 from combine1d.core.flowline import MixedBedFlowline
 
 
@@ -179,27 +178,6 @@ def cost_fct(unknown_parameters, data_logger):
     return cost, grad
 
 
-def add_calculated_w0_m(unknown_parameters, known_parameters, parameter_indices, min_w0_m,
-                        torch_type):
-    rgi_widths = to_torch_tensor(known_parameters['reference_w0_m']['widths_m'], torch_type)
-    rgi_sfc_h = to_torch_tensor(known_parameters['reference_w0_m']['surface_h'], torch_type)
-
-    known_parameters['w0_m'] = torch.empty(known_parameters['nx'],
-                                           dtype=torch_type,
-                                           requires_grad=False)
-
-    # 1. for constant lambda of trapozidal bed geometry
-    known_parameters['w0_m'][parameter_indices['ice_mask']] = \
-        torch.clamp(rgi_widths[parameter_indices['ice_mask']] -
-                    to_torch_tensor(1., torch_type) *
-                    (rgi_sfc_h[parameter_indices['ice_mask']] -
-                     unknown_parameters[parameter_indices['bed_h']]),
-                    min=min_w0_m)
-    known_parameters['w0_m'][~parameter_indices['ice_mask']] = float('nan')
-
-    return known_parameters
-
-
 def initialise_flowline(unknown_parameters, data_logger):
     """
     Initialise a MixedBedFlowline for Minimisation. At the moment only Trapezoidal unknown is
@@ -292,10 +270,10 @@ def initialise_flowline(unknown_parameters, data_logger):
                     prefix = '_'
                 else:
                     prefix = ''
-                fl_vars_total[var] = to_torch_tensor(getattr(fl_init, prefix + var),
-                                                     torch_type=torch_type,
-                                                     device=device,
-                                                     requires_grad=False)
+                fl_vars_total[var] = torch.tensor(getattr(fl_init, prefix + var),
+                                                  dtype=torch_type,
+                                                  device=device,
+                                                  requires_grad=False)
 
     fl = MixedBedFlowline(line=fl_init.line,
                           dx=fl_init.dx,
