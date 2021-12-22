@@ -520,9 +520,11 @@ class MixedBedFlowline(Flowline):
 
         assert torch.all(self.bed_shape[~is_trapezoid] > 0)
 
-        assert np.all(section >= 0)
-        assert torch.allclose(torch.tensor(section, dtype=self.torch_type, device=self.device),
-                              self.section)
+        if section is not None:
+            assert np.all(section >= 0)
+            assert torch.allclose(torch.tensor(section, dtype=self.torch_type,
+                                               device=self.device),
+                                  self.section)
 
     @property
     def widths_m(self):

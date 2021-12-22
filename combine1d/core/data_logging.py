@@ -1,3 +1,5 @@
+import pickle
+
 import torch
 import numpy as np
 import xarray as xr
@@ -61,7 +63,9 @@ class DataLogger(object):
         # define variables which are filled during the minimisation run
         self.costs = None
         self.c_terms = None
+        self.c_terms_description = None
         self.time_needed = None
+        self.grads = None
         self.flowlines = None
         self.end_time = None
         self.known_parameters = None
@@ -70,16 +74,18 @@ class DataLogger(object):
         self.unknown_parameters = None
         self.fct_calls = np.array([0])
         self.step_indices = np.array([0])  # include zero to save outcome of first guess run
+        self.minimize_message = None
+        self.minimize_status = None
 
-        self.filename = 'COMBINE_inversion_results'
+        self.filename = inversion_input['experiment_description']
 
         # create info Text for callback_fct TODO: think about showing the evolution of the c_terms
         self.info_text = '''
 
     Iteration: {iteration:d}
     Total Function calls: {fct_call:d}
-    Needed Time: {time_needed:g}
-    Cost: {cost:g}
+    Needed Time: {time_needed:.1f} s
+    Cost: {cost:.3f}
     '''
 
     def add_true_bed(self):
@@ -87,7 +93,7 @@ class DataLogger(object):
 
     def save_data_in_datalogger(self, var, data):
         if type(data) == torch.Tensor:
-            data = data.detach().numpy().astype(np.float64)
+            data = data.detach().to('cpu').numpy().astype(np.float64)
         elif type(data) != np.ndarray:
             data = np.array(data)
 
@@ -108,9 +114,9 @@ class DataLogger(object):
             # save the current index for the later cleaning of the data
             self.step_indices = np.append(self.step_indices, i)
             # define the arguments for the shown text
-            args = {'iteration': len(self.step_indices),
+            args = {'iteration': len(self.step_indices) - 1,
                     'fct_call': self.fct_calls[-1],
-                    'time_needed': self.time_needed[-1],
+                    'time_needed': float(self.time_needed[-1]),
                     'cost': self.costs[-1][0],
                     }
 
@@ -134,202 +140,59 @@ class DataLogger(object):
         self.costs = self.squeeze_generic(self.costs[index])
         self.c_terms = self.c_terms[index]
         self.time_needed = self.squeeze_generic(self.time_needed[index])
-        self.flowline = self.flowline[index]
+        self.flowlines = self.squeeze_generic(self.flowlines[index])
         self.unknown_parameters = self.unknown_parameters[index]
         self.fct_calls = self.squeeze_generic(self.fct_calls[index + 1])
+        self.c_terms_description = self.squeeze_generic(self.c_terms_description[index])
+        self.grads = self.squeeze_generic(self.grads[index])
 
     def create_and_save_dataset(self):
-        if True:
-            raise NotImplementedError('Need update!')
+        ds = xr.Dataset()
 
-        dataset = xr.Dataset(
-            data_vars={
-                'spinup_sfc_h':
-                    (['total_distance'],
-                     self.measurements['spinup_sfc']),
-                'true_' + self.opti_var_1:
-                    (['points_with_ice'],
-                     self.true_opti_var_1),
-                'first_guessed_' + self.opti_var_1:
-                    (['points_with_ice'],
-                     self.first_guessed_opti_var_1),
-                'ice_mask':
-                    (['total_distance'],
-                     self.squeeze_generic(self.ice_mask)),
-                'true_surface_h':
-                    (['total_distance'],
-                     self.squeeze_generic(self.true_sfc_h)),
-                'first_guess_surface_h':
-                    (['total_distance'],
-                     self.squeeze_generic(self.fg_run['sfc_h'])),
-                'true_widths':
-                    (['total_distance'],
-                     self.squeeze_generic(self.true_widths)),
-                'first_guess_widths':
-                    (['total_distance'],
-                     self.squeeze_generic(self.fg_run['widths'])),
-                'total_true_' + self.opti_var_1:
-                    (['total_distance'],
-                     self.geometry[self.opti_var_1])
-            },
-            coords={
-                'total_distance': self.geometry['distance_along_glacier'],
-                'points_with_ice': np.arange(len(self.true_opti_var_1))
-            },
-            attrs={
-                'reg_parameters': self.reg_parameters,
-                'glacier_state': self.glacier_state,
-                'domain_points': self.geometry['nx'],
-                'distance_between_points_m': self.geometry['map_dx'],
-                'years_of_model_run': self.measurements['yrs_to_run'],
-                'mb_ELA': self.mb_opts['ELA'],
-                'mb_grad': self.mb_opts['grad'],
-                'geometry_of_bed_h': self.geometry_bed_h,
-                'along_glacier_geometry': self.along_glacier_geometry,
-                'solver': self.solver,
-                'total_computing_time': self.total_computing_time,
-                'last minimisation message' + self.opti_var_1:
-                    self.message_opti_var_1,
-                'minimisation_possible': 'no',
-                'max_number_of_main_iteration(iterative)':
-                    self.main_iterations_iterative
-            })
+        ds.coords['x'] = np.arange(len(self.ice_mask))
+        ds.coords['iteration'] = np.arange(len(self.step_indices))
+        ds.coords['nr_cost_terms'] = np.arange(len(self.c_terms[-1]))
+        ds.coords['nr_unknown_parameters'] = np.arange(len(self.unknown_parameters[-1]))
 
-        if self.max_time_minimize is not None:
-            dataset.attrs['max_time_minimize'] = self.max_time_minimize
+        ds['ice_mask'] = (['x'], self.ice_mask)
+        ds['costs'] = (['iteration'], self.costs)
+        ds['flowlines'] = (['iteration'], self.flowlines)
+        ds['c_terms'] = (['iteration', 'nr_cost_terms'], self.c_terms)
+        ds['c_terms_description'] = (['iteration'], self.c_terms_description)
+        ds['time_needed'] = (['iteration'], self.time_needed)
+        ds['fct_calls'] = (['iterations'], self.fct_calls)
+        ds['unknown_parameters'] = (['iterations', 'nr_unknown_parameters'],
+                                    self.unknown_parameters)
 
-        # check if there is a second optimisation variable
-        if self.opti_var_2 is not None:
-            # save additional data from second optimisation variable
-            dataset['true_' + self.opti_var_2] = \
-                (['points_with_ice'],
-                 self.squeeze_generic(self.true_opti_var_2))
-            dataset['first_guessed_' + self.opti_var_2] = \
-                (['points_with_ice'],
-                 self.squeeze_generic(self.first_guessed_opti_var_2))
-            dataset['total_true_' + self.opti_var_2] = \
-                (['total_distance'],
-                 self.geometry[self.opti_var_2])
-            dataset.attrs['optimisation of two variables'] = \
-                self.two_parameter_option
-            dataset.attrs['last minimisation message' + self.opti_var_2] = \
-                self.message_opti_var_2
-
-        # add options of minimisation function with prefix 'minimize_'
-        for key in self.minimize_options:
-            if key != 'disp':
-                dataset.attrs['minimize_' + key] = \
-                    self.minimize_options[key]
-
-        if self.glacier_state == 'retreating with unknow spinup':
-            dataset.coords['one_dimension'] = np.arange(1)
-            dataset['true_spinup_ELA'] = \
-                (['one_dimension'],
-                 np.array([self.mb_opts['ELA'][0]]))
-            dataset['true_spinup_sfc_h'] = \
-                (['total_distance'],
-                 self.measurements['true_spinup_sfc'])
-            dataset['true_spinup_widths'] = \
-                (['total_distance'],
-                 self.measurements['true_spinup_widths'])
-            dataset['first_guess_spinup_ELA'] = \
-                (['one_dimension'],
-                 np.array([self.first_guess['spinup_ELA']]))
-
-        # check if minimisation could find one improvement
-        if np.arange(len(self.step_indices)).size != 0:
-            dataset.coords['nr_of_iteration'] = \
-                np.arange(len(self.step_indices)) + 1
-            dataset.coords['nr_of_reg_parameter'] = \
-                np.arange(len(self.reg_parameters))
-            dataset['guessed_' + self.opti_var_1] = \
-                (['nr_of_iteration', 'points_with_ice'],
-                 self.guessed_opti_var_1)
-            dataset['cost'] = \
-                (['nr_of_iteration'],
-                 self.costs)
-            dataset['cost_terms'] = \
-                (['nr_of_iteration', 'nr_of_reg_parameter'],
-                 self.c_terms)
-            dataset['gradients_' + self.opti_var_1] = \
-                (['nr_of_iteration', 'points_with_ice'],
-                 self.grads_opti_var_1)
-            dataset['function_calls'] = \
-                (['nr_of_iteration'],
-                 self.fct_calls)
-            dataset['optimisation_variable'] = \
-                (['nr_of_iteration'],
-                 self.opti_var_iteration)
-            dataset['surface_h'] = \
-                (['nr_of_iteration', 'total_distance'],
-                 self.sfc_h)
-            dataset['widths'] = \
-                (['nr_of_iteration', 'total_distance'],
-                 self.widths)
-            dataset['computing_time'] = \
-                (['nr_of_iteration'],
-                 self.time_needed)
-            dataset.attrs['minimisation_possible'] = 'yes'
-
-            # check if there is a second optimisation variable
-            if self.opti_var_2 is not None:
-                # save additional data from second optimisation variable
-                dataset['guessed_' + self.opti_var_2] = \
-                    (['nr_of_iteration', 'points_with_ice'],
-                     self.guessed_opti_var_2)
-                dataset['gradients_' + self.opti_var_2] = \
-                    (['nr_of_iteration', 'points_with_ice'],
-                     self.grads_opti_var_2)
-
-            # save current main iteration (only when optimisaton for two
-            # parameters is iterative)
-            dataset['current_main_iterations'] = \
-                (['nr_of_iteration'],
-                 self.current_main_iterations)
-
-            if self.glacier_state == 'retreating with unknow spinup':
-                dataset['spinup_ELA_guessed'] = \
-                    (['nr_of_iteration'],
-                     self.spinup_ELA_guessed)
-                dataset['spinup_ELA_grad'] = \
-                    (['nr_of_iteration'],
-                     self.spinup_ELA_grad)
-                dataset['spinup_sfc_h_guessed'] = \
-                    (['nr_of_iteration', 'total_distance'],
-                     self.spinup_sfc_h_guessed)
-                dataset['spinup_widths_guessed'] = \
-                    (['nr_of_iteration', 'total_distance'],
-                     self.spinup_widths_guessed)
-
-            # save scaling of gradients if 'explicit'
-            if self.two_parameter_option == 'explicit':
-                dataset.attrs['bed_h gradient scaling'] = \
-                    self.grad_scaling['bed_h']
-                dataset.attrs['shape_var gradient scaling'] = \
-                    self.grad_scaling['shape_var']
-
-            dataset.attrs['maxiter_reached'] = 'no'
-            if (self.opti_var_2 is None) or \
-                    (self.two_parameter_option in ['explicit', 'implicit']):
-                if (len(self.step_indices) ==
-                        self.minimize_options['maxiter']):
-                    dataset.attrs['maxiter_reached'] = 'yes'
-            elif self.two_parameter_option == 'iterative':
-                if self.current_main_iterations[-1] == \
-                        self.main_iterations_iterative:
-                    dataset.attrs['maxiter_reached'] = 'yes'
-            else:
-                raise ValueError('Somthing went wrong by checking if maxiter'
-                                 ' was used!')
-
-        # add given filename suffix
-        self.filename += self.filename_suffix
+        ds.attrs['experiment_description'] = self.filename
+        ds.attrs['climate_filename'] = (self.climate_filename +
+                                        self.climate_filesuffix)
+        ds.attrs['output_filesuffix'] = self.output_filesuffix
+        ds.attrs['flowline_init'] = self.flowline_init
+        ds.attrs['obs_reg_parameters'] = self.obs_reg_parameters
+        ds.attrs['regularisation_terms'] = self.regularisation_terms
+        ds.attrs['control_vars'] = self.control_vars
+        ds.attrs['mb_models_settings'] = self.mb_models_settings
+        ds.attrs['min_w0_m'] = self.min_w0_m
+        ds.attrs['min_ice_thickness'] = self.min_ice_thickness
+        ds.attrs['max_ice_thickness'] = self.max_ice_thickness
+        ds.attrs['max_deviation_surface_h'] = self.max_deviation_surface_h
+        ds.attrs['limits_lambda'] = self.limits_lambda
+        ds.attrs['spinup_options'] = self.spinup_options
+        ds.attrs['solver'] = self.solver
+        ds.attrs['minimize_options'] = self.minimize_options
+        ds.attrs['max_time_minimize'] = self.max_time_minimize
+        ds.attrs['device'] = self.device
+        ds.attrs['parameter_indices'] = self.parameter_indices
+        ds.attrs['minimize_message'] = self.minimize_message
+        ds.attrs['minimize_status'] = self.minimize_status
 
         # check if filename already exists, prevent overwriting
-        list_of_files = os.listdir()
-        if (self.filename + '.nc') in list_of_files:
+        path = self.gdir.dir
+        list_of_files = os.listdir(path)
+        if (self.filename + '.pkl') in list_of_files:
             for file_nr in range(10):
-                if (self.filename + '_' + str(file_nr) + '.nc') \
+                if (self.filename + '_' + str(file_nr) + '.pkl') \
                         not in list_of_files:
                     self.filename += ('_' + str(file_nr))
                     break
@@ -337,15 +200,21 @@ class DataLogger(object):
                     raise ValueError('There are to many files with the same '
                                      'name!')
 
-        # save dataset as netcdf
-        dataset.to_netcdf(self.filename + self.output_filesuffix + '.nc')
+        # save dataset as pickle
+        out = os.path.join(self.gdir.dir, self.filename + '.pkl')
+        with open(out, 'wb') as handle:
+            pickle.dump(ds, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        # to open it use:
+        # with open('filename.pkl', 'rb') as handle:
+        #     b = pickle.load(handle)
 
 
 def initialise_DataLogger(gdir, inversion_input_filesuffix='_combine', init_model_filesuffix=None,
                           init_model_fls=None, climate_filename='climate_historical',
                           climate_filesuffix='', output_filesuffix='_combine'):
     '''
-    extract information out of gdir and save in datalogger.
+    extract information out of gdir and save in datalogger. TODO
 
     Parameters
     ----------
