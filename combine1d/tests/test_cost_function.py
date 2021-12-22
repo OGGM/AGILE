@@ -20,15 +20,16 @@ class TestCreateCostFct:
         data_logger = data_logger_init
         known_parameters = get_known_parameters(data_logger)
         fl = data_logger.flowline_init
-        ice_mask = data_logger.ice_mask
 
         for key in known_parameters.keys():
             assert key in data_logger.control_vars
             if key in ['w0_m', 'lambdas']:
                 prefix = '_'
+                mask = data_logger.is_trapezoid
             else:
                 prefix = ''
-            assert np.allclose(known_parameters[key], getattr(fl, prefix + key)[~ice_mask],
+                mask = data_logger.ice_mask
+            assert np.allclose(known_parameters[key], getattr(fl, prefix + key)[~mask],
                                equal_nan=True)
 
     def test_create_indices_for_unknown_parameters(self, data_logger_init):
