@@ -20,9 +20,6 @@ from oggm import utils
 from oggm.exceptions import InvalidParamsError
 from oggm.core.centerlines import Centerline
 
-# help function for type checking
-from combine1d.core.type_conversions import to_torch_tensor
-
 # help function for gradient calculation
 from combine1d.core.special_gradient_functions import para_width_from_thick
 from combine1d.core.special_gradient_functions import para_thick_from_section
@@ -240,7 +237,7 @@ class ParabolicBedFlowline(Flowline):
 
     def __init__(self, line=None, dx=None, map_dx=None,
                  surface_h=None, bed_h=None, bed_shape=None, rgi_id=None,
-                 water_level=None, torch_type=torch.float):
+                 water_level=None, torch_type=torch.float, device='cpu'):
         """ Instanciate.
 
         Parameters
@@ -256,7 +253,8 @@ class ParabolicBedFlowline(Flowline):
                                                    surface_h, bed_h,
                                                    rgi_id=rgi_id,
                                                    water_level=water_level,
-                                                   torch_type=torch_type)
+                                                   torch_type=torch_type,
+                                                   device=device)
 
         # check type of bed_shape
         if type(bed_shape) != torch.Tensor:
@@ -287,7 +285,7 @@ class ParabolicBedFlowline(Flowline):
     @section.setter
     def section(self, val):
         if type(val) != torch.Tensor:
-            val = to_torch_tensor(val, self.torch_type)
+            val = torch.tensor(val, dtype=self.torch_type, device=self.device)
         new_thick = para_thick_from_section.apply(self.bed_shape, val)
         self.thick = new_thick
         # self.thick = (0.75 * val * torch.sqrt(self.bed_shape))**(2./3.)
@@ -309,7 +307,7 @@ class RectangularBedFlowline(Flowline):
 
     def __init__(self, line=None, dx=None, map_dx=None,
                  surface_h=None, bed_h=None, widths_m=None, rgi_id=None,
-                 water_level=None, torch_type=torch.float):
+                 water_level=None, torch_type=torch.float, device='cpu'):
         """ Instanciate.
 
         Parameters
@@ -325,7 +323,8 @@ class RectangularBedFlowline(Flowline):
                                                      surface_h, bed_h,
                                                      rgi_id=rgi_id,
                                                      water_level=water_level,
-                                                     torch_type=torch_type)
+                                                     torch_type=torch_type,
+                                                     device=device)
 
         self.fl_type = 'RectangularFlowline'
 
@@ -343,7 +342,6 @@ class RectangularBedFlowline(Flowline):
 
     @section.setter
     def section(self, val):
-        # val = to_torch_tensor(val, self.torch_type)
         self.thick = val / self.widths_m
 
     @utils.lazy_property
@@ -362,7 +360,7 @@ class TrapezoidalBedFlowline(Flowline):
 
     def __init__(self, line=None, dx=None, map_dx=None, surface_h=None,
                  bed_h=None, w0_m=None, lambdas=None, rgi_id=None,
-                 water_level=None, torch_type=torch.float):
+                 water_level=None, torch_type=torch.float, device='cpu'):
         """ Instanciate.
 
         Parameters
@@ -378,12 +376,13 @@ class TrapezoidalBedFlowline(Flowline):
                                                      surface_h, bed_h,
                                                      rgi_id=rgi_id,
                                                      water_level=water_level,
-                                                     torch_type=torch_type)
+                                                     torch_type=torch_type,
+                                                     device=device)
 
         if len(lambdas) == 1:
             lambdas = lambdas.repeat(len(bed_h))
-        self._lambdas = to_torch_tensor(lambdas,
-                                        self.torch_type)
+        self._lambdas = torch.tensor(lambdas, dtype=self.torch_type,
+                                     device=self.device)
 
         self._w0_m = w0_m
 
@@ -411,14 +410,6 @@ class TrapezoidalBedFlowline(Flowline):
         thick = (torch.sqrt(self._w0_m ** 2 + 2 * self._lambdas * val) -
                  self._w0_m) / self._lambdas
         self.thick = thick
-        # val = to_torch_tensor(val, self.torch_type)
-
-        # b = 2 * self._w0_m
-        # a = 2 * self._lambdas
-        # with np.errstate(divide='ignore', invalid='ignore'):
-        #    thick = (torch.sqrt(b**2 + 4 * a * val) - b) / a
-        # thick[self._prec] = val[self._prec] / self._w0_m[self._prec]
-        # self.thick = thick
 
     @utils.lazy_property
     def shape_str(self):
@@ -440,7 +431,8 @@ class MixedBedFlowline(Flowline):
     def __init__(self, *, line=None, dx=None, map_dx=None, surface_h=None,
                  bed_h=None, section=None, bed_shape=None,
                  is_trapezoid=None, lambdas=None, w0_m=None,
-                 rgi_id=None, water_level=None, torch_type=torch.double, device='cpu'):
+                 rgi_id=None, water_level=None, torch_type=torch.double,
+                 device='cpu'):
         """ Instanciate.
         Parameters
         ----------
@@ -970,7 +962,7 @@ class FlowlineModel(object):
         # We force timesteps to monthly frequencies for consistent results
         # among use cases (monthly or yearly output) and also to prevent
         # "too large" steps in the adaptive scheme.
-        ts = utils.monthly_timeseries(self.yr.detach().numpy()
+        ts = utils.monthly_timeseries(self.yr.detach().to('cpu').numpy()
                                       if type(self.yr) == torch.Tensor
                                       else self.yr, y1)
 

@@ -70,8 +70,8 @@ def get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
     for obs_var in observations.keys():
         for year in observations[obs_var].keys():
             observations[obs_var][year] = \
-                observations_mdl[obs_var][year].detach().numpy().astype(
-                    np.float64) + 10.
+                observations_mdl[obs_var][year].detach().to('cpu').numpy(
+                    ).astype(np.float64) + 10.
 
     data_logger.observations = observations
     data_logger.obs_reg_parameters = {'scale': {'fl_total_area:m2': 1.,
