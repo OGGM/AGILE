@@ -202,9 +202,9 @@ def get_control_var_bounds(data_logger):
             bounds[var_indices] = [data_logger.limits_lambda]
         elif var == 'w0_m':
             fl = data_logger.flowline_init
-            ice_mask = data_logger.ice_mask
+            is_trapezoid = data_logger.is_trapezoid
             bounds[var_indices] = [(data_logger.min_w0_m, max_w0_m)
-                                   for max_w0_m in fl.widths_m[ice_mask]]
+                                   for max_w0_m in fl.widths_m[is_trapezoid]]
         else:
             raise NotImplementedError(f'{var}')
 

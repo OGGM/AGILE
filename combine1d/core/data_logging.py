@@ -9,7 +9,7 @@ from combine1d.core.exception import MaxCalculationTimeReached
 import os
 import warnings
 import copy
-from oggm.core.flowline import FileModel
+from oggm.core.flowline import FileModel, MixedBedFlowline
 
 
 class DataLogger(object):
@@ -53,6 +53,14 @@ class DataLogger(object):
 
         self.flowline_init = fls_init[0]
         self.ice_mask = np.where(self.flowline_init.thick > 10e-2, True, False)
+        if isinstance(self.flowline_init, MixedBedFlowline):
+            self.is_trapezoid = (self.flowline_init.is_trapezoid &
+                                 ~self.flowline_init.is_rectangular)
+            self.is_rectangular = self.flowline_init.is_rectangular
+            self.is_parabolic = ~self.flowline_init.is_trapezoid
+        else:
+            raise TypeError('COMBINE 1D only works with MixedBedFlowline!')
+
         self.climate_filename = climate_filename
         self.climate_filesuffix = climate_filesuffix
         self.output_filesuffix = output_filesuffix

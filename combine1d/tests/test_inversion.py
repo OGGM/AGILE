@@ -20,6 +20,9 @@ class TestInversion:
         prepare_for_combine_inversion(hef_gdir, inversion_settings=None, filesuffix='_combine')
         data_logger = initialise_DataLogger(hef_gdir, inversion_input_filesuffix='_combine')
 
+        assert len(data_logger.is_trapezoid) == (sum(data_logger.is_trapezoid) +
+                                                 sum(data_logger.is_rectangular) +
+                                                 sum(data_logger.is_parabolic))
         cost_fct = create_cost_fct(data_logger)
 
         first_guess = get_first_guess(data_logger)
@@ -44,7 +47,10 @@ class TestInversion:
             if bounds[i][1] is not None:
                 assert val <= bounds[i][1]
 
-    def test_combine_inversion(self, hef_gdir):
+    @pytest.mark.parametrize('control_vars', [['bed_h'], ['surface_h', 'w0_m'],
+                                              'all'])
+    def test_combine_inversion(self, hef_gdir, control_vars,
+                               all_supported_control_vars):
         # Final integration test that the inversion runs with no errors
         inversion_settings = get_default_inversion_settings(get_doc=False)
         inversion_settings['minimize_options'] = {'maxiter': 5,
@@ -54,6 +60,9 @@ class TestInversion:
                                                   'maxcor': 50,
                                                   'maxls': 50,
                                                   'maxfun': 10}
+        if control_vars == 'all':
+            control_vars = all_supported_control_vars
+        inversion_settings['control_vars'] = control_vars
 
         prepare_for_combine_inversion(hef_gdir, inversion_settings=inversion_settings,
                                       filesuffix='_combine')

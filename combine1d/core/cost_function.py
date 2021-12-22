@@ -38,6 +38,8 @@ def get_known_parameters(data_logger):
     control_vars = data_logger.control_vars
     fl = data_logger.flowline_init
     ice_mask = data_logger.ice_mask
+    is_rectangular = data_logger.is_rectangular
+    is_parabolic = data_logger.is_parabolic
 
     known_parameters = dict()
 
@@ -47,14 +49,18 @@ def get_known_parameters(data_logger):
     # extract the ice free parts of variables of the control_vars which are assumed to be known
     for con_var in control_vars:
         if con_var not in potential_control_vars:
-            raise NotImplementedError('Control var not implemented!')
+            raise NotImplementedError(f'Control var {con_var} not implemented!')
 
         if con_var in ['lambdas', 'w0_m']:
             prefix_var = '_'
-        else:
+            known_index = is_rectangular | is_parabolic
+        elif con_var in ['bed_h', 'surface_h']:
             prefix_var = ''
+            known_index = ~ice_mask
+        else:
+            raise NotImplementedError(f'{con_var}')
 
-        known_parameters[con_var] = getattr(fl, prefix_var + con_var)[~ice_mask]
+        known_parameters[con_var] = getattr(fl, prefix_var + con_var)[known_index]
 
     return known_parameters
 
@@ -64,14 +70,21 @@ def get_indices_for_unknown_parameters(data_logger):
     parameter_indices = dict()
     current_start_ind = 0
     ice_grid_points = sum(data_logger.ice_mask)
+    trapezoid_grid_points = sum(data_logger.is_trapezoid)
+
     for control_var in data_logger.control_vars:
         # for these variables the length is assumed to be the whole ice area
-        if control_var in ['bed_h', 'w0_m', 'surface_h', 'lambdas']:
-            parameter_indices[control_var] = np.arange(current_start_ind,
-                                                       current_start_ind + ice_grid_points)
-            current_start_ind += ice_grid_points
+        if control_var in ['bed_h', 'surface_h']:
+            parameter_length = ice_grid_points
+        elif control_var in ['w0_m', 'lambdas']:
+            parameter_length = trapezoid_grid_points
         else:
-            raise NotImplementedError('This control var is not implemented!')
+            raise NotImplementedError(f'Control var {control_var} is not '
+                                      f'implemented!')
+
+        parameter_indices[control_var] = np.arange(current_start_ind,
+                                                   current_start_ind + parameter_length)
+        current_start_ind += parameter_length
 
     # save the number (length) of the resulting unknown_parameter array
     data_logger.len_unknown_parameter = current_start_ind
@@ -216,6 +229,11 @@ def initialise_flowline(unknown_parameters, data_logger):
                             device=device,
                             requires_grad=False)
 
+    trap_index = torch.tensor(data_logger.is_trapezoid,
+                              dtype=torch.bool,
+                              device=device,
+                              requires_grad=False)
+
     # initialise all potential control variables for flowline as empty tensor and fill them
     all_potential_control_vars = ['bed_h', 'surface_h', 'lambdas', 'w0_m']
     fl_vars_total = {}  # they are used for actual initialisation
@@ -232,11 +250,18 @@ def initialise_flowline(unknown_parameters, data_logger):
                                                 device=device,
                                                 requires_grad=True)
 
-            fl_vars_total[var][ice_mask] = fl_control_vars[var]
-            fl_vars_total[var][~ice_mask] = torch.tensor(known_parameters[var],
-                                                         dtype=torch_type,
-                                                         device=device,
-                                                         requires_grad=False)
+            if var in ['bed_h', 'surface_h']:
+                var_index = ice_mask
+            elif var in ['lambdas', 'w0_m']:
+                var_index = trap_index
+            else:
+                raise NotImplementedError(f'{var}')
+
+            fl_vars_total[var][var_index] = fl_control_vars[var]
+            fl_vars_total[var][~var_index] = torch.tensor(known_parameters[var],
+                                                          dtype=torch_type,
+                                                          device=device,
+                                                          requires_grad=False)
 
         else:
             # if w0_m is no control variable it is calculated to fit widths_m of flowline_init
@@ -461,11 +486,11 @@ def get_gradients(fl_control_vars, mb_control_vars, data_logger, length):
 
     for var in parameter_indices.keys():
         if var in fl_control_vars.keys():
-            grad[parameter_indices[var]] = fl_control_vars[var].grad.detach().numpy().astype(
-                np.float64)
+            grad[parameter_indices[var]] = fl_control_vars[var].grad.detach(
+                ).to('cpu').numpy().astype(np.float64)
         elif var in mb_control_vars.keys():
-            grad[parameter_indices[var]] = mb_control_vars[var].grad.detach().numpy().astype(
-                np.float64)
+            grad[parameter_indices[var]] = mb_control_vars[var].grad.detach(
+                ).to('cpu').numpy().astype(np.float64)
         else:
             raise NotImplementedError('No gradient available for ' + var + '!')
 
