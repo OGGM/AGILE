@@ -123,6 +123,13 @@ def get_default_inversion_settings(get_doc=False):
     _default = {'smoothed_bed': 1.}
     add_setting()
 
+    _key = "experiment_description"
+    _doc = "Explanation of the current experiment. If a dataset is saved this" \
+           "is the filename of the resulting nc datafile. " \
+           "Default: 'COMBINE_inversion_results'"
+    _default = 'COMBINE_inversion_results'
+    add_setting()
+
     _key = "spinup_options"
     _doc = "Not implemented yet!"
     _default = None
@@ -250,5 +257,7 @@ def combine_inversion(gdir, inversion_input_filesuffix='_combine', init_model_fi
         # save results to netcdf file
         data_logger.create_and_save_dataset()
 
-    gdir.write_pickle(data_logger['flowlines'][-1], 'model_flowlines',
+    gdir.write_pickle(data_logger.flowlines[-1], 'model_flowlines',
                       filesuffix=output_filesuffix)
+
+    return data_logger

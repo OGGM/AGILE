@@ -142,7 +142,7 @@ def cost_fct(unknown_parameters, data_logger):
     c.backward()
 
     # convert cost to numpy array
-    cost = c.detach().numpy().astype(np.float64)
+    cost = c.detach().to('cpu').numpy().astype(np.float64)
 
     # continue here
     # get gradient/s as numpy array
@@ -154,6 +154,7 @@ def cost_fct(unknown_parameters, data_logger):
     # save data in data_logger
     data_logger.save_data_in_datalogger('flowlines', final_fl)
     data_logger.save_data_in_datalogger('costs', cost)
+    data_logger.save_data_in_datalogger('grads', grad)
     data_logger.save_data_in_datalogger('c_terms', c_terms)
     data_logger.save_data_in_datalogger('unknown_parameters', unknown_parameters)
     data_logger.save_data_in_datalogger('time_needed',
@@ -276,7 +277,7 @@ def initialise_flowline(unknown_parameters, data_logger):
                           map_dx=fl_init.map_dx,
                           surface_h=fl_vars_total['surface_h'],
                           bed_h=fl_vars_total['bed_h'],
-                          section=fl_init.section,
+                          section=None,  # is not known during minimisation
                           bed_shape=fl_init.bed_shape,
                           is_trapezoid=fl_init.is_trapezoid,
                           lambdas=fl_vars_total['lambdas'],
@@ -362,6 +363,8 @@ def get_cost_terms(observations_mdl,
                              device=data_logger.device,
                              requires_grad=False)
 
+    cost_terms_description = copy.deepcopy(data_logger.observations)
+
     # to keep track of current calculated cost term
     i_costs = 0
 
@@ -370,6 +373,10 @@ def get_cost_terms(observations_mdl,
         for year in dObs[obs_var].keys():
             cost_terms[i_costs] = reg_parameters[obs_var][year] * \
                                   dObs[obs_var][year]
+
+            cost_terms_description[obs_var][year] = \
+                cost_terms[i_costs].detach().to('cpu').numpy()
+
             i_costs += 1
 
     # calculate regularisation terms
@@ -383,11 +390,18 @@ def get_cost_terms(observations_mdl,
                                    device=data_logger.device,
                                    requires_grad=False)
             cost_terms[i_costs] = reg_par * db_dx.pow(2).sum()
+
+            cost_terms_description[reg_term] = \
+                cost_terms[i_costs].detach().to('cpu').numpy()
+
         else:
             raise NotImplementedError(f'{reg_term}')
         i_costs += 1
 
     assert i_costs == n_costs
+
+    data_logger.save_data_in_datalogger('c_terms_description',
+                                        cost_terms_description)
 
     return cost_terms
 
