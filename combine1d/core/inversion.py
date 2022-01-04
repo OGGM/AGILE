@@ -30,16 +30,18 @@ def get_default_inversion_settings(get_doc=False):
 
     # define the elements of the inversion settings with default and doc
     _key = "control_vars"
-    _doc = "Defines the control variables in an array which are changed during the inversion. " \
+    _doc = "Defines the control variables in an array which are changed during " \
+           "the inversion. " \
            "Options: 'bed_h', 'surface_h', 'lambdas', 'w0_m'. Default: ['bed_h']"
     _default = ['bed_h']
     add_setting()
 
     _key = "mb_models_settings"
-    _doc = "Defines the used MassBalanceModels in a dictionary. The key is the name, the value " \
-           "is again a dictionary with keys 'type' (options: 'constant') and 'years' (the " \
-           "interval the model is valid in an numpy array). Caution first MassBalanceModel must " \
-           "start at least one year before first given observation year!" \
+    _doc = "Defines the used MassBalanceModels in a dictionary. The key is the " \
+           "name, the value is again a dictionary with keys 'type' (options: " \
+           "'constant') and 'years' (the interval the model is valid in an " \
+           "numpy array). Caution first MassBalanceModel must start at least " \
+           "one year before first given observation year!" \
            "Default: {'MB1': {'type': 'constant', 'years': np.array([1999, 2005])}," \
            "'MB2': {'type': 'constant', 'years': np.array([2005, 2010])}}"
     _default = {'MB1': {'type': 'constant', 'years': np.array([1999, 2005])},
@@ -80,23 +82,25 @@ def get_default_inversion_settings(get_doc=False):
     add_setting()
 
     _key = "observations"
-    _doc = "Gives the observations which should be matched during the minimisation. Organised " \
-           "in a dictionary with keys giving  'measurement:unit' (e.g. 'area:m2' or 'area:km2')," \
-           " value again a " \
-           "dict with keys " \
-           "the year (e.g. '2003') or period (e.g.'2000-2010') and the measured " \
-           "'values' " \
-           "(the actual Measurement). Example for one entry: {'area:km2': {'2003': 12, " \
-           "'2010': 8}}" \
+    _doc = "Gives the observations which should be matched during the " \
+           "minimisation. Organised in a dictionary with keys giving  " \
+           "'measurement:unit' (e.g. 'area:m2' or 'area:km2'), value again a " \
+           "dict with keys the year (e.g. '2003') or period (e.g.'2000-2010') " \
+           "and the measured 'values' (the actual Measurement). Example for " \
+           "one entry: {'area:km2': {'2003': 12, '2010': 8}}" \
            "Measurement options: " \
-           "'fl_surface_h' (unit: 'm') the surface heights at each grid point with ice along " \
-           "the initial flowline (extracted from initial flowline, if no time given RGI date);" \
-           "'fl_widths' (unit: 'm') the surface widths at each grid point with ice along " \
-           "the initial flowline (extracted from initial flowline, if no time given RGI date);" \
-           "'fl_total_area' (unit: 'm2', 'km2') the total area of the given initial flowline " \
-           "(extracted from initial flowline, if no time given RGI date); " \
+           "'fl_surface_h' (unit: 'm') the surface heights at each grid point " \
+           "with ice along the initial flowline (extracted from initial " \
+           "flowline, if no time given RGI date);" \
+           "'fl_widths' (unit: 'm') the surface widths at each grid point with " \
+           "ice along the initial flowline (extracted from initial flowline, " \
+           "if no time given RGI date);" \
+           "'fl_total_area' (unit: 'm2', 'km2') the total area of the given " \
+           "initial flowline (extracted from initial flowline, if no time " \
+           "given RGI date); " \
            "'area' (unit: 'm2', 'km2') an additional total area measurement; " \
-           "'dh' (unit: 'm') geodetic measurement ('time' is given as period, e.g. '2009-2015')." \
+           "'dh' (unit: 'm') geodetic measurement ('time' is given as period, " \
+           "e.g. '2009-2015')." \
            "Default: {'fl_surface_h:m': {}, " \
            "'fl_widths:m': {}"
     _default = {'fl_surface_h:m': {},
@@ -104,20 +108,23 @@ def get_default_inversion_settings(get_doc=False):
     add_setting()
 
     _key = "obs_reg_parameters"
-    _doc = "Defines the relative contribution to of the observations to the total cost value. " \
-           "Could be given directly by using a dict with the same keys as 'observations'  " \
-           "(e.g. {'fl_surface_h': 10., 'fl_widths_m': 1.}). Or one can use a dict with key " \
-           "'scale' (e.g. {'scale': {'fl_surface_h': 10., 'fl_widths_m': 1.}}), this option " \
-           "first express the individual mismatches in percent of the observation and then " \
-           "multiple with the given numbers (from example above this means a mismatch of 1% " \
-           "to 'fl_surface_h' is equally weighted as a 10% mismatch to 'fl_widths_m'). " \
+    _doc = "Defines the relative contribution to of the observations to the " \
+           "total cost value. Could be given directly by using a dict with the " \
+           "same keys as 'observations' (e.g. {'fl_surface_h': 10., " \
+           "'fl_widths_m': 1.}). Or one can use a dict with key 'scale' (e.g. " \
+           "{'scale': {'fl_surface_h': 10., 'fl_widths_m': 1.}}), this option " \
+           "first express the individual mismatches in percent of the " \
+           "observation and then multiple with the given numbers (from example " \
+           "above this means a mismatch of 1% to 'fl_surface_h' is equally " \
+           "weighted as a 10% mismatch to 'fl_widths_m'). " \
            "Default: {'scale': {'fl_surface_h': 1., 'fl_widths_m': 1.}}"
     _default = {'scale': {'fl_surface_h:m': 1., 'fl_widths:m': 1.}}
     add_setting()
 
     _key = "regularisation_terms"
-    _doc = "Defines which additional regularisation terms should be used (with their reg " \
-           "parameter). Options: " \
+    _doc = "Defines which additional regularisation terms should be used (with " \
+           "their reg parameter). " \
+           "Options: " \
            "'smoothed_bed' adds a term which prefer smoother beds. " \
            "Default: {'smoothed_bed': 1}"
     _default = {'smoothed_bed': 1.}
@@ -138,9 +145,10 @@ def get_default_inversion_settings(get_doc=False):
     _key = "minimize_options"
     _doc = "The options for scipy.optimize.minimize. For options check " \
            "https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html. " \
-           "Default: {'maxiter': 10, 'ftol': 1e-7, 'gtol': 1e-8, 'disp': True, 'maxcor': 50, " \
-           "'maxls': 50}"
-    _default = {'maxiter': 10, 'ftol': 1e-7, 'gtol': 1e-8, 'disp': True, 'maxcor': 50, 'maxls': 50}
+           "Default: {'maxiter': 10, 'ftol': 1e-7, 'gtol': 1e-8, 'disp': True," \
+           "'maxcor': 50, 'maxls': 50}"
+    _default = {'maxiter': 10, 'ftol': 1e-7, 'gtol': 1e-8, 'disp': True,
+                'maxcor': 50, 'maxls': 50}
     add_setting()
 
     _key = "solver"
@@ -149,18 +157,21 @@ def get_default_inversion_settings(get_doc=False):
     add_setting()
 
     _key = "max_time_minimize"
-    _doc = "Defines a maximum time for the minimization after it is terminated in s. Default: None"
+    _doc = "Defines a maximum time for the minimization after it is terminated " \
+           "in s. Default: None"
     _default = None
     add_setting()
 
     _key = "torch_type"
-    _doc = "The used datatype for the torch tensors. Options: 'float', 'double. Default: 'double'"
+    _doc = "The used datatype for the torch tensors. " \
+           "Options: 'float', 'double'. Default: 'double'"
     _default = 'double'
     add_setting()
 
     _key = "device"
-    _doc = "The device of the computation, if 'cuda' it is checked if a GPU is available, " \
-           "otherwise 'cpu' is selected. Options: 'cpu', 'cuda'. Default: 'cuda'."
+    _doc = "The device of the computation, if 'cuda' it is checked if a GPU is " \
+           "available, otherwise 'cpu' is selected. " \
+           "Options: 'cpu', 'cuda'. Default: 'cuda'."
     _default = 'cuda'
     add_setting()
 

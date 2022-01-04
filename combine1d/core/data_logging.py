@@ -241,6 +241,9 @@ def initialise_DataLogger(gdir, inversion_input_filesuffix='_combine', init_mode
 
     if init_model_fls is None:
         fls_init = gdir.read_pickle('model_flowlines')
+    elif type(init_model_fls) is str:
+        fls_init = gdir.read_pickle('model_flowlines',
+                                    filesuffix=init_model_fls)
     else:
         fls_init = copy.deepcopy(init_model_fls)
 
