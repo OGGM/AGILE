@@ -1,24 +1,29 @@
 import copy
+import logging
 import pandas as pd
 import numpy as np
 from scipy.optimize import brentq
 
-from oggm import cfg, utils, workflow, tasks
+from oggm import cfg, workflow, tasks, entity_task
 from oggm.core.flowline import MixedBedFlowline, FluxBasedModel
 from oggm.core.massbalance import ConstantMassBalance, MultipleFlowlineMassBalance, \
     PastMassBalance
 from oggm.shop import bedtopo
 
+from combine1d.sandbox.glaciers_for_idealized_experiments import experiment_glaciers
 
-def create_idealized_experiment(rgi_id, prepro_border=None,
-                                from_prepro_level=None, base_url=None,
-                                t_bias_spinup_limits=None,
-                                t_bias_spinup=None,
-                                fit_to='volume',
-                                yr_spinup=1980,
-                                yr_start_run=2000,
-                                yr_end_run=2019,
-                                used_mb_models='constant'):
+# Module logger
+log = logging.getLogger(__name__)
+
+
+def create_idealized_experiments(all_glaciers,
+                                 prepro_border=None,
+                                 from_prepro_level=None,
+                                 base_url=None,
+                                 yr_spinup=1980,
+                                 yr_start_run=2000,
+                                 yr_end_run=2019,
+                                 used_mb_models='constant'):
     '''
     Create idealized experiment (with geometry and measurements) and return
     glacier directory from which combine run can be started and true glacier
@@ -26,36 +31,97 @@ def create_idealized_experiment(rgi_id, prepro_border=None,
     TODO
     Parameters
     ----------
-    rgi_id: str
-        RGI id for desired glacier
 
     Returns
     -------
 
     '''
 
-    # initialise glacier directory from OGGM prepo level
-    gdirs = workflow.init_glacier_directories(rgi_id,
+    cfg.PARAMS['min_ice_thick_for_length'] = 0.01
+    cfg.PARAMS['glacier_length_method'] = 'consecutive'
+
+    # check if glaciers are already defined
+    for glacier in all_glaciers:
+        if glacier not in experiment_glaciers.keys():
+            raise ValueError(f'{glacier} not defined for idealized experiments')
+
+    # create a dict which translate rgi_ids to glacier name
+    rgi_id_to_name = dict([(experiment_glaciers[glacier]['rgi_id'],
+                            glacier) for glacier in all_glaciers])
+
+    # initialise glacier directorys from OGGM prepo level
+    gdirs = workflow.init_glacier_directories(list(rgi_id_to_name.keys()),
                                               from_prepro_level=from_prepro_level,
                                               prepro_base_url=base_url,
                                               prepro_border=prepro_border)
-    gdir = gdirs[0]
+
+    # add names of glaciers
+    for gdir in gdirs:
+        gdir.name = rgi_id_to_name[gdir.rgi_id]
 
     # add thickness from consensus thickness estimate
-    workflow.execute_entity_task(bedtopo.add_consensus_thickness, [gdir])
+    workflow.execute_entity_task(bedtopo.add_consensus_thickness, gdirs)
 
     # bin the consensus thickness to elevation bands
-    tasks.elevation_band_flowline(gdir,
-                                  bin_variables=['consensus_ice_thickness'],
-                                  preserve_totals=[True]
-                                  )
+    workflow.execute_entity_task(tasks.elevation_band_flowline, gdirs,
+                                 bin_variables=['consensus_ice_thickness'],
+                                 preserve_totals=[True]
+                                 )
 
     # This takes the csv file and prepares new 'inversion_flowlines.pkl' and
     # created a new csv file with regular spacing
-    tasks.fixed_dx_elevation_band_flowline(gdir,
-                                           bin_variables=['consensus_ice_thickness'],
-                                           preserve_totals=[True]
-                                           )
+    workflow.execute_entity_task(tasks.fixed_dx_elevation_band_flowline, gdirs,
+                                 bin_variables=['consensus_ice_thickness'],
+                                 preserve_totals=[True]
+                                 )
+
+    # add consensus flowline
+    workflow.execute_entity_task(initialise_consensus_flowline, gdirs)
+
+    # create spinup glacier with consensus flowline, try to match rgi_date length
+    # if one t_bias_spinup_limits is None the gdirs with spinup function are
+    # returned to define limits (with different sign) by hand
+    all_t_bias_spinup_limits = \
+        [experiment_glaciers[glacier]['t_bias_spinup_limits']
+         for glacier in all_glaciers]
+    if np.any([limit is None for limit in all_t_bias_spinup_limits]):
+        out = []
+        for gdir in gdirs:
+            out.append(create_spinup_glacier(gdir,
+                                             rgi_id_to_name=rgi_id_to_name,
+                                             yr_start_run=yr_start_run,
+                                             yr_end_run=yr_end_run,
+                                             yr_spinup=yr_spinup,
+                                             used_mb_models=used_mb_models))
+        return out
+
+    else:
+        workflow.execute_entity_task(create_spinup_glacier, gdirs,
+                                     rgi_id_to_name=rgi_id_to_name,
+                                     yr_start_run=yr_start_run,
+                                     yr_end_run=yr_end_run,
+                                     yr_spinup=yr_spinup,
+                                     used_mb_models=used_mb_models)
+
+
+    # create glacier with experiment measurements
+    workflow.execute_entity_task(evolve_glacier_and_create_measurements, gdirs,
+                                 used_mb_models=used_mb_models,
+                                 yr_start_run=yr_start_run,
+                                 yr_spinup=yr_spinup,
+                                 yr_end_run=yr_end_run)
+
+    # now OGGM inversion from idealized glacier surface for first guess
+    workflow.execute_entity_task(oggm_inversion_for_first_guess, gdirs)
+
+    print('Experiment creation finished')
+    return gdirs
+
+
+@entity_task(log, writes=['model_flowlines'])
+def initialise_consensus_flowline(gdir):
+    """TODO
+    """
 
     # initialise the consensus flowline (with consensus thickness and update w0,
     # so that surface_h and widths_m is unchanged)
@@ -78,12 +144,16 @@ def create_idealized_experiment(rgi_id, prepro_border=None,
 
     gdir.write_pickle([fl_consensus], 'model_flowlines', filesuffix='_consensus')
 
-    # now creat spinup glacier with consensus flowline starting from ice free,
-    # try to match consensus volume at rgi_date for 'realistic' experiment setting
-    df_itmix = pd.read_hdf(utils.get_demo_file('rgi62_itmix_df.h5'))
-    df_itmix = df_itmix.reindex([gdir.rgi_id])
-    volume_itmix_m3 = df_itmix.vol_itmix_m3.values
 
+@entity_task(log, writes=['model_flowlines'])
+def create_spinup_glacier(gdir, rgi_id_to_name, yr_start_run, yr_end_run,
+                          yr_spinup, used_mb_models):
+    """TODO
+    """
+    # now creat spinup glacier with consensus flowline starting from ice free,
+    # try to match length at rgi_date for 'realistic' experiment setting
+    fl_consensus = gdir.read_pickle('model_flowlines',
+                                    filesuffix='_consensus')[0]
     length_m_ref = fl_consensus.length_m
 
     fls_spinup = copy.deepcopy([fl_consensus])
@@ -98,6 +168,7 @@ def create_idealized_experiment(rgi_id, prepro_border=None,
                                             input_filesuffix='',
                                             y0=yr_spinup + halfsize,
                                             halfsize=halfsize)
+
     mb_historical = MultipleFlowlineMassBalance(gdir,
                                                 fls=fls_spinup,
                                                 mb_model_class=PastMassBalance,
@@ -119,25 +190,29 @@ def create_idealized_experiment(rgi_id, prepro_border=None,
                                           y0=yr_spinup)
         model_historical.run_until(yr_rgi)
 
-        if fit_to == 'volume':
-            cost = (model_historical.volume_m3 - volume_itmix_m3) / volume_itmix_m3 * 100
-        elif fit_to == 'length':
-            cost = (model_historical.length_m - length_m_ref) / length_m_ref * 100
+        cost = (model_historical.length_m - length_m_ref) / length_m_ref * 100
+
         return cost
 
-    if t_bias_spinup_limits is None:
+    glacier_name = rgi_id_to_name[gdir.rgi_id]
+    if experiment_glaciers[glacier_name]['t_bias_spinup_limits'] is None:
         print('returned spinup_run function for searching for the t_bias_limits!')
         return gdir, spinup_run
+    else:
+        t_bias_spinup_limits = \
+            experiment_glaciers[glacier_name]['t_bias_spinup_limits']
 
-    if t_bias_spinup is None:
+    if experiment_glaciers[glacier_name]['t_bias_spinup'] is None:
         # search for it by giving back
         t_bias_spinup = brentq(spinup_run,
                                t_bias_spinup_limits[0],
                                t_bias_spinup_limits[1],
                                maxiter=20, disp=False)
+    else:
+        t_bias_spinup = experiment_glaciers[glacier_name]['t_bias_spinup']
 
-    print(f'spinup tbias: {t_bias_spinup} with V mismatch at rgi_date:'
-          f' {spinup_run(t_bias_spinup)}')
+    print(f'{gdir.name} spinup tbias: {t_bias_spinup} with L mismatch at rgi_date:'
+          f' {spinup_run(t_bias_spinup)} m')
 
     mb_spinup.temp_bias = t_bias_spinup
     model_spinup = FluxBasedModel(copy.deepcopy(fls_spinup),
@@ -145,9 +220,16 @@ def create_idealized_experiment(rgi_id, prepro_border=None,
                                   y0=0)
     model_spinup.run_until_equilibrium(max_ite=1000)
 
-    fls_spinup = copy.deepcopy(model_spinup.fls)
-    gdir.write_pickle(fls_spinup, 'model_flowlines', filesuffix='_spinup')
+    gdir.write_pickle(model_spinup.fls, 'model_flowlines', filesuffix='_spinup')
 
+
+@entity_task(log, writes=['model_flowlines', 'inversion_input'])
+def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_start_run,
+                                           yr_spinup, yr_end_run):
+    """TODO
+    """
+    fls_spinup = gdir.read_pickle('model_flowlines', filesuffix='_spinup')
+    yr_rgi = gdir.rgi_date
     # now start actual experiment run for the creation of measurements
     if used_mb_models == 'constant':
         halfsize_spinup = (yr_start_run - yr_spinup) / 2
@@ -169,10 +251,10 @@ def create_idealized_experiment(rgi_id, prepro_border=None,
 
         # save used massbalance models for combine
         mb_models_combine = {'MB1': {'type': 'constant',
-                                     'years': np.array([yr_start_run,
-                                                        yr_spinup])},
-                             'MB2': {'type': 'constant',
                                      'years': np.array([yr_spinup,
+                                                        yr_start_run])},
+                             'MB2': {'type': 'constant',
+                                     'years': np.array([yr_start_run,
                                                         yr_end_run])}
                              }
         gdir.write_pickle(mb_models_combine, 'inversion_input',
@@ -226,19 +308,23 @@ def create_idealized_experiment(rgi_id, prepro_border=None,
     gdir.write_pickle(all_measurements, 'inversion_input',
                       filesuffix='_combine_measurements')
 
+
+@entity_task(log, writes=['model_flowlines'])
+def oggm_inversion_for_first_guess(gdir):
+    """TODO
+    """
     # now use _combine_true_init for an OGGM inversion for the first guess
     fls_inversion = gdir.read_pickle('inversion_flowlines')[0]
     fls_experiment = gdir.read_pickle('model_flowlines',
                                       filesuffix='_combine_true_init')[0]
 
     # get a ice mask for only the uppermost coherent ice mass
-    ice_mask = np.where(fls_experiment.thick > 0., True, False)
-    ice_mask_index_diff = np.diff(np.where(fls_experiment.thick > 0.)[0])
+    ice_mask = np.where(fls_experiment.thick > 0.01, True, False)
+    ice_mask_index_diff = np.diff(np.where(fls_experiment.thick > 0.01)[0])
     if not np.all(ice_mask_index_diff == 1):
         ice_mask[np.argmax(ice_mask_index_diff > 1) + 1:] = False
 
-    # now use ice mask to create new inversion_flowlines (surface_h, widths, is_trapezoid,
-    # is_rectangular, nx)
+    # now use ice mask to create new inversion_flowlines
     fls_inversion.nx = int(sum(ice_mask))
     fls_inversion.surface_h = fls_experiment.surface_h[ice_mask]
     fls_inversion.widths = fls_experiment.widths[ice_mask]
@@ -298,7 +384,4 @@ def create_idealized_experiment(rgi_id, prepro_border=None,
                                        rgi_id=fls_experiment.rgi_id,
                                        gdir=gdir)
     gdir.write_pickle([fls_first_guess], 'model_flowlines',
-                      filesuffix='_combine_init')
-
-    print('Experiment creation finished')
-    return gdir
+                      filesuffix='_combine_first_guess')

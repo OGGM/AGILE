@@ -182,14 +182,16 @@ def get_default_inversion_settings(get_doc=False):
 
 
 @entity_task(log, writes=['inversion_input'])
-def prepare_for_combine_inversion(gdir, inversion_settings=None, filesuffix='_combine'):
+def prepare_for_combine_inversion(gdir, inversion_settings=None,
+                                  filesuffix='_combine'):
     """TODO
     """
     if inversion_settings is None:
         inversion_settings = get_default_inversion_settings(get_doc=False)
 
     # just writes the inversion settings to a file
-    gdir.write_pickle(inversion_settings, filename='inversion_input', filesuffix=filesuffix)
+    gdir.write_pickle(inversion_settings, filename='inversion_input',
+                      filesuffix=filesuffix)
 
 
 def get_control_var_bounds(data_logger):
@@ -223,10 +225,11 @@ def get_control_var_bounds(data_logger):
 
 
 @entity_task(log, writes=['model_flowlines'])
-def combine_inversion(gdir, inversion_input_filesuffix='_combine', init_model_filesuffix=None,
-                      init_model_fls=None, climate_filename='climate_historical',
-                      climate_filesuffix='', output_filesuffix='_combine',
-                      write_nc_dataset=True):
+def combine_inversion(gdir, inversion_input_filesuffix='_combine',
+                      init_model_filesuffix=None, init_model_fls=None,
+                      climate_filename='climate_historical',
+                      climate_filesuffix='', output_filesuffix='_combine_output',
+                      output_filepath=None, save_dataset=True):
     """TODO
     """
 
@@ -236,7 +239,8 @@ def combine_inversion(gdir, inversion_input_filesuffix='_combine', init_model_fi
                                         init_model_fls=init_model_fls,
                                         climate_filename=climate_filename,
                                         climate_filesuffix=climate_filesuffix,
-                                        output_filesuffix=output_filesuffix)
+                                        output_filesuffix=output_filesuffix,
+                                        output_filepath=output_filepath)
 
     cost_fct = create_cost_fct(data_logger)
 
@@ -264,8 +268,8 @@ def combine_inversion(gdir, inversion_input_filesuffix='_combine', init_model_fi
 
     data_logger.end_time = time.time()
 
-    if write_nc_dataset:
-        # save results to netcdf file
+    if save_dataset:
+        # save results to file
         data_logger.create_and_save_dataset()
 
     gdir.write_pickle(data_logger.flowlines[-1], 'model_flowlines',

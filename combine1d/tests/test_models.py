@@ -70,7 +70,8 @@ class TestModels:
         oggm_mb_model = ConstantMassBalance(hef_gdir, y0=y0, halfsize=halfsize)
 
         # define FluxModels
-        oggm_model = oggm_flux_model(oggm_fls, mb_model=oggm_mb_model, y0=0)
+        oggm_model = oggm_flux_model(oggm_fls, mb_model=oggm_mb_model, y0=0,
+                                     cfl_number=0.01)
         combine_model = combine_flux_model(combine_fls, mb_model=combine_mb_model, y0=0)
 
         # Let models run
