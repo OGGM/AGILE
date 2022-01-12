@@ -142,7 +142,9 @@ class TestCostFct:
                 assert type(dobs[obs_var][year]) == torch.Tensor
                 if obs_var in ['fl_total_area:m2', 'fl_total_area:km2',
                                'area:m2', 'area:km2', 'dh:m']:
-                    assert dobs[obs_var][year] == 100.
+                    assert np.isclose(
+                        dobs[obs_var][year].detach().to('cpu').numpy().astype(
+                        np.float64), 100.)
         assert nobs == 11
 
     def test_define_reg_parameters(self, data_logger, observations):
