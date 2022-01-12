@@ -15,7 +15,7 @@ from oggm.core.flowline import FileModel, MixedBedFlowline
 class DataLogger(object):
 
     def __init__(self, gdir, fls_init, inversion_input, climate_filename,
-                 climate_filesuffix, output_filesuffix):
+                 climate_filesuffix, output_filesuffix, output_filepath):
 
         self.gdir = gdir
         # first extract all needed data (is also a check that everything is there before starting)
@@ -65,6 +65,11 @@ class DataLogger(object):
         self.climate_filesuffix = climate_filesuffix
         self.output_filesuffix = output_filesuffix
 
+        if output_filepath is None:
+            self.output_filepath = self.gdir.dir
+        else:
+            self.output_filepath = output_filepath
+
         # save time of initialisation, maybe reset later
         self.start_time = time.time()
 
@@ -85,11 +90,13 @@ class DataLogger(object):
         self.minimize_message = None
         self.minimize_status = None
 
-        self.filename = inversion_input['experiment_description']
+        self.filename = gdir.name + '_' + \
+                        inversion_input['experiment_description']
 
         # create info Text for callback_fct TODO: think about showing the evolution of the c_terms
         self.info_text = '''
 
+    Experiment: {experiment}
     Iteration: {iteration:d}
     Total Function calls: {fct_call:d}
     Needed Time: {time_needed:.1f} s
@@ -122,7 +129,8 @@ class DataLogger(object):
             # save the current index for the later cleaning of the data
             self.step_indices = np.append(self.step_indices, i)
             # define the arguments for the shown text
-            args = {'iteration': len(self.step_indices) - 1,
+            args = {'experiment': self.filename,
+                    'iteration': len(self.step_indices) - 1,
                     'fct_call': self.fct_calls[-1],
                     'time_needed': float(self.time_needed[-1]),
                     'cost': self.costs[-1][0],
@@ -209,7 +217,7 @@ class DataLogger(object):
                                      'name!')
 
         # save dataset as pickle
-        out = os.path.join(self.gdir.dir, self.filename + '.pkl')
+        out = os.path.join(self.output_filepath, self.filename + '.pkl')
         with open(out, 'wb') as handle:
             pickle.dump(ds, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -220,7 +228,8 @@ class DataLogger(object):
 
 def initialise_DataLogger(gdir, inversion_input_filesuffix='_combine', init_model_filesuffix=None,
                           init_model_fls=None, climate_filename='climate_historical',
-                          climate_filesuffix='', output_filesuffix='_combine'):
+                          climate_filesuffix='', output_filesuffix='_combine',
+                          output_filepath=None):
     '''
     extract information out of gdir and save in datalogger. TODO
 
@@ -281,6 +290,7 @@ def initialise_DataLogger(gdir, inversion_input_filesuffix='_combine', init_mode
             inversion_input['observations'][obs][yr_obs] = fls_init[0].area_km2
 
     data_logger = DataLogger(gdir, fls_init, inversion_input, climate_filename,
-                             climate_filesuffix, output_filesuffix)
+                             climate_filesuffix, output_filesuffix,
+                             output_filepath)
 
     return data_logger
