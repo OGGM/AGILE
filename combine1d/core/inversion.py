@@ -32,7 +32,7 @@ def get_default_inversion_settings(get_doc=False):
     _key = "control_vars"
     _doc = "Defines the control variables in an array which are changed during " \
            "the inversion. " \
-           "Options: 'bed_h', 'surface_h', 'lambdas', 'w0_m'. Default: ['bed_h']"
+           "Options: 'bed_h', 'lambdas', 'w0_m'. Default: ['bed_h']"
     _default = ['bed_h']
     add_setting()
 
@@ -42,10 +42,10 @@ def get_default_inversion_settings(get_doc=False):
            "'constant') and 'years' (the interval the model is valid in an " \
            "numpy array). Caution first MassBalanceModel must start at least " \
            "one year before first given observation year!" \
-           "Default: {'MB1': {'type': 'constant', 'years': np.array([1999, 2005])}," \
-           "'MB2': {'type': 'constant', 'years': np.array([2005, 2010])}}"
-    _default = {'MB1': {'type': 'constant', 'years': np.array([1999, 2005])},
-                'MB2': {'type': 'constant', 'years': np.array([2005, 2010])}}
+           "Default: {'MB1': {'type': 'constant', 'years': np.array([1980, 2000])}," \
+           "'MB2': {'type': 'constant', 'years': np.array([2000, 2019])}}"
+    _default = {'MB1': {'type': 'constant', 'years': np.array([1980, 2000])},
+                'MB2': {'type': 'constant', 'years': np.array([2000, 2019])}}
     add_setting()
 
     _key = "min_w0_m"
@@ -138,8 +138,19 @@ def get_default_inversion_settings(get_doc=False):
     add_setting()
 
     _key = "spinup_options"
-    _doc = "Not implemented yet!"
-    _default = None
+    _doc = "Options how to initialise each minimisation run. Currently only " \
+           "option is 'surface_h', which just let the minimisatio algorithm " \
+           "change the initial surface_h (meaning the run starts probably with " \
+           "an ice surface not in an dynamic consistant state!), you also must " \
+           "provide options how the first guess surface_h is created. " \
+           "Default: {'surface_h': {'mb_model': {'type': 'constant'," \
+           "'years': np.array([1980, 2000]), 't_bias': -2}" \
+           "}}"
+    _default = {'surface_h': {'mb_model': {'type': 'constant',
+                                           'years': np.array([1980, 2000]),
+                                           't_bias': -2}
+                              }
+                }
     add_setting()
 
     _key = "minimize_options"
@@ -207,10 +218,9 @@ def get_control_var_bounds(data_logger):
                                    for sfc_h in fl.surface_h[ice_mask]]
         elif var == 'surface_h':
             fl = data_logger.flowline_init
-            ice_mask = data_logger.ice_mask
             bounds[var_indices] = [(sfc_h - data_logger.max_deviation_surface_h,
                                     sfc_h + data_logger.max_deviation_surface_h)
-                                   for sfc_h in fl.surface_h[ice_mask]]
+                                   for sfc_h in fl.surface_h]
         elif var == 'lambdas':
             bounds[var_indices] = [data_logger.limits_lambda]
         elif var == 'w0_m':

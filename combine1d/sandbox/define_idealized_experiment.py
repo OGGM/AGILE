@@ -2,7 +2,7 @@ import copy
 import logging
 from combine1d.sandbox.create_glaciers_with_measurements import \
     create_idealized_experiments
-from combine1d.core.inversion import prepare_for_combine_inversion,\
+from combine1d.core.inversion import prepare_for_combine_inversion, \
     combine_inversion
 from oggm import cfg, utils, workflow
 from oggm import entity_task
@@ -44,31 +44,17 @@ def idealized_experiment(use_experiment_glaciers=None,
     gdirs = create_idealized_experiments(use_experiment_glaciers,
                                          prepro_border=prepro_border,
                                          from_prepro_level=from_prepro_level,
-                                         base_url=base_url,)
+                                         base_url=base_url, )
 
     print('Finished creation of directories.')
 
     print('Start experiments:')
 
-    # here build together all experiments -> use all inversion settings on all
-    # glaciers
-    # all_experiments = [(inversion_task, (gdir1, kwarg1)),
-    #                    (inversion_task, (gdir1, kwarg2)),
-    #                    (inversion_task, (gdir2, kwarg1)),
-    #                    (inversion_task, (gdir2, kwarg2))]
-    # and call with workflow.execute_entitiy_task(None, all_experiments)
-    # OR
-    # all_experiments = [(gdir1, kwarg1),
-    #                    (gdir1, kwarg2),
-    #                    (gdir2, kwarg1),
-    #                    (gdir2, kwarg2)]
-    # and call with workflow.execute_entitiy_task(inversion_task, all_experiments)
-
     all_experiments = []
     for inv_setting in inversion_settings_all:
         for gdir in gdirs:
             all_experiments.append((gdir, dict(inversion_settings=inv_setting,
-                                                output_folder=output_folder)
+                                               output_folder=output_folder)
                                     ))
 
     workflow.execute_entity_task(conduct_combine_inversion, all_experiments)
@@ -114,6 +100,6 @@ def conduct_combine_inversion(gdir, inversion_settings=None,
                       climate_filename='climate_historical',
                       climate_filesuffix='',
                       output_filesuffix='_combine_output_' +
-                      inversion_settings['experiment_description'],
+                                        inversion_settings['experiment_description'],
                       output_filepath=output_folder,
                       save_dataset=True)

@@ -26,9 +26,12 @@ class TestCreateCostFct:
             if key in ['w0_m', 'lambdas']:
                 prefix = '_'
                 mask = (data_logger.is_trapezoid & data_logger.ice_mask)
-            else:
+            elif key in ['bed_h']:
                 prefix = ''
                 mask = data_logger.ice_mask
+            elif key in ['surface_h']:
+                prefix = ''
+                mask = np.full(data_logger.ice_mask.shape, True)
             assert np.allclose(known_parameters[key],
                                getattr(fl, prefix + key)[~mask],
                                equal_nan=True)
@@ -238,6 +241,7 @@ class TestCostFct:
         assert type(grad) == np.ndarray
         assert len(grad) == len(unknown_parameters)
 
-        data_logger.spinup_options = 'do_spinup'
-        with pytest.raises(NotImplementedError, match='No spinup possibilities integrated!'):
+        data_logger.spinup_options = {'do_spinup': 'whatever'}
+        with pytest.raises(NotImplementedError,
+                           match='This spinup possibility is not integrated!'):
             cost_fct(unknown_parameters, data_logger)

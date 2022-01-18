@@ -1,4 +1,5 @@
 import copy
+import numpy as np
 
 # here specifiy the glaciers which should be used for the experiments
 use_experiment_glaciers = ['Hintereisferner', 'Baltoro', 'Aletsch',
@@ -47,12 +48,16 @@ default_inversion_settings_options = \
         # Options: 'smoothed_bed'
         'regularisation_terms': {'smoothed_bed': 1.},
 
-        # Options: Not implemented yet
-        'spinup_options': None,
+        # Options: 'surface_h'
+        'spinup_options': {'surface_h': {'t_bias': -2,
+                                         'mb_model': {'type': 'constant',
+                                                      'years': np.array([1980, 2000])}
+                                         }
+                           },
 
         # For options check \
         # https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html.
-        'minimize_options': {'maxiter': 20, 'ftol': 1e-7, 'gtol': 1e-8,
+        'minimize_options': {'maxiter': 10, 'ftol': 1e-7, 'gtol': 1e-8,
                              'disp': False, 'maxcor': 50, 'maxls': 50},
         'solver': 'L-BFGS-B',
 
@@ -81,7 +86,7 @@ def recursive_define_inversion_setting(inv_var_list, tmp_inversion_setting):
     inv_var = inv_var_list.pop(0)
     for inv_var_opt in experiment_options[inv_var]:
         tmp_inversion_setting['experiment_description'] = tmp_description + \
-            '_' + inv_var_opt
+                                                          '_' + inv_var_opt
         tmp_inversion_setting[inv_var] = experiment_options[inv_var][inv_var_opt]
 
         if len(inv_var_list) == 0:
