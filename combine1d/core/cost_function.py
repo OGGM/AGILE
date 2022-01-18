@@ -56,9 +56,12 @@ def get_known_parameters(data_logger):
             prefix_var = '_'
             known_index = (is_rectangular | is_parabolic |
                            (is_trapezoid & ~ice_mask))
-        elif con_var in ['bed_h', 'surface_h']:
+        elif con_var in ['bed_h']:
             prefix_var = ''
             known_index = ~ice_mask
+        elif con_var in ['surface_h']:
+            prefix_var = ''
+            known_index = np.full(ice_mask.shape, False)
         else:
             raise NotImplementedError(f'{con_var}')
 
@@ -73,11 +76,14 @@ def get_indices_for_unknown_parameters(data_logger):
     current_start_ind = 0
     ice_grid_points = sum(data_logger.ice_mask)
     trapezoid_grid_points = sum(data_logger.is_trapezoid & data_logger.ice_mask)
+    grid_points = len(data_logger.ice_mask)
 
     for control_var in data_logger.control_vars:
         # for these variables the length is assumed to be the whole ice area
-        if control_var in ['bed_h', 'surface_h']:
+        if control_var in ['bed_h']:
             parameter_length = ice_grid_points
+        elif control_var in ['surface_h']:
+            parameter_length = grid_points
         elif control_var in ['w0_m', 'lambdas']:
             parameter_length = trapezoid_grid_points
         else:
@@ -123,10 +129,10 @@ def cost_fct(unknown_parameters, data_logger):
     mb_models, mb_control_vars = initialise_mb_models(unknown_parameters,
                                                       data_logger)
 
-    if data_logger.spinup_options is not None:
+    if 'surface_h' not in data_logger.spinup_options.keys():
         # Here a spinup run could be conducted, maybe in the future
         # flowline = do_spinup(flowline, spinup_mb_model)
-        raise NotImplementedError('No spinup possibilities integrated!')
+        raise NotImplementedError('This spinup possibility is not integrated!')
 
     observations = data_logger.observations
 
@@ -153,13 +159,12 @@ def cost_fct(unknown_parameters, data_logger):
     # sum up cost function terms
     c = c_terms.sum()
 
-    # calculate the gradient for the optimisation parameter
+    # calculate the gradient for the control variables
     c.backward()
 
     # convert cost to numpy array
     cost = c.detach().to('cpu').numpy().astype(np.float64)
 
-    # continue here
     # get gradient/s as numpy array
     grad = get_gradients(fl_control_vars,
                          mb_control_vars,
@@ -231,8 +236,10 @@ def initialise_flowline(unknown_parameters, data_logger):
                                                 device=device,
                                                 requires_grad=True)
 
-            if var in ['bed_h', 'surface_h']:
+            if var in ['bed_h']:
                 var_index = ice_mask
+            elif var in ['surface_h']:
+                var_index = np.full(ice_mask.shape, True)
             elif var in ['lambdas', 'w0_m']:
                 var_index = (trap_index & ice_mask)
             else:
@@ -326,7 +333,7 @@ def initialise_mb_models(unknown_parameters,
                                       f"{mb_models_settings[mb_mdl_set]['type']} is not "
                                       "implemented!")
 
-    mb_control_var = {}  # only needed if in future control variables are included in MB-Models
+    mb_control_var = {}  # only needed if in the future control variables are included in MB-Models
     return mb_models, mb_control_var
 
 

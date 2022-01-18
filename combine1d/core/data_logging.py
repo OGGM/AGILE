@@ -22,7 +22,6 @@ class DataLogger(object):
         self.inversion_input = inversion_input
         self.obs_reg_parameters = inversion_input['obs_reg_parameters']
         self.regularisation_terms = inversion_input['regularisation_terms']
-        self.control_vars = inversion_input['control_vars']
         self.observations = inversion_input['observations']
         self.mb_models_settings = inversion_input['mb_models_settings']
         self.min_w0_m = inversion_input['min_w0_m']
@@ -34,6 +33,11 @@ class DataLogger(object):
         self.solver = inversion_input['solver']
         self.minimize_options = inversion_input['minimize_options']
         self.max_time_minimize = inversion_input['max_time_minimize']
+
+        # if spinup option is surface_h must be added as control variable
+        if 'surface_h' in list(self.spinup_options.keys()):
+            inversion_input['control_vars'].append('surface_h')
+        self.control_vars = inversion_input['control_vars']
 
         # if cuda is wanted check if available
         if inversion_input['device'] == 'cuda':

@@ -49,7 +49,7 @@ def hef_gdir(test_dir):
 
 @pytest.fixture(scope='session')
 def all_supported_control_vars():
-    return ['bed_h', 'surface_h', 'lambdas', 'w0_m']
+    return ['bed_h', 'lambdas', 'w0_m']
 
 
 @pytest.fixture(scope='function')
@@ -68,8 +68,8 @@ def observations():
             }
 
 
-@pytest.fixture(scope='function', params=[['bed_h'], ['surface_h', 'w0_m'], 'all'],
-                ids=['bed_h', 'sfc_h & w0_m', 'all'])
+@pytest.fixture(scope='function', params=[['bed_h'], ['bed_h', 'w0_m'], 'all'],
+                ids=['bed_h', 'bed_h & w0_m', 'all'])
 def data_logger_init(request, hef_gdir, all_supported_control_vars):
     # data_logger after initialisation (before creation of cost function)
     inversion_settings = get_default_inversion_settings(get_doc=False)

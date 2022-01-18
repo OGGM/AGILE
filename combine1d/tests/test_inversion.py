@@ -47,7 +47,7 @@ class TestInversion:
             if bounds[i][1] is not None:
                 assert val <= bounds[i][1]
 
-    @pytest.mark.parametrize('control_vars', [['bed_h'], ['surface_h', 'w0_m'],
+    @pytest.mark.parametrize('control_vars', [['bed_h'], ['bed_h', 'w0_m'],
                                               'all'])
     def test_combine_inversion(self, hef_gdir, control_vars,
                                all_supported_control_vars):
@@ -56,7 +56,7 @@ class TestInversion:
         inversion_settings['minimize_options'] = {'maxiter': 5,
                                                   'ftol': 1e-7,
                                                   'gtol': 1e-8,
-                                                  'disp': True,
+                                                  'disp': False,
                                                   'maxcor': 50,
                                                   'maxls': 50,
                                                   'maxfun': 10}

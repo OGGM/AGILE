@@ -48,7 +48,7 @@ class Flowline(Centerline):
             Grid spacing in pixel coordinates
         map_dx : float
             DEM grid spacing in meters
-        surface_h: :py:class:`numpy.ndarray`
+        surface_h: :py:class:`torch.Tensor`
             elevation [m] of the flowline grid points
         bed_h: :py:class:`torch.Tensor`
             elevation[m] of the bedrock at the flowline grid points
