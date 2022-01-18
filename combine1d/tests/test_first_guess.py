@@ -10,7 +10,7 @@ def test_get_first_guess(data_logger):
     for con_var in data_logger.control_vars:
         if con_var in ['w0_m', 'lambdas']:
             prefix = '_'
-            mask = data_logger.is_trapezoid
+            mask = (data_logger.is_trapezoid & data_logger.ice_mask)
         else:
             prefix = ''
             mask = data_logger.ice_mask
