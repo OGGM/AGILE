@@ -39,20 +39,23 @@ def get_known_parameters(data_logger):
     ice_mask = data_logger.ice_mask
     is_rectangular = data_logger.is_rectangular
     is_parabolic = data_logger.is_parabolic
+    is_trapezoid = data_logger.is_trapezoid
 
     known_parameters = dict()
 
     # save guard if new control vars are added
     potential_control_vars = ['bed_h', 'surface_h', 'lambdas', 'w0_m']
 
-    # extract the ice free parts of variables of the control_vars which are assumed to be known
+    # extract the ice free parts of variables of the control_vars which are
+    # assumed to be known
     for con_var in control_vars:
         if con_var not in potential_control_vars:
             raise NotImplementedError(f'Control var {con_var} not implemented!')
 
         if con_var in ['lambdas', 'w0_m']:
             prefix_var = '_'
-            known_index = is_rectangular | is_parabolic
+            known_index = (is_rectangular | is_parabolic |
+                           (is_trapezoid & ~ice_mask))
         elif con_var in ['bed_h', 'surface_h']:
             prefix_var = ''
             known_index = ~ice_mask
@@ -69,7 +72,7 @@ def get_indices_for_unknown_parameters(data_logger):
     parameter_indices = dict()
     current_start_ind = 0
     ice_grid_points = sum(data_logger.ice_mask)
-    trapezoid_grid_points = sum(data_logger.is_trapezoid)
+    trapezoid_grid_points = sum(data_logger.is_trapezoid & data_logger.ice_mask)
 
     for control_var in data_logger.control_vars:
         # for these variables the length is assumed to be the whole ice area
@@ -231,7 +234,7 @@ def initialise_flowline(unknown_parameters, data_logger):
             if var in ['bed_h', 'surface_h']:
                 var_index = ice_mask
             elif var in ['lambdas', 'w0_m']:
-                var_index = trap_index
+                var_index = (trap_index & ice_mask)
             else:
                 raise NotImplementedError(f'{var}')
 
@@ -244,6 +247,7 @@ def initialise_flowline(unknown_parameters, data_logger):
         else:
             # if w0_m is no control variable it is calculated to fit widths_m of flowline_init
             if var == 'w0_m':
+                var_index = (trap_index & ice_mask)
                 init_widths = torch.tensor(fl_init.widths_m,
                                            dtype=torch_type,
                                            device=device,
@@ -257,14 +261,16 @@ def initialise_flowline(unknown_parameters, data_logger):
                                        device=device,
                                        requires_grad=False)
 
-                fl_vars_total[var][ice_mask] = \
-                    torch.clamp(init_widths[ice_mask] - lambdas[ice_mask] *
-                                (init_sfc_h[ice_mask] - fl_vars_total['bed_h'][ice_mask]),
+                fl_vars_total[var][var_index] = \
+                    torch.clamp(init_widths[var_index] - lambdas[var_index] *
+                                (init_sfc_h[var_index] -
+                                 fl_vars_total['bed_h'][var_index]),
                                 min=data_logger.min_w0_m)
-                fl_vars_total[var][~ice_mask] = torch.tensor(fl_init._w0_m[~data_logger.ice_mask],
-                                                             dtype=torch_type,
-                                                             device=device,
-                                                             requires_grad=False)
+                fl_vars_total[var][~var_index] = torch.tensor(
+                    fl_init._w0_m[~(data_logger.ice_mask & data_logger.is_trapezoid)],
+                    dtype=torch_type,
+                    device=device,
+                    requires_grad=False)
             else:
                 if var == 'lambdas':
                     prefix = '_'
@@ -465,10 +471,10 @@ def get_gradients(fl_control_vars, mb_control_vars, data_logger, length):
     for var in parameter_indices.keys():
         if var in fl_control_vars.keys():
             grad[parameter_indices[var]] = fl_control_vars[var].grad.detach(
-                ).to('cpu').numpy().astype(np.float64)
+            ).to('cpu').numpy().astype(np.float64)
         elif var in mb_control_vars.keys():
             grad[parameter_indices[var]] = mb_control_vars[var].grad.detach(
-                ).to('cpu').numpy().astype(np.float64)
+            ).to('cpu').numpy().astype(np.float64)
         else:
             raise NotImplementedError('No gradient available for ' + var + '!')
 

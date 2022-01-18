@@ -16,7 +16,7 @@ def get_first_guess(data_logger):
             parameter_mask = ice_mask
         elif ind in ['w0_m', 'lambdas']:
             prefix = '_'
-            parameter_mask = is_trapezoid
+            parameter_mask = (is_trapezoid & ice_mask)
         else:
             raise NotImplementedError(f'{ind} is not implemented!')
 
