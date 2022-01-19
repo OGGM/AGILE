@@ -24,6 +24,11 @@ def test_get_first_guess(data_logger):
             first_guess_ind = data_logger.parameter_indices[con_var]
             assert np.allclose(first_guess[first_guess_ind],
                                get_first_guess_surface_h(data_logger))
+        elif con_var in ['height_shift_spinup']:
+            first_guess_ind = data_logger.parameter_indices[con_var]
+            assert np.allclose(
+                first_guess[first_guess_ind],
+                data_logger.spinup_options['height_shift']['mb_model']['fg_height_shift'])
         else:
             raise NotImplementedError
 

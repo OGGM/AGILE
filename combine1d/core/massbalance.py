@@ -177,8 +177,9 @@ class ConstantMassBalanceTorch(ConstantMassBalance):
     """
 
     def __init__(self, gdir, mu_star=None, bias=None,
-                 y0=None, halfsize=15, filename='climate_historical',
-                 input_filesuffix='', torch_type=torch.double, device='cpu', **kwargs):
+                 y0=None, halfsize=15, height_shift=0.,
+                 filename='climate_historical', input_filesuffix='',
+                 torch_type=torch.double, device='cpu', **kwargs):
         """Initialize
         Parameters
         ----------
@@ -195,6 +196,9 @@ class ConstantMassBalanceTorch(ConstantMassBalance):
             is to use tstar as center.
         halfsize : int, optional
             the half-size of the time window (window size = 2 * halfsize + 1)
+        height_shift : float or :py:class:`torch.Tensor`, optional
+            for vertically shifting the MassBalance profile, positive values
+            shift the profile upwards, negative values downwards
         filename : str, optional
             set to a different BASENAME if you want to use alternative climate
             data.
@@ -208,6 +212,15 @@ class ConstantMassBalanceTorch(ConstantMassBalance):
 
         self.torch_type = torch_type
         self.device = device
+
+        if type(height_shift) != torch.Tensor:
+            self.height_shift = torch.tensor(height_shift,
+                                             dtype=self.torch_type,
+                                             device=self.device,
+                                             requires_grad=False)
+        else:
+            self.height_shift = height_shift
+
         self._get_annual_mb = None
         self._get_monthly_mb = None
         self.initialize_get_annual_mb()
@@ -220,7 +233,7 @@ class ConstantMassBalanceTorch(ConstantMassBalance):
 
         def interp1d_wrapper(x, y):
             def out(xnew):
-                return Interp1d.apply(x, y, xnew)
+                return Interp1d()(x, y, xnew)
 
             return out
 
@@ -234,7 +247,7 @@ class ConstantMassBalanceTorch(ConstantMassBalance):
                                                               requires_grad=False))
 
     def get_annual_mb(self, heights, year=None, add_climate=False, **kwargs):
-        return torch.squeeze(self._get_annual_mb(heights))
+        return torch.squeeze(self._get_annual_mb(heights - self.height_shift))
 
     def initialize_get_monthly_mb(self):
         # monthly MB
@@ -243,7 +256,8 @@ class ConstantMassBalanceTorch(ConstantMassBalance):
 
         def interp1d_wrapper(x, y):
             def out(xnew):
-                return Interp1d.apply(x, y, xnew)
+                return Interp1d()(x, y, xnew)
+
             return out
 
         for m in months:
@@ -264,4 +278,5 @@ class ConstantMassBalanceTorch(ConstantMassBalance):
 
     def get_monthly_mb(self, heights, year=None, add_climate=False, **kwargs):
         yr, m = floatyear_to_date(year)
-        return torch.squeeze(self._get_monthly_mb[m - 1](heights))
+        return torch.squeeze(self._get_monthly_mb[m - 1](heights -
+                                                         self.height_shift))

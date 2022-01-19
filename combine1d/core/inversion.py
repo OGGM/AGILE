@@ -20,7 +20,6 @@ log = logging.getLogger(__name__)
 
 
 def get_default_inversion_settings(get_doc=False):
-
     inversion_settings = dict()
     inversion_settings_doc = dict()
 
@@ -81,6 +80,12 @@ def get_default_inversion_settings(get_doc=False):
     _default = (0., 4.)
     add_setting()
 
+    _key = "limits_height_shift_spinup"
+    _doc = "Allowed limits for height_shift_spinup if used. " \
+           "Default: (-1000., 1000.)"
+    _default = (-1000., 1000.)
+    add_setting()
+
     _key = "observations"
     _doc = "Gives the observations which should be matched during the " \
            "minimisation. Organised in a dictionary with keys giving  " \
@@ -138,19 +143,28 @@ def get_default_inversion_settings(get_doc=False):
     add_setting()
 
     _key = "spinup_options"
-    _doc = "Options how to initialise each minimisation run. Currently only " \
-           "option is 'surface_h', which just let the minimisatio algorithm " \
+    _doc = "Options how to initialise each minimisation run. First Option is " \
+           "'surface_h', which just let the minimisatio algorithm " \
            "change the initial surface_h (meaning the run starts probably with " \
            "an ice surface not in an dynamic consistant state!), you also must " \
-           "provide options how the first guess surface_h is created. " \
+           "provide options how the first guess surface_h is created " \
+           "(e.g. {'surface_h': {'mb_model': {'type': 'constant'," \
+           "'years': np.array([1980, 2000]), 't_bias': -2}}}). " \
+           "Second Option is to include a short spinup with variable " \
+           "height shift of the whole mb profile for an adaptive spinup " \
+           "(e.g. {'height_shift': {'mb_model': " \
+           "{'type': 'constant', 'years': np.array([1980, 2000]), " \
+           "'fg_height_shift': 100}}}). " \
            "Default: {'surface_h': {'mb_model': {'type': 'constant'," \
-           "'years': np.array([1980, 2000]), 't_bias': -2}" \
-           "}}"
-    _default = {'surface_h': {'mb_model': {'type': 'constant',
-                                           'years': np.array([1980, 2000]),
-                                           't_bias': -2}
-                              }
-                }
+           "'years': np.array([1980, 2000]), 't_bias': -2}}}"
+    _default = {'height_shift': {'mb_model': {'type': 'constant',
+                                              'years': np.array([1980, 2000]),
+                                              'fg_height_shift': 100}}}
+    # {'surface_h': {'mb_model': {'type': 'constant',
+    #                                        'years': np.array([1980, 2000]),
+    #                                        't_bias': -2}
+    #                           }
+    #             }
     add_setting()
 
     _key = "minimize_options"
@@ -228,6 +242,8 @@ def get_control_var_bounds(data_logger):
             is_trapezoid = data_logger.is_trapezoid
             bounds[var_indices] = [(data_logger.min_w0_m, max_w0_m)
                                    for max_w0_m in fl.widths_m[is_trapezoid]]
+        elif var == 'height_shift_spinup':
+            bounds[var_indices] = [data_logger.limits_height_shift_spinup]
         else:
             raise NotImplementedError(f'{var}')
 

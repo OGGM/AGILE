@@ -25,7 +25,20 @@ experiment_options = \
                                'reg2': {'scale': {'fl_surface_h:m': 0.1,
                                                   'fl_widths:m': 0.1,
                                                   'dh:m': 1.}}
-                               }
+                               },
+        # Options: 'surface_h', 'height_shift'
+        'spinup_options': {'spn1': {'surface_h': {'t_bias': -2,
+                                                  'mb_model':
+                                                      {
+                                                          'type': 'constant',
+                                                          'years': np.array([1980, 2000])}}},
+                           'spn2': {'height_shift': {'mb_model':
+                               {
+                                   'type': 'constant',
+                                   'years': np.array([1980, 2000]),
+                                   'fg_height_shift': 100}}},
+                           'spn3': None,
+                           }
     }
 # here define the different default inversion settings options for the experiments
 default_inversion_settings_options = \
@@ -48,12 +61,11 @@ default_inversion_settings_options = \
         # Options: 'smoothed_bed'
         'regularisation_terms': {'smoothed_bed': 1.},
 
-        # Options: 'surface_h'
-        'spinup_options': {'surface_h': {'t_bias': -2,
-                                         'mb_model': {'type': 'constant',
-                                                      'years': np.array([1980, 2000])}
-                                         }
-                           },
+        # Options: 'surface_h', 'height_shift'
+        'spinup_options': {'height_shift': {'mb_model': {
+            'type': 'constant',
+            'years': np.array([1980, 2000]),
+            'fg_height_shift': 100}}},
 
         # For options check \
         # https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html.
@@ -75,6 +87,7 @@ default_inversion_settings_options = \
         'max_ice_thickness': 1000.,
         'max_deviation_surface_h': 1000.,
         'limits_lambda': (0., 4.),
+        'limits_height_shift_spinup': (-1000., 1000.),
 
         'experiment_description': general_description,
     }
