@@ -21,6 +21,9 @@ def get_first_guess(data_logger):
             ind_first_guess = getattr(fl, '_' + ind)[(is_trapezoid & ice_mask)]
         elif ind in ['surface_h']:
             ind_first_guess = get_first_guess_surface_h(data_logger)
+        elif ind in ['height_shift_spinup']:
+            ind_first_guess = \
+                data_logger.spinup_options['height_shift']['mb_model']['fg_height_shift']
         else:
             raise NotImplementedError(f'{ind} is not implemented!')
 

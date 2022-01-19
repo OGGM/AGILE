@@ -48,8 +48,26 @@ class TestInversion:
                 assert val <= bounds[i][1]
 
     @pytest.mark.parametrize('control_vars', [['bed_h'], ['bed_h', 'w0_m'],
-                                              'all'])
-    def test_combine_inversion(self, hef_gdir, control_vars,
+                                              'all'],
+                             ids=['bed_h', 'bed_h & w0_m', 'all'])
+    @pytest.mark.parametrize('spinup_options', [None,
+                                                {'surface_h': {'mb_model':
+                                                                   {'type': 'constant',
+                                                                    'years': np.array(
+                                                                                [1980, 2000]),
+                                                                    't_bias': -2}
+                                                               }
+                                                 },
+                                                {'height_shift': {'mb_model':
+                                                                      {'type': 'constant',
+                                                                       'years': np.array(
+                                                                                   [1980, 2000]),
+                                                                       'fg_height_shift': 100}
+                                                                  }
+                                                 }
+                                                ],
+                             ids=['No_spinup', 'sfc_h_spinup', 'height_shift_spinup'])
+    def test_combine_inversion(self, hef_gdir, control_vars, spinup_options,
                                all_supported_control_vars):
         # Final integration test that the inversion runs with no errors
         inversion_settings = get_default_inversion_settings(get_doc=False)
@@ -63,6 +81,7 @@ class TestInversion:
         if control_vars == 'all':
             control_vars = all_supported_control_vars
         inversion_settings['control_vars'] = control_vars
+        inversion_settings['spinup_options'] = spinup_options
 
         prepare_for_combine_inversion(hef_gdir, inversion_settings=inversion_settings,
                                       filesuffix='_combine')

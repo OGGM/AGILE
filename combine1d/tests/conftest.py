@@ -2,6 +2,7 @@
 import shutil
 import pytest
 import os
+import numpy as np
 
 from oggm.utils import mkdir
 from oggm import cfg, utils, workflow, tasks, global_tasks
@@ -68,15 +69,39 @@ def observations():
             }
 
 
-@pytest.fixture(scope='function', params=[['bed_h'], ['bed_h', 'w0_m'], 'all'],
+@pytest.fixture(params=[['bed_h'], ['bed_h', 'w0_m'], 'all'],
                 ids=['bed_h', 'bed_h & w0_m', 'all'])
-def data_logger_init(request, hef_gdir, all_supported_control_vars):
+def control_vars(request):
+    return request.param
+
+
+@pytest.fixture(params=[None,
+                        {'surface_h': {'mb_model': {'type': 'constant',
+                                                    'years': np.array([1980, 2000]),
+                                                    't_bias': -2}
+                                       }
+                         },
+                        {'height_shift': {'mb_model': {'type': 'constant',
+                                                       'years': np.array([1980, 2000]),
+                                                       'fg_height_shift': 100}
+                                          }
+                         }
+                        ],
+                ids=['No_spinup', 'sfc_h_spinup', 'height_shift_spinup'])
+def spinup_option(request):
+    return request.param
+
+
+@pytest.fixture(scope='function')
+def data_logger_init(hef_gdir, control_vars, spinup_option,
+                     all_supported_control_vars):
     # data_logger after initialisation (before creation of cost function)
     inversion_settings = get_default_inversion_settings(get_doc=False)
-    if request.param == 'all':
+    if control_vars == 'all':
         inversion_settings['control_vars'] = all_supported_control_vars
     else:
-        inversion_settings['control_vars'] = request.param
+        inversion_settings['control_vars'] = control_vars
+    inversion_settings['spinup_options'] = spinup_option
     prepare_for_combine_inversion(hef_gdir, inversion_settings=inversion_settings,
                                   filesuffix='_combine')
     data_logger = initialise_DataLogger(hef_gdir, inversion_input_filesuffix='_combine')

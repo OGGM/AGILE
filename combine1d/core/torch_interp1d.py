@@ -3,7 +3,9 @@ import contextlib
 
 
 class Interp1d(torch.autograd.Function):
-    @staticmethod
+    def __call__(self, x, y, xnew, out=None):
+        return self.forward(x, y, xnew, out)
+
     def forward(ctx, x, y, xnew, out=None):
         """
         Linear 1D interpolation on the GPU for Pytorch. Downloaded from https://github.com/aliutkus/torchinterp1d.
@@ -153,7 +155,7 @@ class Interp1d(torch.autograd.Function):
         gradients = torch.autograd.grad(
                         ctx.saved_tensors[0],
                         [i for i in inputs if i is not None],
-                        grad_out, retain_graph=True, allow_unused=True)
+                        grad_out, retain_graph=True) #, allow_unused=True)
         result = [None, ] * 5
         pos = 0
         for index in range(len(inputs)):

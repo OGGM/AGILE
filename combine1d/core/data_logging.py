@@ -29,14 +29,24 @@ class DataLogger(object):
         self.max_ice_thickness = inversion_input['max_ice_thickness']
         self.max_deviation_surface_h = inversion_input['max_deviation_surface_h']
         self.limits_lambda = inversion_input['limits_lambda']
+        self.limits_height_shift_spinup = inversion_input['limits_height_shift_spinup']
         self.spinup_options = inversion_input['spinup_options']
         self.solver = inversion_input['solver']
         self.minimize_options = inversion_input['minimize_options']
         self.max_time_minimize = inversion_input['max_time_minimize']
 
+        if self.spinup_options is None:
+            spinup_type = None
         # if spinup option is surface_h must be added as control variable
-        if 'surface_h' in list(self.spinup_options.keys()):
-            inversion_input['control_vars'].append('surface_h')
+        elif 'surface_h' in list(self.spinup_options.keys()):
+            spinup_type = 'surface_h'
+            inversion_input['control_vars'].append(spinup_type)
+        elif 'height_shift' in list(self.spinup_options.keys()):
+            spinup_type = 'height_shift_spinup'
+            inversion_input['control_vars'].append(spinup_type)
+        else:
+            raise NotImplementedError
+        self.spinup_type = spinup_type
         self.control_vars = inversion_input['control_vars']
 
         # if cuda is wanted check if available

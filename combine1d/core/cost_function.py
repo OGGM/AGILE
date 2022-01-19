@@ -5,7 +5,7 @@ import time
 
 from combine1d.core.dynamics import run_model_and_get_temporal_model_data
 from combine1d.core.massbalance import ConstantMassBalanceTorch
-from combine1d.core.flowline import MixedBedFlowline
+from combine1d.core.flowline import MixedBedFlowline, FluxBasedModel
 
 
 def create_cost_fct(data_logger):
@@ -44,7 +44,8 @@ def get_known_parameters(data_logger):
     known_parameters = dict()
 
     # save guard if new control vars are added
-    potential_control_vars = ['bed_h', 'surface_h', 'lambdas', 'w0_m']
+    potential_control_vars = ['bed_h', 'surface_h', 'lambdas', 'w0_m',
+                              'height_shift_spinup']
 
     # extract the ice free parts of variables of the control_vars which are
     # assumed to be known
@@ -62,6 +63,9 @@ def get_known_parameters(data_logger):
         elif con_var in ['surface_h']:
             prefix_var = ''
             known_index = np.full(ice_mask.shape, False)
+        elif con_var in ['height_shift_spinup']:
+            # no known variable to save
+            continue
         else:
             raise NotImplementedError(f'{con_var}')
 
@@ -86,6 +90,8 @@ def get_indices_for_unknown_parameters(data_logger):
             parameter_length = grid_points
         elif control_var in ['w0_m', 'lambdas']:
             parameter_length = trapezoid_grid_points
+        elif control_var in ['height_shift_spinup']:
+            parameter_length = 1
         else:
             raise NotImplementedError(f'Control var {control_var} is not '
                                       f'implemented!')
@@ -129,10 +135,18 @@ def cost_fct(unknown_parameters, data_logger):
     mb_models, mb_control_vars = initialise_mb_models(unknown_parameters,
                                                       data_logger)
 
-    if 'surface_h' not in data_logger.spinup_options.keys():
-        # Here a spinup run could be conducted, maybe in the future
-        # flowline = do_spinup(flowline, spinup_mb_model)
-        raise NotImplementedError('This spinup possibility is not integrated!')
+    if data_logger.spinup_type == 'height_shift_spinup':
+        # Here a spinup run is conducted using the control variable
+        # height_shift_spinup (vertically shift the whole mb profile)
+        flowline, spinup_control_vars = \
+            do_height_shift_spinup(flowline,
+                                   unknown_parameters,
+                                   data_logger)
+    elif data_logger.spinup_type not in [None, 'surface_h']:
+        raise NotImplementedError(f'The spinup type {data_logger.spinup_type} '
+                                  'possibility is not integrated!')
+    else:
+        spinup_control_vars = {}
 
     observations = data_logger.observations
 
@@ -168,6 +182,7 @@ def cost_fct(unknown_parameters, data_logger):
     # get gradient/s as numpy array
     grad = get_gradients(fl_control_vars,
                          mb_control_vars,
+                         spinup_control_vars,
                          data_logger,
                          length=len(unknown_parameters))
 
@@ -337,10 +352,50 @@ def initialise_mb_models(unknown_parameters,
     return mb_models, mb_control_var
 
 
+def do_height_shift_spinup(flowline, unknown_parameters, data_logger):
+    """TODO"""
+    mb_models_settings = data_logger.spinup_options['height_shift']['mb_model']
+    torch_type = data_logger.torch_type
+    device = data_logger.device
+    gdir = data_logger.gdir
+    parameter_indices = data_logger.parameter_indices
+
+    y_start = mb_models_settings['years'][0]
+    y_end = mb_models_settings['years'][1]
+    # -1 because period defined as [y0 - halfsize, y0 + halfsize + 1]
+    y0 = (y_start + y_end - 1) / 2
+    halfsize = (y_end - y_start - 1) / 2
+
+    height_shift = torch.tensor(
+        unknown_parameters[parameter_indices['height_shift_spinup']],
+        dtype=torch_type,
+        device=device,
+        requires_grad=True)
+
+    spinup_control_vars = {'height_shift_spinup': height_shift}
+
+    if mb_models_settings['type'] == 'constant':
+        mb_spinup = ConstantMassBalanceTorch(gdir,
+                                             y0=y0,
+                                             halfsize=halfsize,
+                                             height_shift=height_shift,
+                                             torch_type=torch_type,
+                                             device=device)
+    else:
+        raise NotImplementedError
+
+    model = FluxBasedModel(flowline,
+                           mb_spinup,
+                           y0=y_start)
+    model.run_until(y_end)
+
+    return model.fls[0], spinup_control_vars
+
+
 def get_cost_terms(observations_mdl,
                    flowline,
                    data_logger):
-    '''
+    """
     Returns the individual terms of the cost function. TODO
 
     Parameters
@@ -354,7 +409,7 @@ def get_cost_terms(observations_mdl,
     costs : :py:class:`torch.Tensor`
         TODO
 
-    '''
+    """
     observations = data_logger.observations
     # calculate difference between observations and model
     dObs, nObs = calculate_difference_between_observation_and_model(observations,
@@ -471,7 +526,8 @@ def define_reg_parameters(data_logger):
     data_logger.obs_reg_parameters = reg_parameters
 
 
-def get_gradients(fl_control_vars, mb_control_vars, data_logger, length):
+def get_gradients(fl_control_vars, mb_control_vars, spinup_control_vars,
+                  data_logger, length):
     parameter_indices = data_logger.parameter_indices
     grad = np.zeros(length, dtype='float64')
 
@@ -481,6 +537,9 @@ def get_gradients(fl_control_vars, mb_control_vars, data_logger, length):
             ).to('cpu').numpy().astype(np.float64)
         elif var in mb_control_vars.keys():
             grad[parameter_indices[var]] = mb_control_vars[var].grad.detach(
+            ).to('cpu').numpy().astype(np.float64)
+        elif var in spinup_control_vars.keys():
+            grad[parameter_indices[var]] = spinup_control_vars[var].grad.detach(
             ).to('cpu').numpy().astype(np.float64)
         else:
             raise NotImplementedError('No gradient available for ' + var + '!')

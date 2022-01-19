@@ -15,6 +15,9 @@ class TestModels:
         halfsize = 15
         combine_mb_model = ConstantMassBalanceTorch(hef_gdir, y0=y0, halfsize=halfsize)
         oggm_mb_model = ConstantMassBalance(hef_gdir, y0=y0, halfsize=halfsize)
+        test_height_shift = 100.
+        combine_mb_model_shift = ConstantMassBalanceTorch(
+            hef_gdir, y0=y0, halfsize=halfsize, height_shift=test_height_shift)
 
         fls = hef_gdir.read_pickle('model_flowlines')
         h = []
@@ -25,24 +28,36 @@ class TestModels:
         zminmax = np.round([np.min(h), np.max(h)])
         heights = np.linspace(zminmax[0], zminmax[1], num=20)
         heights_torch = torch.tensor(heights, dtype=torch.double)
+        heights_torch_shift = heights_torch + torch.tensor(test_height_shift,
+                                                           dtype=torch.double)
 
         # test annual
         oggm_annual_mbs = oggm_mb_model.get_annual_mb(heights)
         combine_annual_mbs = combine_mb_model.get_annual_mb(heights_torch)
+        combine_annual_mbs_shift = \
+            combine_mb_model_shift.get_annual_mb(heights_torch_shift)
 
         assert np.allclose(oggm_annual_mbs, combine_annual_mbs)
         assert type(combine_annual_mbs) == torch.Tensor
         assert combine_annual_mbs.shape == heights_torch.shape
+        assert np.allclose(combine_annual_mbs, combine_annual_mbs_shift)
+        assert type(combine_annual_mbs_shift) == torch.Tensor
+        assert combine_annual_mbs_shift.shape == heights_torch_shift.shape
 
         # test monthly
         for month in np.arange(12) + 1:
             yr = date_to_floatyear(0, month)
             oggm_monthly_mbs = oggm_mb_model.get_monthly_mb(heights, year=yr)
             combine_monthly_mbs = combine_mb_model.get_monthly_mb(heights_torch, year=yr)
+            combine_monthly_mbs_shift = \
+                combine_mb_model_shift.get_monthly_mb(heights_torch_shift, year=yr)
 
             assert np.allclose(oggm_monthly_mbs, combine_monthly_mbs)
             assert type(combine_monthly_mbs) == torch.Tensor
             assert combine_monthly_mbs.shape == heights_torch.shape
+            assert np.allclose(combine_monthly_mbs, combine_monthly_mbs_shift)
+            assert type(combine_monthly_mbs_shift) == torch.Tensor
+            assert combine_monthly_mbs_shift.shape == heights_torch_shift.shape
 
     def test_fluxmodel(self, hef_gdir):
         # define flowlines

@@ -10,7 +10,8 @@ from combine1d.core.cost_function import (get_indices_for_unknown_parameters,
                                           initialise_mb_models, get_cost_terms,
                                           cost_fct,
                                           calculate_difference_between_observation_and_model,
-                                          define_reg_parameters, get_gradients)
+                                          define_reg_parameters, get_gradients,
+                                          do_height_shift_spinup)
 from combine1d.core.first_guess import get_first_guess
 from combine1d.core.dynamics import run_model_and_get_temporal_model_data
 
@@ -66,6 +67,19 @@ def get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
     mb_models, mb_control_vars = initialise_mb_models(unknown_parameters,
                                                       data_logger)
 
+    if data_logger.spinup_type == 'height_shift_spinup':
+        # Here a spinup run is conducted using the control variable
+        # height_shift_spinup (vertically shift the whole mb profile)
+        flowline, spinup_control_vars = \
+            do_height_shift_spinup(flowline,
+                                   unknown_parameters,
+                                   data_logger)
+    elif data_logger.spinup_type not in [None, 'surface_h']:
+        raise NotImplementedError(f'The spinup type {data_logger.spinup_type} '
+                                  'possibility is not integrated!')
+    else:
+        spinup_control_vars={}
+
     observations_mdl, final_fl = \
         run_model_and_get_temporal_model_data(flowline, mb_models,
                                               observations)
@@ -87,7 +101,7 @@ def get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
                                                 'fl_widths:m': 5.}}
 
     return flowline, fl_control_vars, mb_models, mb_control_vars, \
-           observations_mdl, final_fl, data_logger
+           spinup_control_vars, observations_mdl, final_fl, data_logger
 
 
 class TestCostFct:
@@ -128,7 +142,7 @@ class TestCostFct:
     def test_calculate_difference_between_observation_and_model(self, data_logger,
                                                                 unknown_parameters,
                                                                 observations):
-        flowline, fl_control_vars, mb_models, mb_control_vars, \
+        flowline, fl_control_vars, mb_models, mb_control_vars, spinup_control_vars, \
         observations_mdl, final_fl, data_logger = get_prepared_data_for_cost_fct(
             unknown_parameters, data_logger, observations)
         c_terms = get_cost_terms(observations_mdl,
@@ -191,7 +205,7 @@ class TestCostFct:
 
     def test_get_cost_terms(self, data_logger, unknown_parameters,
                             observations):
-        flowline, fl_control_vars, mb_models, mb_control_vars, \
+        flowline, fl_control_vars, mb_models, mb_control_vars, spinup_control_vars, \
         observations_mdl, final_fl, data_logger = get_prepared_data_for_cost_fct(
             unknown_parameters, data_logger, observations)
 
@@ -206,7 +220,7 @@ class TestCostFct:
 
     def test_get_gradients(self, data_logger, unknown_parameters,
                            observations):
-        flowline, fl_control_vars, mb_models, mb_control_vars, \
+        flowline, fl_control_vars, mb_models, mb_control_vars, spinup_control_vars, \
         observations_mdl, final_fl, data_logger = get_prepared_data_for_cost_fct(
             unknown_parameters, data_logger, observations)
 
@@ -223,6 +237,7 @@ class TestCostFct:
         # here try to get the gradients
         grad = get_gradients(fl_control_vars,
                              mb_control_vars,
+                             spinup_control_vars,
                              data_logger,
                              length=len(unknown_parameters))
 
@@ -230,7 +245,7 @@ class TestCostFct:
         assert type(grad) == np.ndarray
 
     def test_cost_fct(self, data_logger, unknown_parameters, observations):
-        flowline, fl_control_vars, mb_models, mb_control_vars, \
+        flowline, fl_control_vars, mb_models, mb_control_vars, spinup_control_vars, \
         observations_mdl, final_fl, data_logger = get_prepared_data_for_cost_fct(
             unknown_parameters, data_logger, observations)
 
@@ -242,6 +257,8 @@ class TestCostFct:
         assert len(grad) == len(unknown_parameters)
 
         data_logger.spinup_options = {'do_spinup': 'whatever'}
+        data_logger.spinup_type = 'do_spinup'
         with pytest.raises(NotImplementedError,
-                           match='This spinup possibility is not integrated!'):
+                           match=f'The spinup type {data_logger.spinup_type} '
+                                  'possibility is not integrated!'):
             cost_fct(unknown_parameters, data_logger)
