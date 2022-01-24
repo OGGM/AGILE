@@ -22,6 +22,9 @@ def parse_args(args):
                         help='path to the directory where to write the '
                              'output. Defaults to current directory or '
                              '$OGGM_OUTDIR.')
+    parser.add_argument('--params_file', type=str, default=None,
+                        help='path to the OGGM parameter file to use in place '
+                             'of the default one.')
     parser.add_argument('--logging_level', type=str, default='WORKFLOW',
                         help='the logging level to use (DEBUG, INFO, WARNING, '
                              'WORKFLOW).')
@@ -60,6 +63,7 @@ def parse_args(args):
                                      'added to example glaciers!')
 
     return dict(working_dir=working_dir, output_folder=output_folder,
+                params_file=args.params_file,
                 logging_level=args.logging_level,
                 inversion_settings_all=foo.inversion_settings_all,
                 use_experiment_glaciers=use_experiment_glaciers

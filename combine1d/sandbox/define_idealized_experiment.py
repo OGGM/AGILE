@@ -13,7 +13,8 @@ log = logging.getLogger(__name__)
 
 def idealized_experiment(use_experiment_glaciers=None,
                          inversion_settings_all=None,
-                         working_dir='', output_folder='', override_params=None,
+                         working_dir='', output_folder='',
+                         params_file=None, override_params=None,
                          logging_level='WORKFLOW', ):
     # Local paths
     if override_params is None:
@@ -24,7 +25,8 @@ def idealized_experiment(use_experiment_glaciers=None,
 
     utils.mkdir(output_folder)
 
-    cfg.initialize(params=override_params, logging_level=logging_level)
+    cfg.initialize(file=params_file, params=override_params,
+                   logging_level=logging_level)
 
     cfg.PARAMS['cfl_number'] = 0.01
     cfg.PARAMS['use_multiprocessing'] = True

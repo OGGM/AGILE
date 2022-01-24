@@ -89,7 +89,7 @@ default_inversion_settings_options = \
         'limits_lambda': (0., 4.),
         'limits_height_shift_spinup': (-1000., 1000.),
 
-        'experiment_description': general_description,
+        'experiment_description': general_description + '-',
     }
 
 
