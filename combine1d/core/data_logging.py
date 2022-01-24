@@ -187,12 +187,13 @@ class DataLogger(object):
 
         ds['ice_mask'] = (['x'], self.ice_mask)
         ds['costs'] = (['iteration'], self.costs)
+        ds['grads'] = (['iteration', 'nr_unknown_parameters'], self.grads)
         ds['flowlines'] = (['iteration'], self.flowlines)
         ds['c_terms'] = (['iteration', 'nr_cost_terms'], self.c_terms)
         ds['c_terms_description'] = (['iteration'], self.c_terms_description)
         ds['time_needed'] = (['iteration'], self.time_needed)
-        ds['fct_calls'] = (['iterations'], self.fct_calls)
-        ds['unknown_parameters'] = (['iterations', 'nr_unknown_parameters'],
+        ds['fct_calls'] = (['iteration'], self.fct_calls)
+        ds['unknown_parameters'] = (['iteration', 'nr_unknown_parameters'],
                                     self.unknown_parameters)
 
         ds.attrs['experiment_description'] = self.filename
