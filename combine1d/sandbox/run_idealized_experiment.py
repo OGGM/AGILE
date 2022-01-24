@@ -28,6 +28,8 @@ def parse_args(args):
     parser.add_argument('--logging_level', type=str, default='WORKFLOW',
                         help='the logging level to use (DEBUG, INFO, WARNING, '
                              'WORKFLOW).')
+    parser.add_argument('--use_multiprocessing', type=str, default='Yes',
+                        help='if multiprocessing should be used')
     parser.add_argument('--experiment_file', type=str,
                         help='path to the experiment file, containing the '
                              'different experiments with their settings')
@@ -62,11 +64,17 @@ def parse_args(args):
             raise InvalidParamsError(f'{glacier} not supported! First must be '
                                      'added to example glaciers!')
 
+    if args.use_multiprocessing == 'Yes':
+        use_multiprocessing = True
+    else:
+        use_multiprocessing = False
+
     return dict(working_dir=working_dir, output_folder=output_folder,
                 params_file=args.params_file,
                 logging_level=args.logging_level,
                 inversion_settings_all=foo.inversion_settings_all,
-                use_experiment_glaciers=use_experiment_glaciers
+                use_experiment_glaciers=use_experiment_glaciers,
+                use_multiprocessing=use_multiprocessing
                 )
 
 
