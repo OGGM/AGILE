@@ -240,8 +240,10 @@ def get_control_var_bounds(data_logger):
         elif var == 'w0_m':
             fl = data_logger.flowline_init
             is_trapezoid = data_logger.is_trapezoid
+            ice_mask = data_logger.ice_mask
+            index_use = (is_trapezoid & ice_mask)
             bounds[var_indices] = [(data_logger.min_w0_m, max_w0_m)
-                                   for max_w0_m in fl.widths_m[is_trapezoid]]
+                                   for max_w0_m in fl.widths_m[index_use]]
         elif var == 'height_shift_spinup':
             bounds[var_indices] = [data_logger.limits_height_shift_spinup]
         else:

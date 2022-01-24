@@ -3,7 +3,8 @@ import numpy as np
 
 # here specifiy the glaciers which should be used for the experiments
 use_experiment_glaciers = ['Hintereisferner', 'Baltoro', 'Aletsch',
-                           'Artesonraju', 'Shallap']
+                           'Artesonraju', 'Shallap'
+                           ]
 
 # general description of the current experiments
 general_description = 'test_functionality'
