@@ -103,6 +103,7 @@ class DataLogger(object):
         self.step_indices = np.array([0])  # include zero to save outcome of first guess run
         self.minimize_message = None
         self.minimize_status = None
+        self.memory_error = False
 
         self.filename = gdir.name + '_' + \
                         inversion_input['experiment_description']
@@ -216,6 +217,7 @@ class DataLogger(object):
         ds.attrs['parameter_indices'] = self.parameter_indices
         ds.attrs['minimize_message'] = self.minimize_message
         ds.attrs['minimize_status'] = self.minimize_status
+        ds.attrs['memory_error'] = self.memory_error
 
         # check if filename already exists, prevent overwriting
         path = self.gdir.dir
