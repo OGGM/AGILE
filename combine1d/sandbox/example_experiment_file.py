@@ -28,18 +28,23 @@ experiment_options = \
                                                   'dh:m': 1.}}
                                },
         # Options: 'surface_h', 'height_shift'
-        'spinup_options': {'spn1': {'surface_h': {'t_bias': -2,
-                                                  'mb_model':
-                                                      {
-                                                          'type': 'constant',
-                                                          'years': np.array([1980, 2000])}}},
-                           'spn2': {'height_shift': {'mb_model':
-                               {
-                                   'type': 'constant',
-                                   'years': np.array([1980, 2000]),
-                                   'fg_height_shift': 100}}},
-                           'spn3': None,
-                           }
+        'spinup_options': {
+            'spn1':
+                {'surface_h':
+                    {'mb_model':
+                        {
+                            'type': 'constant',
+                            'years': np.array([1980, 2000]),
+                            't_bias': -2, }}},
+            'spn2': {
+                'height_shift':
+                    {'mb_model':
+                        {
+                            'type': 'constant',
+                            'years': np.array([1980, 2000]),
+                            'fg_height_shift': 100}}},
+            'spn3': None,
+        }
     }
 # here define the different default inversion settings options for the experiments
 default_inversion_settings_options = \
