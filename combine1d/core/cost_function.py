@@ -136,12 +136,21 @@ def cost_fct(unknown_parameters, data_logger):
                                                       data_logger)
 
     if data_logger.spinup_type == 'height_shift_spinup':
-        # Here a spinup run is conducted using the control variable
-        # height_shift_spinup (vertically shift the whole mb profile)
-        flowline, spinup_control_vars = \
-            do_height_shift_spinup(flowline,
-                                   unknown_parameters,
-                                   data_logger)
+        try:
+            # Here a spinup run is conducted using the control variable
+            # height_shift_spinup (vertically shift the whole mb profile)
+            flowline, spinup_control_vars = \
+                do_height_shift_spinup(flowline,
+                                       unknown_parameters,
+                                       data_logger)
+        except MemoryError:
+            msg = 'MemoryError during spinup run (due to a too small ' \
+                  'timestep) -> set Costfunction to Inf'
+            print(msg)
+            data_logger.memory_error = msg
+            cost = np.Inf
+            grad = np.empty(len(unknown_parameters)) * np.nan
+            return cost, grad
     elif data_logger.spinup_type not in [None, 'surface_h']:
         raise NotImplementedError(f'The spinup type {data_logger.spinup_type} '
                                   'possibility is not integrated!')
@@ -158,8 +167,10 @@ def cost_fct(unknown_parameters, data_logger):
             observations=observations)
 
     except MemoryError:
-        print('MemoryError in forward model run (due to a too small '
-              'timestep) -> set Costfunction to Inf')
+        msg = 'MemoryError in forward model run (due to a too small ' \
+              'timestep) -> set Costfunction to Inf'
+        print(msg)
+        data_logger.memory_error = msg
         cost = np.Inf
         grad = np.empty(len(unknown_parameters)) * np.nan
         return cost, grad
