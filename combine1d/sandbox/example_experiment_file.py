@@ -100,7 +100,6 @@ default_inversion_settings_options = \
 
 
 def recursive_define_inversion_setting(inv_var_list, tmp_inversion_setting):
-    # global inversion_settings_all
     tmp_description = copy.deepcopy(tmp_inversion_setting['experiment_description'])
     inv_var = inv_var_list.pop(0)
     for inv_var_opt in experiment_options[inv_var]:
@@ -118,5 +117,5 @@ def recursive_define_inversion_setting(inv_var_list, tmp_inversion_setting):
 # set all experiment combinations together
 inversion_settings_all = []
 all_experiment_options = list(experiment_options.keys())
-recursive_define_inversion_setting(all_experiment_options,
+recursive_define_inversion_setting(copy.deepcopy(all_experiment_options),
                                    default_inversion_settings_options)

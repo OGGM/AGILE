@@ -219,6 +219,7 @@ class DataLogger(object):
         ds.attrs['minimize_message'] = self.minimize_message
         ds.attrs['minimize_status'] = self.minimize_status
         ds.attrs['memory_error'] = self.memory_error
+        ds.attrs['rgi_id'] = self.gdir.rgi_id
 
         # check if filename already exists, prevent overwriting
         path = self.gdir.dir
