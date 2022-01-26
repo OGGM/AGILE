@@ -94,6 +94,8 @@ class DataLogger(object):
         self.time_needed = None
         self.grads = None
         self.flowlines = None
+        self.sfc_h_start = None
+        self.observations_mdl = None
         self.end_time = None
         self.known_parameters = None
         self.len_unknown_parameter = None
@@ -172,6 +174,8 @@ class DataLogger(object):
         self.c_terms = self.c_terms[index]
         self.time_needed = self.squeeze_generic(self.time_needed[index])
         self.flowlines = self.squeeze_generic(self.flowlines[index])
+        self.sfc_h_start = self.squeeze_generic(self.sfc_h_start[index])
+        self.observations_mdl = self.squeeze_generic(self.observations_mdl[index])
         self.unknown_parameters = self.unknown_parameters[index]
         self.fct_calls = self.squeeze_generic(self.fct_calls[index + 1])
         self.c_terms_description = self.squeeze_generic(self.c_terms_description[index])
@@ -189,6 +193,8 @@ class DataLogger(object):
         ds['costs'] = (['iteration'], self.costs)
         ds['grads'] = (['iteration', 'nr_unknown_parameters'], self.grads)
         ds['flowlines'] = (['iteration'], self.flowlines)
+        ds['sfc_h_start'] = (['iteration', 'x'], self.sfc_h_start)
+        ds['observations_mdl'] = (['iteration'], self.observations_mdl)
         ds['c_terms'] = (['iteration', 'nr_cost_terms'], self.c_terms)
         ds['c_terms_description'] = (['iteration'], self.c_terms_description)
         ds['time_needed'] = (['iteration'], self.time_needed)
