@@ -157,6 +157,9 @@ def cost_fct(unknown_parameters, data_logger):
     else:
         spinup_control_vars = {}
 
+    # sfc_h only saved for the evaluation of idealized experiments
+    data_logger.save_data_in_datalogger('sfc_h_start', flowline.surface_h)
+
     observations = data_logger.observations
 
     # forward run of model, try is needed to avoid a memory overflow
@@ -178,7 +181,7 @@ def cost_fct(unknown_parameters, data_logger):
     # calculate terms of cost function
     c_terms = get_cost_terms(observations_mdl,
                              final_fl,  # for regularisation term 'smoothed_bed'
-                             data_logger  # for reg_parameters
+                             data_logger  # for reg_parameters and observations
                              )
 
     # sum up cost function terms
@@ -198,6 +201,8 @@ def cost_fct(unknown_parameters, data_logger):
                          length=len(unknown_parameters))
 
     # save data in data_logger
+    data_logger.save_data_in_datalogger('observations_mdl',
+                                        observations_mdl)
     data_logger.save_data_in_datalogger('flowlines', final_fl)
     data_logger.save_data_in_datalogger('costs', cost)
     data_logger.save_data_in_datalogger('grads', grad)
@@ -412,7 +417,7 @@ def get_cost_terms(observations_mdl,
     Parameters
     ----------
     observations_mdl
-    observations
+    flowline
     data_logger
 
     Returns
