@@ -10,6 +10,10 @@ from combine1d.core.data_logging import initialise_DataLogger
 from combine1d.core.cost_function import create_cost_fct
 
 
+pytestmark = pytest.mark.filterwarnings("ignore:<class 'combine1d.core.torch_interp1d.Interp1d'> "
+                                        "should not be instantiated.:DeprecationWarning")
+
+
 class TestInversion:
     def test_default_initialisation(self, hef_gdir):
         # check if error is thrown if gdir is not prepared
@@ -71,7 +75,7 @@ class TestInversion:
                                all_supported_control_vars):
         # Final integration test that the inversion runs with no errors
         inversion_settings = get_default_inversion_settings(get_doc=False)
-        inversion_settings['minimize_options'] = {'maxiter': 5,
+        inversion_settings['minimize_options'] = {'maxiter': 2,
                                                   'ftol': 1e-7,
                                                   'gtol': 1e-8,
                                                   'disp': False,

@@ -1,8 +1,13 @@
 import torch
+import pytest
 from torch.autograd import gradcheck
 from combine1d.core.special_gradient_functions import para_width_from_thick,\
     para_thick_from_section
 from combine1d.core.torch_interp1d import Interp1d
+
+
+pytestmark = pytest.mark.filterwarnings("ignore:<class 'combine1d.core.torch_interp1d.Interp1d'> "
+                                        "should not be instantiated.:DeprecationWarning")
 
 
 def test_special_gradient_functions():

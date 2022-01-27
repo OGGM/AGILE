@@ -158,7 +158,7 @@ def cost_fct(unknown_parameters, data_logger):
         spinup_control_vars = {}
 
     # sfc_h only saved for the evaluation of idealized experiments
-    data_logger.save_data_in_datalogger('sfc_h_start', flowline.surface_h)
+    sfc_h_start = flowline.surface_h.detach().clone()
 
     observations = data_logger.observations
 
@@ -203,6 +203,7 @@ def cost_fct(unknown_parameters, data_logger):
     # save data in data_logger
     data_logger.save_data_in_datalogger('observations_mdl',
                                         observations_mdl)
+    data_logger.save_data_in_datalogger('sfc_h_start', sfc_h_start)
     data_logger.save_data_in_datalogger('flowlines', final_fl)
     data_logger.save_data_in_datalogger('costs', cost)
     data_logger.save_data_in_datalogger('grads', grad)
