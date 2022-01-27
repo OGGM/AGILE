@@ -12,6 +12,10 @@ from combine1d.core.cost_function import (initialise_flowline,
                                           initialise_mb_models)
 
 
+pytestmark = pytest.mark.filterwarnings("ignore:<class 'combine1d.core.torch_interp1d.Interp1d'> "
+                                        "should not be instantiated.:DeprecationWarning")
+
+
 @pytest.fixture(scope='function')
 def unknown_parameters(data_logger):
     unknown_parameters = get_first_guess(data_logger)

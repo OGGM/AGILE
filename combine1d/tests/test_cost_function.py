@@ -16,6 +16,10 @@ from combine1d.core.first_guess import get_first_guess
 from combine1d.core.dynamics import run_model_and_get_temporal_model_data
 
 
+pytestmark = pytest.mark.filterwarnings("ignore:<class 'combine1d.core.torch_interp1d.Interp1d'> "
+                                        "should not be instantiated.:DeprecationWarning")
+
+
 class TestCreateCostFct:
     def test_get_known_parameters(self, data_logger_init):
         data_logger = data_logger_init

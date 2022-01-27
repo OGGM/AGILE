@@ -9,6 +9,10 @@ from oggm.core.flowline import FluxBasedModel as oggm_flux_model
 from oggm.utils._funcs import date_to_floatyear
 
 
+pytestmark = pytest.mark.filterwarnings("ignore:<class 'combine1d.core.torch_interp1d.Interp1d'> "
+                                        "should not be instantiated.:DeprecationWarning")
+
+
 class TestModels:
     def test_constant_mb_model(self, hef_gdir):
         y0 = 2000
