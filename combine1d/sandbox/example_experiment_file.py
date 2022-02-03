@@ -17,15 +17,15 @@ experiment_options = \
         'control_vars': {'con1': ['bed_h'],
                          'con2': ['bed_h', 'w0_m']},
 
-        'observations': {'obs1': ['fl_surface_h:m', 'fl_widths:m'],
-                         'obs2': ['fl_surface_h:m', 'fl_widths:m', 'dh:m']},
+        'observations': {'obs1': ['fl_surface_h:m', 'fl_total_area:km2'],
+                         'obs2': ['fl_surface_h:m', 'fl_total_area:km2', 'dh:m']},
 
-        'obs_reg_parameters': {'reg1': {'scale': {'fl_surface_h:m': 1.,
-                                                  'fl_widths:m': 1.,
-                                                  'dh:m': 1.}},
-                               'reg2': {'scale': {'fl_surface_h:m': 0.1,
-                                                  'fl_widths:m': 0.1,
-                                                  'dh:m': 1.}}
+        'obs_reg_parameters': {'reg1': {'uncertainty': {'fl_surface_h:m': 1.,
+                                                        'fl_total_area:km2': 1.,
+                                                        'dh:m': 1.}},
+                               'reg2': {'uncertainty': {'fl_surface_h:m': 0.1,
+                                                        'fl_total_area:km2': 0.1,
+                                                        'dh:m': 1.}}
                                },
         # Options: 'surface_h', 'height_shift'
         'spinup_options': {
@@ -59,9 +59,9 @@ default_inversion_settings_options = \
         # Used observations (are loaded from gdir)
         # Options: fl_surface_h:m, fl_widths:m, fl_total_area:m2, fl_total_area:km2,
         # area:m2, area:km2, dh:m
-        'observations': ['fl_surface_h:m', 'fl_widths:m', 'dh:m'],
+        'observations': ['fl_surface_h:m', 'fl_total_area:km2', 'dh:m'],
         'obs_reg_parameters': {'scale': {'fl_surface_h:m': 1.,
-                                         'fl_widths:m': 1.,
+                                         'fl_total_area:km2': 1.,
                                          'dh:m': 1.}},
 
         # Options: 'smoothed_bed'
@@ -75,7 +75,7 @@ default_inversion_settings_options = \
 
         # For options check \
         # https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html.
-        'minimize_options': {'maxiter': 10, 'ftol': 1e-7, 'gtol': 1e-8,
+        'minimize_options': {'maxiter': 5, 'ftol': 1e-7, 'gtol': 1e-8,
                              'disp': False, 'maxcor': 50, 'maxls': 50},
         'solver': 'L-BFGS-B',
 
