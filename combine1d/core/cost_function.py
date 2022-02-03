@@ -432,10 +432,8 @@ def get_cost_terms(observations_mdl,
     dObs, nObs = calculate_difference_between_observation_and_model(observations,
                                                                     observations_mdl)
 
-    # see if reg parameters need to be specified
-    if 'scale' in data_logger.obs_reg_parameters.keys():
-        # as a first step scale to Observation values
-        define_reg_parameters(data_logger)
+    # see if reg parameters need to be specified otherwise this function does nothing
+    define_reg_parameters(data_logger)
 
     assert 'scale' not in data_logger.obs_reg_parameters.keys()
     reg_parameters = data_logger.obs_reg_parameters
@@ -477,7 +475,7 @@ def get_cost_terms(observations_mdl,
                                    dtype=data_logger.torch_type,
                                    device=data_logger.device,
                                    requires_grad=False)
-            cost_terms[i_costs] = reg_par * db_dx.pow(2).sum()
+            cost_terms[i_costs] = reg_par * db_dx.pow(2).mean()
 
             cost_terms_description[reg_term] = \
                 cost_terms[i_costs].detach().to('cpu').numpy()
@@ -504,43 +502,81 @@ def calculate_difference_between_observation_and_model(observations, observation
                                            dtype=observations_mdl[ob][year].dtype,
                                            device=observations_mdl[ob][year].device,
                                            requires_grad=False) -
-                              observations_mdl[ob][year]).pow(2).sum()
+                              observations_mdl[ob][year]).pow(2).mean()
 
     return dobs, nobs
 
 
 def define_reg_parameters(data_logger):
-    observations = data_logger.observations
-    scales = data_logger.obs_reg_parameters['scale']
-    torch_type = data_logger.torch_type
-    device = data_logger.device
+    if 'scale' in data_logger.obs_reg_parameters.keys():
+        observations = data_logger.observations
+        scales = data_logger.obs_reg_parameters['scale']
+        torch_type = data_logger.torch_type
+        device = data_logger.device
 
-    reg_parameters = copy.deepcopy(observations)
+        reg_parameters = copy.deepcopy(observations)
 
-    # reference Magnitude to scale to, arbitrary
-    ref_magnitude = torch.tensor([100.],
-                                 dtype=torch_type,
-                                 device=device,
-                                 requires_grad=False)
+        # reference Magnitude to scale to, arbitrary
+        ref_magnitude = torch.tensor([100.],
+                                     dtype=torch_type,
+                                     device=device,
+                                     requires_grad=False)
 
-    # loop through Obs and choose reg_parameters to scale to the absolute value
-    # of Observation, the calculated reg_parameters are squared because the
-    # differences (obs-mdl) are also squared in cost calculation
-    for obs_val in observations.keys():
-        for year in observations[obs_val].keys():
-            # sum is needed for observations along the flowline
-            tmp_obs = torch.tensor(observations[obs_val][year],
-                                   dtype=torch_type,
-                                   device=device,
-                                   requires_grad=False).sum()
-            reg_parameters[obs_val][year] = (ref_magnitude / tmp_obs *
-                                             torch.tensor(scales[obs_val],
-                                                          dtype=torch_type,
-                                                          device=device,
-                                                          requires_grad=False)
-                                             ).pow(2)
+        # loop through Obs and choose reg_parameters to scale to the absolute value
+        # of Observation, the calculated reg_parameters are squared because the
+        # differences (obs-mdl) are also squared in cost calculation
+        for obs_val in observations.keys():
+            for year in observations[obs_val].keys():
+                # sum is needed for observations along the flowline
+                tmp_obs = torch.tensor(observations[obs_val][year],
+                                       dtype=torch_type,
+                                       device=device,
+                                       requires_grad=False).sum()
+                reg_parameters[obs_val][year] = (ref_magnitude / tmp_obs *
+                                                 torch.tensor(scales[obs_val],
+                                                              dtype=torch_type,
+                                                              device=device,
+                                                              requires_grad=False)
+                                                 ).pow(2)
 
-    data_logger.obs_reg_parameters = reg_parameters
+        data_logger.obs_reg_parameters = reg_parameters
+    elif 'uncertainty' in data_logger.obs_reg_parameters.keys():
+        observations = data_logger.observations
+        scales = data_logger.obs_reg_parameters['uncertainty']
+        torch_type = data_logger.torch_type
+        device = data_logger.device
+
+        reg_parameters = copy.deepcopy(observations)
+
+        for obs_val in observations.keys():
+            for year in observations[obs_val].keys():
+                if obs_val in ['fl_surface_h:m', 'fl_widths:m']:
+                    ref_uncertainty = 10.  # m
+                elif obs_val in ['fl_total_area:m2', 'area:m2']:
+                    # convert to km2 and back to m2 with 1e-6 resp. 1e6
+                    ref_uncertainty = (3 * 0.039 * 1e6 *
+                                       (observations[obs_val][year] * 1e-6) ** 1.7)  # m2
+                elif obs_val in ['fl_total_area:km2', 'area:km2']:
+                    ref_uncertainty = (3 * 0.039 *
+                                       (observations[obs_val][year]) ** 1.7)  # km2
+                elif obs_val == 'dh:m':
+                    ref_uncertainty = {
+                        'RGI60-14.06794': 1.1,
+                        'RGI60-11.00897': 1.7,
+                        'RGI60-11.01450': 1.2,
+                        'RGI60-16.02444': 2.3,
+                        'RGI60-16.02207': 1.8,
+                    }[data_logger.gdir.rgi_id]
+                else:
+                    raise NotImplementedError(f'No uncertainty defined for {obs_val}!')
+
+                reg_parameters[obs_val][year] = torch.tensor(
+                    scales[obs_val] * 1 / ref_uncertainty**2,
+                    dtype=torch_type,
+                    device=device,
+                    requires_grad=False)
+
+        data_logger.obs_reg_parameters = reg_parameters
 
 
 def get_gradients(fl_control_vars, mb_control_vars, spinup_control_vars,

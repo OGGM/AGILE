@@ -107,23 +107,26 @@ def get_default_inversion_settings(get_doc=False):
            "'dh' (unit: 'm') geodetic measurement ('time' is given as period, " \
            "e.g. '2009-2015')." \
            "Default: {'fl_surface_h:m': {}, " \
-           "'fl_widths:m': {}"
+           "'fl_total_area:m2': {}"
     _default = {'fl_surface_h:m': {},
-                'fl_widths:m': {}}
+                'fl_total_area:m2': {}}
     add_setting()
 
     _key = "obs_reg_parameters"
-    _doc = "Defines the relative contribution to of the observations to the " \
+    _doc = "TODO (not updated): Defines the relative contribution to of the observations to the " \
            "total cost value. Could be given directly by using a dict with the " \
-           "same keys as 'observations' (e.g. {'fl_surface_h': 10., " \
-           "'fl_widths_m': 1.}). Or one can use a dict with key 'scale' (e.g. " \
+           "same keys as 'observations' (e.g. {'fl_surface_h': 1./10., " \
+           "'fl_total_area:m2': 1./}). The values could reperesent "\
+           "1/measurement_uncertainty. Or (NOT GOOD) one can use a dict with " \
+           "key 'scale' (e.g. " \
            "{'scale': {'fl_surface_h': 10., 'fl_widths_m': 1.}}), this option " \
            "first express the individual mismatches in percent of the " \
            "observation and then multiple with the given numbers (from example " \
            "above this means a mismatch of 1% to 'fl_surface_h' is equally " \
            "weighted as a 10% mismatch to 'fl_widths_m'). " \
            "Default: {'scale': {'fl_surface_h': 1., 'fl_widths_m': 1.}}"
-    _default = {'scale': {'fl_surface_h:m': 1., 'fl_widths:m': 1.}}
+    _default = {'uncertainty': {'fl_surface_h:m': 1.,
+                                'fl_total_area:m2': 1.}}
     add_setting()
 
     _key = "regularisation_terms"
