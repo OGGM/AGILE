@@ -132,7 +132,7 @@ class DataLogger(object):
         current_var = getattr(self, var)
 
         if current_var is None:
-            new_var = data
+            new_var = np.reshape(data, (-1, data.size))
         else:
             new_var = np.reshape(np.append(current_var, data), (-1, data.size))
 
