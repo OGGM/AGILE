@@ -23,6 +23,7 @@ class DataLogger(object):
         self.obs_reg_parameters = inversion_input['obs_reg_parameters']
         self.regularisation_terms = inversion_input['regularisation_terms']
         self.observations = inversion_input['observations']
+        self.observations_for_scaling = inversion_input['observations_for_scaling']
         self.mb_models_settings = inversion_input['mb_models_settings']
         self.min_w0_m = inversion_input['min_w0_m']
         self.min_ice_thickness = inversion_input['min_ice_thickness']
@@ -106,6 +107,7 @@ class DataLogger(object):
         self.minimize_message = None
         self.minimize_status = None
         self.memory_error = False
+        self.extra_bed_h = None
 
         self.filename = gdir.name + '_' + \
                         inversion_input['experiment_description']
@@ -312,6 +314,21 @@ def initialise_DataLogger(gdir, inversion_input_filesuffix='_combine', init_mode
         if obs == 'fl_total_area:km2':
             yr_obs = check_if_year_is_given(obs)
             inversion_input['observations'][obs][yr_obs] = fls_init[0].area_km2
+
+    # save observations for scaling if wanted
+    inversion_input['observations_for_scaling'] = None
+    for reg_term in inversion_input['regularisation_terms']:
+        if reg_term in ['fl_surface_h_scale_1', 'fl_surface_h_scale_2',
+                        'bed_h_grad_scale']:
+            if 'fl_surface_h:m' not in inversion_input['observations'].keys():
+                raise NotImplementedError('fl_surface_h must be observations '
+                                          'if scaling should be used!')
+            if all(k in inversion_input['regularisation_terms'] for k in
+                   ['fl_surface_h_scale_1', 'fl_surface_h_scale_2']):
+                raise NotImplementedError('only one of the two scaling for '
+                                          'fl_surface_h can be used at a time!')
+            inversion_input['observations_for_scaling'] = {
+                'fl_widths:m': fls_init[0].widths_m}
 
     data_logger = DataLogger(gdir, fls_init, inversion_input, climate_filename,
                              climate_filesuffix, output_filesuffix,

@@ -429,7 +429,8 @@ def get_cost_terms(observations_mdl,
     """
     observations = data_logger.observations
     # calculate difference between observations and model
-    dObs, nObs = calculate_difference_between_observation_and_model(observations,
+    dObs, nObs = calculate_difference_between_observation_and_model(data_logger,
+                                                                    observations,
                                                                     observations_mdl)
 
     # see if reg parameters need to be specified otherwise this function does nothing
@@ -468,7 +469,12 @@ def get_cost_terms(observations_mdl,
     # calculate regularisation terms
     for reg_term in data_logger.regularisation_terms.keys():
         if reg_term == 'smoothed_bed':
-            b = flowline.bed_h
+            b_fl = flowline.bed_h
+            b_extra = torch.tensor([data_logger.extra_bed_h],
+                                   dtype=b_fl.dtype,
+                                   device=b_fl.device,
+                                   requires_grad=False)
+            b = torch.cat((b_extra, b_fl), dim=0)
             dx = flowline.dx * flowline.map_dx
             db_dx = (b[1:] - b[:-1]) / dx
             reg_par = torch.tensor(data_logger.regularisation_terms[reg_term],
@@ -479,7 +485,10 @@ def get_cost_terms(observations_mdl,
 
             cost_terms_description[reg_term] = \
                 cost_terms[i_costs].detach().to('cpu').numpy()
-
+        elif reg_term in ['fl_surface_h_scale_1', 'fl_surface_h_scale_2',
+                          'bed_h_grad_scale']:
+            # this regularisation terms are handled elsewhere
+            pass
         else:
             raise NotImplementedError(f'{reg_term}')
         i_costs += 1
@@ -492,17 +501,57 @@ def get_cost_terms(observations_mdl,
     return cost_terms
 
 
-def calculate_difference_between_observation_and_model(observations, observations_mdl):
+def calculate_difference_between_observation_and_model(data_logger,
+                                                       observations,
+                                                       observations_mdl):
     dobs = copy.deepcopy(observations)
     nobs = 0
     for ob in observations.keys():
         for year in observations[ob]:
             nobs += 1
-            dobs[ob][year] = (torch.tensor(observations[ob][year],
-                                           dtype=observations_mdl[ob][year].dtype,
-                                           device=observations_mdl[ob][year].device,
-                                           requires_grad=False) -
-                              observations_mdl[ob][year]).pow(2).mean()
+            if ((ob == 'fl_surface_h:m') and
+                    any(k in data_logger.regularisation_terms for k in
+                        ['fl_surface_h_scale_1', 'fl_surface_h_scale_2'])):
+                device = data_logger.device
+                ice_mask = torch.tensor(data_logger.ice_mask,
+                                        dtype=torch.bool,
+                                        device=device,
+                                        requires_grad=False)
+                obs_ref = torch.tensor(observations[ob][year],
+                                       dtype=observations_mdl[ob][year].dtype,
+                                       device=observations_mdl[ob][year].device,
+                                       requires_grad=False)
+                scale_ref = torch.tensor(
+                    data_logger.observations_for_scaling['fl_widths:m'],
+                    dtype=observations_mdl[ob][year].dtype,
+                    device=observations_mdl[ob][year].device,
+                    requires_grad=False)
+
+                if 'fl_surface_h_scale_1' in data_logger.regularisation_terms:
+                    dobs[ob][year] = (
+                            ((obs_ref[ice_mask] -
+                              observations_mdl[ob][year][ice_mask]).pow(2) /
+                             scale_ref[ice_mask]).mean() +
+                            (obs_ref[~ice_mask] -
+                             observations_mdl[ob][year][~ice_mask]).pow(2).mean()
+                    ).mean()
+                elif 'fl_surface_h_scale_2' in data_logger.regularisation_terms:
+                    dobs[ob][year] = (
+                            ((obs_ref[ice_mask] -
+                              observations_mdl[ob][year][ice_mask]).pow(2) *
+                             scale_ref[ice_mask]).sum() /
+                            scale_ref[ice_mask].sum() +
+                            (obs_ref[~ice_mask] -
+                             observations_mdl[ob][year][~ice_mask]).pow(2).mean()
+                    ).mean()
+                else:
+                    NotImplementedError('')
+            else:
+                dobs[ob][year] = (torch.tensor(observations[ob][year],
+                                               dtype=observations_mdl[ob][year].dtype,
+                                               device=observations_mdl[ob][year].device,
+                                               requires_grad=False) -
+                                  observations_mdl[ob][year]).pow(2).mean()
 
     return dobs, nobs
 
@@ -588,6 +637,12 @@ def get_gradients(fl_control_vars, mb_control_vars, spinup_control_vars,
         if var in fl_control_vars.keys():
             grad[parameter_indices[var]] = fl_control_vars[var].grad.detach(
             ).to('cpu').numpy().astype(np.float64)
+            if ((var == 'bed_h') and
+                    'bed_h_grad_scale' in data_logger.regularisation_terms):
+                ice_mask = data_logger.ice_mask
+                grad[parameter_indices[var]] = grad[parameter_indices[var]] / \
+                    data_logger.observations_for_scaling['fl_widths:m'][ice_mask] * \
+                    np.mean(data_logger.observations_for_scaling['fl_widths:m'][ice_mask])
         elif var in mb_control_vars.keys():
             grad[parameter_indices[var]] = mb_control_vars[var].grad.detach(
             ).to('cpu').numpy().astype(np.float64)

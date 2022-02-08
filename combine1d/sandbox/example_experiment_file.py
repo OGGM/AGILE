@@ -42,7 +42,7 @@ experiment_options = \
                         {
                             'type': 'constant',
                             'years': np.array([1980, 2000]),
-                            'fg_height_shift': 100}}},
+                            'fg_height_shift': -100}}},
             'spn3': None,
         }
     }
@@ -71,7 +71,7 @@ default_inversion_settings_options = \
         'spinup_options': {'height_shift': {'mb_model': {
             'type': 'constant',
             'years': np.array([1980, 2000]),
-            'fg_height_shift': 100}}},
+            'fg_height_shift': -100}}},
 
         # For options check \
         # https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html.

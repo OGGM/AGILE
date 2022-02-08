@@ -154,6 +154,7 @@ class TestCostFct:
                                  data_logger)
 
         dobs, nobs = calculate_difference_between_observation_and_model(
+            data_logger,
             observations,
             observations_mdl)
 
