@@ -29,6 +29,11 @@ def get_first_guess(data_logger):
 
         first_guess[parameter_indices[ind]] = ind_first_guess
 
+    # calculate an extra highest point here so the highest point is of the flowline
+    # is not lowered due to the smoothness regularisation
+    if 'smoothed_bed' in data_logger.regularisation_terms:
+        data_logger.extra_bed_h = 2 * np.max(fl.bed_h) - \
+                                  np.partition(fl.bed_h, -2)[-2]
     return first_guess
 
 

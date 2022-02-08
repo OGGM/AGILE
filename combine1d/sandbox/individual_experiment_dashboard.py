@@ -201,11 +201,29 @@ def individual_experiment_dashboard(working_dir, input_folder,
                                       kdim='ice_mask_x',
                                       height=200)
 
-        # get gradients
         parameter_indices = ds.attrs['parameter_indices']
+        # plot for height shift spinup if there
+        if 'height_shift_spinup' in parameter_indices.keys():
+            height_shift_data = []
+            for i, unknown_p in enumerate(ds.unknown_parameters.values):
+                height_shift_data.append(
+                    (i, unknown_p[parameter_indices['height_shift_spinup']]))
+            height_shift_spinup_plot = hv.Curve(height_shift_data,
+                                                kdims='Iterations',
+                                                vdims='shift (m)',
+                                                ).opts(
+                opts.Curve(title='spinup height shift',
+                           tools=['hover'],
+                           height=200)
+            )
+        else:
+            height_shift_spinup_plot = None
 
+        # get gradients
         data_grad_bed_h = None
         data_grad_w0_m = None
+        data_grad_surface_h = None
+        data_grad_height_shift_spinup = None
 
         if 'bed_h' in parameter_indices.keys():
             data_grad_bed_h = []
@@ -213,21 +231,35 @@ def individual_experiment_dashboard(working_dir, input_folder,
         if 'w0_m' in parameter_indices.keys():
             data_grad_w0_m = []
             grad_w0_m_lim = 0
+        if 'surface_h' in parameter_indices.keys():
+            data_grad_surface_h = []
+            grad_surface_h_lim = 0
+        if 'height_shift_spinup' in parameter_indices.keys():
+            data_grad_height_shift_spinup = []
 
         for i, grad in enumerate(ds.grads.values):
-            x_all = ds.coords['x'][ds.ice_mask].values
+            x_ice_mask = ds.coords['x'][ds.ice_mask].values
+            x_all = ds.coords['x'].values
 
             # bed_h
             if 'bed_h' in parameter_indices.keys():
                 grad_bed_h = grad[parameter_indices['bed_h']]
                 grad_bed_h_lim = np.max([grad_bed_h_lim, np.max(np.abs(grad_bed_h))])
-                for el in [(x, i, v) for x, v in zip(x_all, grad_bed_h)]:
+                for el in [(x, i, v) for x, v in zip(x_ice_mask, grad_bed_h)]:
                     data_grad_bed_h.append(el)
             if 'w0_m' in parameter_indices.keys():
                 grad_w0_m = grad[parameter_indices['w0_m']]
                 grad_w0_m_lim = np.max([grad_w0_m_lim, np.max(np.abs(grad_w0_m))])
-                for el in [(x, i, v) for x, v in zip(x_all, grad_w0_m)]:
+                for el in [(x, i, v) for x, v in zip(x_ice_mask, grad_w0_m)]:
                     data_grad_w0_m.append(el)
+            if 'surface_h' in parameter_indices.keys():
+                grad_surface_h = grad[parameter_indices['surface_h']]
+                grad_surface_h_lim = np.max([grad_surface_h_lim, np.max(np.abs(grad_surface_h))])
+                for el in [(x, i, v) for x, v in zip(x_all, grad_surface_h)]:
+                    data_grad_surface_h.append(el)
+            if 'height_shift_spinup' in parameter_indices.keys():
+                data_grad_height_shift_spinup.append(
+                    (i, grad[parameter_indices['height_shift_spinup']]))
 
         grad_plots = None
         if 'bed_h' in parameter_indices.keys():
@@ -244,6 +276,23 @@ def individual_experiment_dashboard(working_dir, input_folder,
                                           'Grad w0_m',
                                           kdim='ice_mask_x',
                                           height=200))
+
+        if 'surface_h' in parameter_indices.keys():
+            grad_plots.append(get_heatmap(data_grad_surface_h,
+                                          grad_surface_h_lim,
+                                          'Grad surface_h',
+                                          kdim='total_distance_x',
+                                          height=200))
+
+        if 'height_shift_spinup' in parameter_indices.keys():
+            grad_plots.append(hv.Curve(data_grad_height_shift_spinup,
+                                       kdims='Iterations',
+                                       vdims='gradient',
+                                       ).opts(
+                opts.Curve(title='spinup height shift gradient',
+                           tools=['hover'],
+                           height=200)
+            ))
 
         # convert c_terms
         c_terms_conv = {}
@@ -309,14 +358,31 @@ def individual_experiment_dashboard(working_dir, input_folder,
                 fl_ref_end = gdir.read_pickle('model_flowlines',
                                               filesuffix='_combine_true_end')[0]
 
+        def get_performance_sfc_h_array(fct, data, ref_val):
+            return [np.around(fct(val, ref_val), decimals=2) for val in data]
+
+        def get_sfc_h_table(data, ref_val, title):
+            df = pd.DataFrame({'RMSE': get_performance_sfc_h_array(RMSE, data, ref_val),
+                               'BIAS': get_performance_sfc_h_array(BIAS, data, ref_val),
+                               'DIFF': get_performance_sfc_h_array(DIFF, data, ref_val),
+                               'AERR': get_performance_sfc_h_array(AERR, data, ref_val),
+                               })
+            return pn.Column(pn.pane.Markdown('Statistics ' + title),
+                             pn.widgets.Tabulator(df,
+                                                  titles={'index': 'I'},
+                                                  height=200),
+                             sizing_mode='stretch_width')
+
         # sfc_h_end
         d_sfc_h_end_lim = 0.
         data_sfc_h_end = []
+        table_data_sfc_h_end = []
         for i, fl in enumerate(ds.flowlines.values):
             x_all = ds.coords['x'].values
             d_sfc_h_end = (fl.surface_h.detach().cpu().numpy() -
                            fl_ref_end.surface_h)
             d_sfc_h_end_lim = np.max([d_sfc_h_end_lim, np.max(np.abs(d_sfc_h_end))])
+            table_data_sfc_h_end.append(fl.surface_h.detach().cpu().numpy())
             for el in [(x, i, v) for x, v in zip(x_all, d_sfc_h_end)]:
                 data_sfc_h_end.append(el)
         delta_sfc_h_end_plot = get_heatmap(data_sfc_h_end,
@@ -324,16 +390,22 @@ def individual_experiment_dashboard(working_dir, input_folder,
                                            'Delta sfc_h_end',
                                            kdim='total_distance_x',
                                            height=150)
+        delta_sfc_h_end_table = get_sfc_h_table(table_data_sfc_h_end,
+                                                fl_ref_end.surface_h,
+                                                'sfc_h_end')
 
         # sfc_h_rgi
         if 'fl_surface_h:m' in ds.observations_mdl.values[0].keys():
             d_sfc_h_rgi_lim = 0.
             data_sfc_h_rgi = []
+            table_data_sfc_h_rgi = []
             for i, obs in enumerate(ds.observations_mdl.values):
                 x_all = ds.coords['x'].values
                 d_sfc_h_rgi = (list(obs['fl_surface_h:m'].values())[0].detach().cpu().numpy() -
                                fl_ref_rgi.surface_h)
                 d_sfc_h_rgi_lim = np.max([d_sfc_h_rgi_lim, np.max(np.abs(d_sfc_h_rgi))])
+                table_data_sfc_h_rgi.append(list(obs['fl_surface_h:m'].values()
+                                                 )[0].detach().cpu().numpy())
                 for el in [(x, i, v) for x, v in zip(x_all, d_sfc_h_rgi)]:
                     data_sfc_h_rgi.append(el)
             delta_sfc_h_rgi_plot = get_heatmap(data_sfc_h_rgi,
@@ -341,17 +413,23 @@ def individual_experiment_dashboard(working_dir, input_folder,
                                                'Delta sfc_h_rgi',
                                                kdim='total_distance_x',
                                                height=150)
+            delta_sfc_h_rgi_table = get_sfc_h_table(table_data_sfc_h_rgi,
+                                                    fl_ref_rgi.surface_h,
+                                                    'sfc_h_rgi')
         else:
             delta_sfc_h_rgi_plot = None
+            delta_sfc_h_rgi_table = None
 
         # sfc_h_start
         d_sfc_h_start_lim = 0.
         data_sfc_h_start = []
+        table_data_sfc_h_start = []
         for i, tmp_sfc_h in enumerate(ds.sfc_h_start.values):
             x_all = ds.coords['x'].values
             d_sfc_h_start = (tmp_sfc_h -
                              fl_ref_start.surface_h)
             d_sfc_h_start_lim = np.max([d_sfc_h_start_lim, np.max(np.abs(d_sfc_h_start))])
+            table_data_sfc_h_start.append(tmp_sfc_h)
             for el in [(x, i, v) for x, v in zip(x_all, d_sfc_h_start)]:
                 data_sfc_h_start.append(el)
         delta_sfc_h_start_plot = get_heatmap(data_sfc_h_start,
@@ -359,21 +437,29 @@ def individual_experiment_dashboard(working_dir, input_folder,
                                              'Delta sfc_h_start',
                                              kdim='total_distance_x',
                                              height=150)
+        delta_sfc_h_start_table = get_sfc_h_table(table_data_sfc_h_start,
+                                                  fl_ref_start.surface_h,
+                                                  'sfc_h_start')
 
         # create Table with performance measures (bed_h, w0_m, sfc_h_start, sfc_h_end, sfc_h_rgi,
         # fct_calls, time, device)
         def get_performance_array(fct, attr):
-            return [fct(val, getattr(fl_ref, attr)[ds.ice_mask]) for val in
+            return [np.around(fct(val, getattr(fl_ref, attr)[ds.ice_mask]),
+                              decimals=2) for val in
                     [getattr(fl.values.item(), attr).detach().cpu().numpy()[ds.ice_mask]
                      for fl in ds.flowlines]]
 
         def get_performance_table(attr):
-            df = pd.DataFrame({'RMSE(' + attr + ')': get_performance_array(RMSE, attr),
-                               'BIAS(' + attr + ')': get_performance_array(BIAS, attr),
-                               'DIFF(' + attr + ')': get_performance_array(DIFF, attr),
-                               'AERR(' + attr + ')': get_performance_array(AERR, attr),
+            df = pd.DataFrame({'RMSE': get_performance_array(RMSE, attr),
+                               'BIAS': get_performance_array(BIAS, attr),
+                               'DIFF': get_performance_array(DIFF, attr),
+                               'AERR': get_performance_array(AERR, attr),
                                })
-            return pn.widgets.Tabulator(df)
+            return pn.Column(pn.pane.Markdown('Statistics ' + attr),
+                             pn.widgets.Tabulator(df,
+                                                  titles={'index': 'I'},
+                                                  height=200),
+                             sizing_mode='stretch_width')
 
         def get_minimise_performance_table():
             df = pd.DataFrame({'forward runs': ds.fct_calls.values,
@@ -383,11 +469,11 @@ def individual_experiment_dashboard(working_dir, input_folder,
                                })
             return pn.widgets.Tabulator(df)
 
-        performance_accordion = \
-            pn.Accordion(('performance bed_h', get_performance_table('bed_h')),
-                         ('performance w0_m', get_performance_table('_w0_m')),
-                         ('minimise performance', get_minimise_performance_table()),
-                         sizing_mode='stretch_width')
+        performance_tables = \
+            pn.Column(get_performance_table('bed_h'),
+                      get_performance_table('_w0_m'),
+                      get_minimise_performance_table(),
+                      sizing_mode='stretch_width')
 
         # create plot for exploration of geometry
         # thickness at end time
@@ -450,7 +536,7 @@ def individual_experiment_dashboard(working_dir, input_folder,
                        surface_widths_rgi_true_plot *
                        surface_widths_end_true_plot
                        ).opts(title='Surface widths',
-                              #legend_position='right',
+                              # legend_position='right',
                               show_legend=False
                               )
 
@@ -498,6 +584,7 @@ def individual_experiment_dashboard(working_dir, input_folder,
                                  pn.Row(
                                      pn.Column(delta_bed_h_plot,
                                                delta_w0_m_plot,
+                                               height_shift_spinup_plot,
                                                sizing_mode='stretch_width'
                                                ),
                                      grad_plots
@@ -508,12 +595,15 @@ def individual_experiment_dashboard(working_dir, input_folder,
                              pn.Column(delta_sfc_h_start_plot,
                                        delta_sfc_h_rgi_plot,
                                        delta_sfc_h_end_plot,
-                                       performance_accordion,
+                                       delta_sfc_h_start_table,
+                                       delta_sfc_h_rgi_table,
+                                       delta_sfc_h_end_table,
                                        sizing_mode='stretch_width'),
                              pn.Column(thick_end_plot,
                                        thick_end_true_plot,
                                        widths_plot,
                                        surface_height_plot,
+                                       performance_tables,
                                        sizing_mode='stretch_width'),
                          ),
                          sizing_mode='stretch_width')
@@ -551,15 +641,15 @@ def individual_experiment_dashboard(working_dir, input_folder,
         else:
             button.name = 'Select new one'
             button.button_type = 'primary'
-        current_file = current_file[0]
+            current_file = current_file[0]
 
-        # if the first time open it
-        if current_file not in open_files.keys():
-            with open(input_folder + current_file, 'rb') as handle:
-                open_files[current_file] = CpuUnpickler(handle).load()
-                # pickle.load(handle,)
+            # if the first time open it
+            if current_file not in open_files.keys():
+                with open(input_folder + current_file, 'rb') as handle:
+                    open_files[current_file] = CpuUnpickler(handle).load()
+                    # pickle.load(handle,)
 
-        figure.objects = [get_individual_plot(current_file)]
+            figure.objects = [get_individual_plot(current_file)]
 
     button.on_click(partial(change_figure, open_files=open_files))
 

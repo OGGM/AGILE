@@ -134,6 +134,10 @@ def get_default_inversion_settings(get_doc=False):
            "their reg parameter). " \
            "Options: " \
            "'smoothed_bed' adds a term which prefer smoother beds. " \
+           "(NOT GOOD) 'fl_surface_h_scale_1' scale fl_surface_h in cost function with 1/wk. " \
+           "(NOT GOOD) 'fl_surface_h_scale_2' scale fl_surface_h in cost function with " \
+           "1/sum(wk) ()² * wk." \
+           "(NOT GOOD) 'bed_h_grad_scale' scales the bed_h gradient with width." \
            "Default: {'smoothed_bed': 1}"
     _default = {'smoothed_bed': 1.}
     add_setting()
@@ -162,7 +166,7 @@ def get_default_inversion_settings(get_doc=False):
            "'years': np.array([1980, 2000]), 't_bias': -2}}}"
     _default = {'height_shift': {'mb_model': {'type': 'constant',
                                               'years': np.array([1980, 2000]),
-                                              'fg_height_shift': 100}}}
+                                              'fg_height_shift': -100}}}
     # {'surface_h': {'mb_model': {'type': 'constant',
     #                                        'years': np.array([1980, 2000]),
     #                                        't_bias': -2}
