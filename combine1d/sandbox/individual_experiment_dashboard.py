@@ -2,6 +2,8 @@ import pickle
 from functools import partial
 from itertools import compress
 import os
+import io
+import torch
 import xarray as xr
 import pandas as pd
 import numpy as np
@@ -16,7 +18,18 @@ hv.extension('bokeh')
 import hvplot.xarray
 
 from oggm import cfg, utils, workflow, tasks, graphics
+
 cfg.initialize(logging_level='WARNING')
+
+
+# workaround to unpickle tensor on cpu which were originally stored on gpu
+class CpuUnpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        if module == 'torch.storage' and name == '_load_from_bytes':
+            return lambda b: torch.load(io.BytesIO(b), map_location='cpu')
+        else:
+            return super().find_class(module, name)
+
 
 options_selects = []
 all_experiment_settings = {}
@@ -152,19 +165,19 @@ def individual_experiment_dashboard(working_dir, input_folder,
             x_all = ds.coords['x'][ds.ice_mask].values
 
             # bed_h
-            d_bed_h = (fl.bed_h.detach().numpy() - fl_ref.bed_h)[ds.ice_mask]
+            d_bed_h = (fl.bed_h.detach().cpu().numpy() - fl_ref.bed_h)[ds.ice_mask]
             d_bed_h_lim = np.max([d_bed_h_lim, np.max(np.abs(d_bed_h))])
             for el in [(x, i, v) for x, v in zip(x_all, d_bed_h)]:
                 data_bed_h.append(el)
 
             # w0_m
-            d_w0_m = (fl._w0_m.detach().numpy() - fl_ref._w0_m)[ds.ice_mask]
+            d_w0_m = (fl._w0_m.detach().cpu().numpy() - fl_ref._w0_m)[ds.ice_mask]
             d_w0_m_lim = np.max([d_w0_m_lim, np.max(np.abs(d_w0_m))])
             for el in [(x, i, v) for x, v in zip(x_all, d_w0_m)]:
                 data_w0_m.append(el)
 
-        def get_heatmap(data, lim, title, kdim='x', height=200):
-            return hv.HeatMap(data, kdims=[kdim, 'Iteration']).opts(
+        def get_heatmap(data, lim, title, kdim='x', vdim='Iteration', height=200):
+            return hv.HeatMap(data, kdims=[kdim, vdim]).opts(
                 opts.HeatMap(tools=['hover'],
                              colorbar=True,
                              width=350,
@@ -301,7 +314,7 @@ def individual_experiment_dashboard(working_dir, input_folder,
         data_sfc_h_end = []
         for i, fl in enumerate(ds.flowlines.values):
             x_all = ds.coords['x'].values
-            d_sfc_h_end = (fl.surface_h.detach().numpy() -
+            d_sfc_h_end = (fl.surface_h.detach().cpu().numpy() -
                            fl_ref_end.surface_h)
             d_sfc_h_end_lim = np.max([d_sfc_h_end_lim, np.max(np.abs(d_sfc_h_end))])
             for el in [(x, i, v) for x, v in zip(x_all, d_sfc_h_end)]:
@@ -313,20 +326,23 @@ def individual_experiment_dashboard(working_dir, input_folder,
                                            height=150)
 
         # sfc_h_rgi
-        d_sfc_h_rgi_lim = 0.
-        data_sfc_h_rgi = []
-        for i, obs in enumerate(ds.observations_mdl.values):
-            x_all = ds.coords['x'].values
-            d_sfc_h_rgi = (list(obs['fl_surface_h:m'].values())[0].detach().numpy() -
-                           fl_ref_rgi.surface_h)
-            d_sfc_h_rgi_lim = np.max([d_sfc_h_rgi_lim, np.max(np.abs(d_sfc_h_rgi))])
-            for el in [(x, i, v) for x, v in zip(x_all, d_sfc_h_rgi)]:
-                data_sfc_h_rgi.append(el)
-        delta_sfc_h_rgi_plot = get_heatmap(data_sfc_h_rgi,
-                                           d_sfc_h_rgi_lim,
-                                           'Delta sfc_h_rgi',
-                                           kdim='total_distance_x',
-                                           height=150)
+        if 'fl_surface_h:m' in ds.observations_mdl.values[0].keys():
+            d_sfc_h_rgi_lim = 0.
+            data_sfc_h_rgi = []
+            for i, obs in enumerate(ds.observations_mdl.values):
+                x_all = ds.coords['x'].values
+                d_sfc_h_rgi = (list(obs['fl_surface_h:m'].values())[0].detach().cpu().numpy() -
+                               fl_ref_rgi.surface_h)
+                d_sfc_h_rgi_lim = np.max([d_sfc_h_rgi_lim, np.max(np.abs(d_sfc_h_rgi))])
+                for el in [(x, i, v) for x, v in zip(x_all, d_sfc_h_rgi)]:
+                    data_sfc_h_rgi.append(el)
+            delta_sfc_h_rgi_plot = get_heatmap(data_sfc_h_rgi,
+                                               d_sfc_h_rgi_lim,
+                                               'Delta sfc_h_rgi',
+                                               kdim='total_distance_x',
+                                               height=150)
+        else:
+            delta_sfc_h_rgi_plot = None
 
         # sfc_h_start
         d_sfc_h_start_lim = 0.
@@ -348,7 +364,7 @@ def individual_experiment_dashboard(working_dir, input_folder,
         # fct_calls, time, device)
         def get_performance_array(fct, attr):
             return [fct(val, getattr(fl_ref, attr)[ds.ice_mask]) for val in
-                    [getattr(fl.values.item(), attr).detach().numpy()[ds.ice_mask]
+                    [getattr(fl.values.item(), attr).detach().cpu().numpy()[ds.ice_mask]
                      for fl in ds.flowlines]]
 
         def get_performance_table(attr):
@@ -373,6 +389,109 @@ def individual_experiment_dashboard(working_dir, input_folder,
                          ('minimise performance', get_minimise_performance_table()),
                          sizing_mode='stretch_width')
 
+        # create plot for exploration of geometry
+        # thickness at end time
+        data_thick_end = []
+        thick_end_lim = 0.
+        for i, fl in enumerate(ds.flowlines.values):
+            x_all = ds.coords['x'].values
+            thick_end = fl.thick.detach().cpu().numpy()
+            thick_end_lim = np.max([thick_end_lim, np.max(np.abs(thick_end))])
+            for el in [(x, i, v) for x, v in zip(x_all, thick_end)]:
+                data_thick_end.append(el)
+        thick_end_plot = get_heatmap(data_thick_end,
+                                     thick_end_lim,
+                                     'Ice thickness at end time',
+                                     kdim='total_distance_x',
+                                     height=150)
+        thick_end_true = fl_ref_end.thick
+        thick_end_true_lim = np.max(np.abs(thick_end_true))
+        x_all = ds.coords['x'].values
+        data_thick_end_true = []
+        for el in [(x, 0, v) for x, v in zip(x_all, thick_end_true)]:
+            data_thick_end_true.append(el)
+        thick_end_true_plot = get_heatmap(data_thick_end_true,
+                                          thick_end_true_lim,
+                                          'Ice thickness at end time TRUE',
+                                          kdim='total_distance_x',
+                                          vdim='true',
+                                          height=100)
+
+        # surface widths
+        def get_width_curve(x, width, label, color, height=150):
+            return (hv.Curve((x, width / 2),
+                             kdims='total_distance_x',
+                             vdims='widths',
+                             label=label,
+                             ) *
+                    hv.Curve((x, - width / 2),
+                             kdims='total_distance_x',
+                             vdims='widths',
+                             label=label,
+                             )
+                    ).opts(opts.Curve(color=color,
+                                      tools=['hover'],
+                                      height=height))
+
+        x_all = ds.coords['x'].values
+        surface_widths_rgi_true_plot = get_width_curve(x_all,
+                                                       fl_ref_rgi.widths_m,
+                                                       'RGI',
+                                                       'blue')
+        surface_widths_start_true_plot = get_width_curve(x_all,
+                                                         fl_ref_start.widths_m,
+                                                         'Start',
+                                                         'red')
+        surface_widths_end_true_plot = get_width_curve(x_all,
+                                                       fl_ref_end.widths_m,
+                                                       'End',
+                                                       'gray')
+        widths_plot = (surface_widths_start_true_plot *
+                       surface_widths_rgi_true_plot *
+                       surface_widths_end_true_plot
+                       ).opts(title='Surface widths',
+                              #legend_position='right',
+                              show_legend=False
+                              )
+
+        # Surface_h with bed_h
+        x_all = ds.coords['x'].values
+
+        def get_curve(x, y, label, color, height=200):
+            return hv.Curve((x, y),
+                            kdims='total_distance_x',
+                            vdims='heights',
+                            label=label
+                            ).opts(opts.Curve(color=color,
+                                              tools=['hover'],
+                                              height=height))
+
+        surface_height_start_true_plot = get_curve(x_all,
+                                                   fl_ref_start.surface_h,
+                                                   'Start',
+                                                   'red')
+        surface_height_rgi_true_plot = get_curve(x_all,
+                                                 fl_ref_rgi.surface_h,
+                                                 'RGI',
+                                                 'blue')
+        surface_height_end_true_plot = get_curve(x_all,
+                                                 fl_ref_end.surface_h,
+                                                 'End',
+                                                 'gray')
+        bed_height_true_plot = get_curve(x_all,
+                                         fl_ref_rgi.bed_h,
+                                         'bed_h',
+                                         'black')
+
+        surface_height_plot = (bed_height_true_plot *
+                               surface_height_start_true_plot *
+                               surface_height_rgi_true_plot *
+                               surface_height_end_true_plot
+                               ).opts(title='Surface heights',
+                                      legend_position='bottom',
+                                      legend_cols=2
+                                      )
+
         return pn.Column('## ' + current_file,
                          pn.Row(
                              pn.Column(
@@ -390,7 +509,12 @@ def individual_experiment_dashboard(working_dir, input_folder,
                                        delta_sfc_h_rgi_plot,
                                        delta_sfc_h_end_plot,
                                        performance_accordion,
-                                       sizing_mode='stretch_width')
+                                       sizing_mode='stretch_width'),
+                             pn.Column(thick_end_plot,
+                                       thick_end_true_plot,
+                                       widths_plot,
+                                       surface_height_plot,
+                                       sizing_mode='stretch_width'),
                          ),
                          sizing_mode='stretch_width')
 
@@ -405,7 +529,8 @@ def individual_experiment_dashboard(working_dir, input_folder,
                                             for file in current_file_first]))
     current_file_first = current_file_first[0]
     with open(input_folder + current_file_first, 'rb') as handle:
-        open_files[current_file_first] = pickle.load(handle)
+        open_files[current_file_first] = CpuUnpickler(handle).load()
+        # pickle.load(handle)
 
     figure = get_individual_plot(current_file_first)
 
@@ -431,7 +556,8 @@ def individual_experiment_dashboard(working_dir, input_folder,
         # if the first time open it
         if current_file not in open_files.keys():
             with open(input_folder + current_file, 'rb') as handle:
-                open_files[current_file] = pickle.load(handle)
+                open_files[current_file] = CpuUnpickler(handle).load()
+                # pickle.load(handle,)
 
         figure.objects = [get_individual_plot(current_file)]
 
@@ -442,5 +568,3 @@ def individual_experiment_dashboard(working_dir, input_folder,
                             figure)
 
     return individual_app, open_files
-
-
