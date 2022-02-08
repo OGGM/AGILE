@@ -204,7 +204,7 @@ def get_default_inversion_settings(get_doc=False):
     _doc = "The device of the computation, if 'cuda' it is checked if a GPU is " \
            "available, otherwise 'cpu' is selected. " \
            "Options: 'cpu', 'cuda'. Default: 'cuda'."
-    _default = 'cuda'
+    _default = 'cpu'
     add_setting()
 
     if get_doc:
