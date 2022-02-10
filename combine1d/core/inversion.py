@@ -300,16 +300,18 @@ def combine_inversion(gdir, inversion_input_filesuffix='_combine',
         data_logger.minimize_message = 'Maximum calculation time reached!'
         data_logger.minimize_status = 'max calc time reached'
 
+    log.debug('Minimisation finished')
     # filter out data used by minimize function for exploratory
     data_logger.filter_data_from_optimization()
 
     data_logger.end_time = time.time()
 
     if save_dataset:
+        log.debug('Save Dataset')
         # save results to file
         data_logger.create_and_save_dataset()
 
     gdir.write_pickle(data_logger.flowlines[-1], 'model_flowlines',
                       filesuffix=output_filesuffix)
-
+    log.debug('Combine Inversion finished')
     return data_logger

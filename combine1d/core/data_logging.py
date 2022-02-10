@@ -1,4 +1,5 @@
 import pickle
+import logging
 
 import torch
 import numpy as np
@@ -10,6 +11,9 @@ import os
 import warnings
 import copy
 from oggm.core.flowline import FileModel, MixedBedFlowline
+
+# Module logger
+log = logging.getLogger(__name__)
 
 
 class DataLogger(object):
@@ -141,6 +145,7 @@ class DataLogger(object):
         setattr(self, var, new_var)
 
     def callback_fct(self, x0):
+        log.debug('In callback function of minimisation (Successful Iteration)')
         i = len(self.costs) - 1
         # make sure that there are some results to show (if no calculation was
         # perfomed there is nothing to show)
