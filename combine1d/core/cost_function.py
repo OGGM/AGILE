@@ -1,4 +1,5 @@
 import copy
+import logging
 import numpy as np
 import torch
 import time
@@ -6,6 +7,8 @@ import time
 from combine1d.core.dynamics import run_model_and_get_temporal_model_data
 from combine1d.core.massbalance import ConstantMassBalanceTorch
 from combine1d.core.flowline import MixedBedFlowline, FluxBasedModel
+
+log = logging.getLogger(__name__)
 
 
 def create_cost_fct(data_logger):
@@ -128,7 +131,7 @@ def cost_fct(unknown_parameters, data_logger):
         The gradient for each unknown_parameter with respect to the cost value.
 
     '''
-
+    log.debug('Start cost function calculation')
     flowline, fl_control_vars = initialise_flowline(unknown_parameters,
                                                     data_logger)
 
@@ -178,6 +181,7 @@ def cost_fct(unknown_parameters, data_logger):
         grad = np.empty(len(unknown_parameters)) * np.nan
         return cost, grad
 
+    log.debug('get cost terms')
     # calculate terms of cost function
     c_terms = get_cost_terms(observations_mdl,
                              final_fl,  # for regularisation term 'smoothed_bed'
@@ -187,12 +191,14 @@ def cost_fct(unknown_parameters, data_logger):
     # sum up cost function terms
     c = c_terms.sum()
 
+    log.debug('gradient calculation')
     # calculate the gradient for the control variables
     c.backward()
 
     # convert cost to numpy array
     cost = c.detach().to('cpu').numpy().astype(np.float64)
 
+    log.debug('get gradients')
     # get gradient/s as numpy array
     grad = get_gradients(fl_control_vars,
                          mb_control_vars,
@@ -214,7 +220,7 @@ def cost_fct(unknown_parameters, data_logger):
 
     data_logger.fct_calls = np.append(data_logger.fct_calls,
                                       data_logger.fct_calls[-1] + 1)
-
+    log.debug('finished cost and gradient calculation')
     return cost, grad
 
 

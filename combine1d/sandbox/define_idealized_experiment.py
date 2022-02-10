@@ -27,7 +27,7 @@ def idealized_experiment(use_experiment_glaciers=None,
     utils.mkdir(output_folder)
 
     cfg.initialize(file=params_file, params=override_params,
-                   logging_level=logging_level)
+                   logging_level=logging_level, future=True)
 
     cfg.PARAMS['cfl_number'] = 0.01
     cfg.PARAMS['use_multiprocessing'] = use_multiprocessing

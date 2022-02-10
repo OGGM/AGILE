@@ -267,7 +267,7 @@ def combine_inversion(gdir, inversion_input_filesuffix='_combine',
                       output_filepath=None, save_dataset=True):
     """TODO
     """
-
+    log.debug('initialise Datalogger')
     data_logger = initialise_DataLogger(gdir,
                                         inversion_input_filesuffix=inversion_input_filesuffix,
                                         init_model_filesuffix=init_model_filesuffix,
@@ -276,11 +276,13 @@ def combine_inversion(gdir, inversion_input_filesuffix='_combine',
                                         climate_filesuffix=climate_filesuffix,
                                         output_filesuffix=output_filesuffix,
                                         output_filepath=output_filepath)
-
+    log.debug('initialise cost function')
     cost_fct = create_cost_fct(data_logger)
 
+    log.debug('initialise first guess')
     first_guess = get_first_guess(data_logger)
 
+    log.debug('initialise control var bounds')
     bounds = get_control_var_bounds(data_logger)
 
     # continue here
