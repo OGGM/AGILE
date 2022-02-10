@@ -1,4 +1,5 @@
 import pickle
+import re
 from functools import partial
 from itertools import compress
 import os
@@ -50,11 +51,11 @@ def define_options_for_experiment(event):
     main_options = []
     option_used = []
     for opt in all_options:
-        if opt[:-1] not in option_used:
+        if ''.join(re.findall("[a-zA-Z]+", opt)) not in option_used:
             main_options.append(opt)
-            option_used.append(opt[:-1])
+            option_used.append(''.join(re.findall("[a-zA-Z]+", opt)))
     for main_opt in main_options:
-        name_tmp = main_opt[:-1]
+        name_tmp = ''.join(re.findall("[a-zA-Z]+", main_opt))
         index = [all([tmp == '' or tmp.isdecimal()
                       for tmp in opt.split(name_tmp)])
                  for opt in all_options]
