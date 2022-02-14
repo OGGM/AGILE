@@ -238,12 +238,12 @@ class DataLogger(object):
         path = self.gdir.dir
         list_of_files = os.listdir(path)
         if (self.filename + '.pkl') in list_of_files:
-            for file_nr in range(10):
+            for file_nr in range(20):
                 if (self.filename + '_' + str(file_nr) + '.pkl') \
                         not in list_of_files:
                     self.filename += ('_' + str(file_nr))
                     break
-                if file_nr == 9:
+                if file_nr == 19:
                     raise ValueError('There are to many files with the same '
                                      'name!')
 
@@ -317,11 +317,11 @@ def initialise_DataLogger(gdir, inversion_input_filesuffix='_combine',
     # save observations for scaling if wanted
     inversion_input['observations_for_scaling'] = None
     for reg_term in inversion_input['regularisation_terms']:
-        if reg_term in ['fl_surface_h_scale_1', 'fl_surface_h_scale_2',
-                        'bed_h_grad_scale']:
+        if (reg_term in ['fl_surface_h_scale_1', 'fl_surface_h_scale_2',
+                         'bed_h_grad_scale']):
             if ('fl_surface_h:m' not in inversion_input['observations'].keys()
-                and (reg_term in ['fl_surface_h_scale_1',
-                                  'fl_surface_h_scale_2'])):
+                    and (reg_term in ['fl_surface_h_scale_1',
+                                      'fl_surface_h_scale_2'])):
                 raise NotImplementedError('fl_surface_h must be observations '
                                           'if scaling should be used!')
             if all(k in inversion_input['regularisation_terms'] for k in
@@ -330,6 +330,15 @@ def initialise_DataLogger(gdir, inversion_input_filesuffix='_combine',
                                           'fl_surface_h can be used at a time!')
             inversion_input['observations_for_scaling'] = {
                 'fl_widths:m': fls_init[0].widths_m}
+    if 'area_bed_h' in inversion_input['control_vars']:
+        inversion_input['observations_for_scaling'] = {
+            'fl_widths:m': fls_init[0].widths_m}
+
+    if all(k in inversion_input['control_vars'] for k in ['bed_h',
+                                                          'area_bed_h']):
+        raise NotImplementedError("It is not possible to define 'bed_h' and "
+                                  "'area_bed_h' as control variables "
+                                  "simultaneously!")
 
     data_logger = DataLogger(gdir, fls_init, inversion_input, climate_filename,
                              climate_filesuffix, output_filesuffix,

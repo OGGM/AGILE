@@ -70,8 +70,8 @@ def observations():
             }
 
 
-@pytest.fixture(params=[['bed_h'], ['bed_h', 'w0_m'], 'all'],
-                ids=['bed_h', 'bed_h & w0_m', 'all'])
+@pytest.fixture(params=[['bed_h'], ['bed_h', 'w0_m'], ['area_bed_h'], 'all'],
+                ids=['bed_h', 'bed_h & w0_m', 'area_bed_h', 'all'])
 def control_vars(request):
     return request.param
 
@@ -84,7 +84,7 @@ def control_vars(request):
                          },
                         {'height_shift': {'mb_model': {'type': 'constant',
                                                        'years': np.array([1980, 2000]),
-                                                       'fg_height_shift': 100}
+                                                       'fg_height_shift': -100}
                                           }
                          }
                         ],

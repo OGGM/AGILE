@@ -52,8 +52,9 @@ class TestInversion:
                 assert val <= bounds[i][1]
 
     @pytest.mark.parametrize('control_vars', [['bed_h'], ['bed_h', 'w0_m'],
+                                              ['area_bed_h'],
                                               'all'],
-                             ids=['bed_h', 'bed_h & w0_m', 'all'])
+                             ids=['bed_h', 'bed_h & w0_m', 'area_bed_h', 'all'])
     @pytest.mark.parametrize('spinup_options', [None,
                                                 {'surface_h': {'mb_model':
                                                                    {'type': 'constant',

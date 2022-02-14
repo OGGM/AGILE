@@ -31,7 +31,7 @@ def get_default_inversion_settings(get_doc=False):
     _key = "control_vars"
     _doc = "Defines the control variables in an array which are changed during " \
            "the inversion. " \
-           "Options: 'bed_h', 'lambdas', 'w0_m'. Default: ['bed_h']"
+           "Options: 'bed_h', 'lambdas', 'w0_m', 'area_bed_h'. Default: ['bed_h']"
     _default = ['bed_h']
     add_setting()
 
@@ -117,7 +117,7 @@ def get_default_inversion_settings(get_doc=False):
     _doc = "TODO (not updated): Defines the relative contribution to of the observations to the " \
            "total cost value. Could be given directly by using a dict with the " \
            "same keys as 'observations' (e.g. {'fl_surface_h': 1./10., " \
-           "'fl_total_area:m2': 1./}). The values could reperesent "\
+           "'fl_total_area:m2': 1./}). The values could reperesent " \
            "1/measurement_uncertainty. Or (NOT GOOD) one can use a dict with " \
            "key 'scale' (e.g. " \
            "{'scale': {'fl_surface_h': 10., 'fl_widths_m': 1.}}), this option " \
@@ -236,8 +236,18 @@ def get_control_var_bounds(data_logger):
             fl = data_logger.flowline_init
             ice_mask = data_logger.ice_mask
             bounds[var_indices] = [(sfc_h - data_logger.max_ice_thickness,
-                                    sfc_h + data_logger.min_ice_thickness)
+                                    sfc_h - data_logger.min_ice_thickness)
                                    for sfc_h in fl.surface_h[ice_mask]]
+        elif var == 'area_bed_h':
+            fl = data_logger.flowline_init
+            ice_mask = data_logger.ice_mask
+            bounds[var_indices] = [((sfc_h - data_logger.max_ice_thickness) *
+                                    width_m,
+                                    (sfc_h - data_logger.min_ice_thickness) *
+                                    width_m)
+                                   for sfc_h, width_m in zip(fl.surface_h[ice_mask],
+                                                             fl.widths_m[ice_mask])
+                                   ]
         elif var == 'surface_h':
             fl = data_logger.flowline_init
             bounds[var_indices] = [(sfc_h - data_logger.max_deviation_surface_h,

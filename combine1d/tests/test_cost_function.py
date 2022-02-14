@@ -27,13 +27,20 @@ class TestCreateCostFct:
         fl = data_logger.flowline_init
 
         for key in known_parameters.keys():
-            assert key in data_logger.control_vars
+            if 'area_bed_h' in data_logger.control_vars:
+                assert 'bed_h' in known_parameters
+            else:
+                assert key in data_logger.control_vars
             if key in ['w0_m', 'lambdas']:
                 prefix = '_'
                 mask = (data_logger.is_trapezoid & data_logger.ice_mask)
             elif key in ['bed_h']:
                 prefix = ''
                 mask = data_logger.ice_mask
+            elif key in ['area_bed_h']:
+                prefix = ''
+                mask = data_logger.ice_mask
+                key = 'bed_h'
             elif key in ['surface_h']:
                 prefix = ''
                 mask = np.full(data_logger.ice_mask.shape, True)
@@ -120,7 +127,8 @@ class TestCostFct:
         flowline, fl_control_vars = initialise_flowline(unknown_parameters,
                                                         data_logger)
 
-        potential_fl_control_vars = ['bed_h', 'surface_h', 'lambdas', 'w0_m']
+        potential_fl_control_vars = ['bed_h', 'surface_h', 'lambdas', 'w0_m',
+                                     'area_bed_h']
         for key in fl_control_vars.keys():
             assert key in data_logger.control_vars
             assert key in potential_fl_control_vars

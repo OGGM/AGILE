@@ -17,6 +17,8 @@ def get_first_guess(data_logger):
     for ind in parameter_indices:
         if ind in ['bed_h']:
             ind_first_guess = getattr(fl, ind)[ice_mask]
+        elif ind in ['area_bed_h']:
+            ind_first_guess = fl.bed_h[ice_mask] * fl.widths_m[ice_mask]
         elif ind in ['w0_m', 'lambdas']:
             ind_first_guess = getattr(fl, '_' + ind)[(is_trapezoid & ice_mask)]
         elif ind in ['surface_h']:

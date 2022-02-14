@@ -48,7 +48,7 @@ def get_known_parameters(data_logger):
 
     # save guard if new control vars are added
     potential_control_vars = ['bed_h', 'surface_h', 'lambdas', 'w0_m',
-                              'height_shift_spinup']
+                              'height_shift_spinup', 'area_bed_h']
 
     # extract the ice free parts of variables of the control_vars which are
     # assumed to be known
@@ -60,9 +60,11 @@ def get_known_parameters(data_logger):
             prefix_var = '_'
             known_index = (is_rectangular | is_parabolic |
                            (is_trapezoid & ~ice_mask))
-        elif con_var in ['bed_h']:
+        elif con_var in ['bed_h', 'area_bed_h']:
             prefix_var = ''
             known_index = ~ice_mask
+            if con_var == 'area_bed_h':
+                con_var = 'bed_h'
         elif con_var in ['surface_h']:
             prefix_var = ''
             known_index = np.full(ice_mask.shape, False)
@@ -87,7 +89,7 @@ def get_indices_for_unknown_parameters(data_logger):
 
     for control_var in data_logger.control_vars:
         # for these variables the length is assumed to be the whole ice area
-        if control_var in ['bed_h']:
+        if control_var in ['bed_h', 'area_bed_h']:
             parameter_length = ice_grid_points
         elif control_var in ['surface_h']:
             parameter_length = grid_points
@@ -258,15 +260,34 @@ def initialise_flowline(unknown_parameters, data_logger):
                               device=device,
                               requires_grad=False)
 
-    # initialise all potential control variables for flowline as empty tensor and fill them
-    all_potential_control_vars = ['bed_h', 'surface_h', 'lambdas', 'w0_m']
+    # initialise all potential control variables for flowline as empty tensor
+    # and fill them
+    all_potential_control_vars = ['surface_h', 'lambdas', 'w0_m']
+    if not any(k in parameter_indices.keys() for k in ['bed_h', 'area_bed_h']):
+        all_potential_control_vars.insert(0, 'bed_h')
+    elif all(k in parameter_indices.keys() for k in ['bed_h', 'area_bed_h']):
+        raise NotImplementedError("It is not possible to define 'bed_h' and "
+                                  "'area_bed_h' as control variables "
+                                  "simultaneously!")
+    elif 'bed_h' in parameter_indices.keys():
+        all_potential_control_vars.insert(0, 'bed_h')
+    elif 'area_bed_h' in parameter_indices.keys():
+        all_potential_control_vars.insert(0, 'area_bed_h')
+    else:
+        raise NotImplementedError('I have not expected to come to this point!')
     fl_vars_total = {}  # they are used for actual initialisation
     fl_control_vars = {}  # are used for reading out the gradients later
     for var in all_potential_control_vars:
-        fl_vars_total[var] = torch.empty(nx,
-                                         dtype=torch_type,
-                                         device=device,
-                                         requires_grad=False)
+        if var == 'area_bed_h':
+            fl_vars_total['bed_h'] = torch.empty(nx,
+                                                 dtype=torch_type,
+                                                 device=device,
+                                                 requires_grad=False)
+        else:
+            fl_vars_total[var] = torch.empty(nx,
+                                             dtype=torch_type,
+                                             device=device,
+                                             requires_grad=False)
 
         if var in parameter_indices.keys():
             fl_control_vars[var] = torch.tensor(unknown_parameters[parameter_indices[var]],
@@ -274,7 +295,7 @@ def initialise_flowline(unknown_parameters, data_logger):
                                                 device=device,
                                                 requires_grad=True)
 
-            if var in ['bed_h']:
+            if var in ['bed_h', 'area_bed_h']:
                 var_index = ice_mask
             elif var in ['surface_h']:
                 var_index = np.full(ice_mask.shape, True)
@@ -283,11 +304,23 @@ def initialise_flowline(unknown_parameters, data_logger):
             else:
                 raise NotImplementedError(f'{var}')
 
-            fl_vars_total[var][var_index] = fl_control_vars[var]
-            fl_vars_total[var][~var_index] = torch.tensor(known_parameters[var],
-                                                          dtype=torch_type,
-                                                          device=device,
-                                                          requires_grad=False)
+            if var in ['area_bed_h']:
+                fl_vars_total['bed_h'][var_index] = (
+                    fl_control_vars[var] /
+                    torch.tensor(data_logger.observations_for_scaling['fl_widths:m'][var_index],
+                                 dtype=torch_type,
+                                 device=device,
+                                 requires_grad=False))
+                fl_vars_total['bed_h'][~var_index] = torch.tensor(known_parameters['bed_h'],
+                                                                  dtype=torch_type,
+                                                                  device=device,
+                                                                  requires_grad=False)
+            else:
+                fl_vars_total[var][var_index] = fl_control_vars[var]
+                fl_vars_total[var][~var_index] = torch.tensor(known_parameters[var],
+                                                              dtype=torch_type,
+                                                              device=device,
+                                                              requires_grad=False)
 
         else:
             # if w0_m is no control variable it is calculated to fit widths_m of flowline_init
@@ -649,8 +682,10 @@ def get_gradients(fl_control_vars, mb_control_vars, spinup_control_vars,
                     'bed_h_grad_scale' in data_logger.regularisation_terms):
                 ice_mask = data_logger.ice_mask
                 grad[parameter_indices[var]] = grad[parameter_indices[var]] / \
-                    data_logger.observations_for_scaling['fl_widths:m'][ice_mask] * \
-                    np.mean(data_logger.observations_for_scaling['fl_widths:m'][ice_mask])
+                                               data_logger.observations_for_scaling['fl_widths:m'][
+                                                   ice_mask] * \
+                                               np.mean(data_logger.observations_for_scaling[
+                                                           'fl_widths:m'][ice_mask])
         elif var in mb_control_vars.keys():
             grad[parameter_indices[var]] = mb_control_vars[var].grad.detach(
             ).to('cpu').numpy().astype(np.float64)
