@@ -101,6 +101,7 @@ def get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
                                                 'area:m2': 1.,
                                                 'area:km2': 10.,
                                                 'dh:m': 1.,
+                                                'us:myr-1': 1.,
                                                 'fl_surface_h:m': 2.,
                                                 'fl_widths:m': 5.}}
 
@@ -164,11 +165,11 @@ class TestCostFct:
                 assert dobs[obs_var][year] != []
                 assert type(dobs[obs_var][year]) == torch.Tensor
                 if obs_var in ['fl_total_area:m2', 'fl_total_area:km2',
-                               'area:m2', 'area:km2', 'dh:m']:
+                               'area:m2', 'area:km2', 'dh:m', 'us:myr-1']:
                     assert np.isclose(
                         dobs[obs_var][year].detach().to('cpu').numpy().astype(
                         np.float64), 100.)
-        assert nobs == 11
+        assert nobs == 12
 
     def test_define_reg_parameters(self, data_logger, observations):
         # fill observations with some values
@@ -176,7 +177,7 @@ class TestCostFct:
         for obs_var in observations.keys():
             for year in observations[obs_var].keys():
                 if obs_var in ['fl_total_area:m2', 'fl_total_area:km2',
-                               'area:m2', 'area:km2', 'dh:m']:
+                               'area:m2', 'area:km2', 'dh:m', 'us:myr-1']:
                     observations[obs_var][year] = single_value
                     single_value += 10.
                 elif obs_var in ['fl_surface_h:m', 'fl_widths:m']:
@@ -195,6 +196,7 @@ class TestCostFct:
                                                     'area:m2': 1.,
                                                     'area:km2': 10.,
                                                     'dh:m': 1.,
+                                                    'us:myr-1': 1.,
                                                     'fl_surface_h:m': 2.,
                                                     'fl_widths:m': 5.}}
 
@@ -218,7 +220,7 @@ class TestCostFct:
                                  final_fl,
                                  data_logger)
 
-        assert len(c_terms) == 12
+        assert len(c_terms) == 13
         for c_term in c_terms:
             assert c_term != []
             assert type(c_term) == torch.Tensor

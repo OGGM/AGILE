@@ -724,6 +724,19 @@ class FlowlineModel(object):
                                                device=self.device,
                                                requires_grad=False)) * self.glen_a
 
+        # factor for surface velocity
+        self.surf_vel_fac = (self.glen_n + 2) / (self.glen_n + 1)
+
+        self.u_stag = torch.zeros(self.fls[0].nx + 1,
+                                  dtype=self.torch_type,
+                                  device=self.device,
+                                  requires_grad=False)
+
+        self.sec_in_year = torch.tensor(SEC_IN_YEAR,
+                                        dtype=self.torch_type,
+                                        device=self.device,
+                                        requires_grad=False)
+
         # Calving shenanigans
         self.calving_m3_since_y0 = 0.  # total calving since time y0
         self.calving_rate_myr = 0.
@@ -1437,7 +1450,7 @@ class FluxBasedModel(FlowlineModel):
         w = fl.widths_m
 
         # Surface gradient on staggerd grid
-        S_grad = (S[self.k_right] - S[self.k_left]) / dx
+        S_grad = (S[self.k_left] - S[self.k_right]) / dx
 
         # Thickness on staggered grid
         H_stag = (H[self.k_left] + H[self.k_right]) / self.number_two
@@ -1453,11 +1466,14 @@ class FluxBasedModel(FlowlineModel):
                   (self._fd * H_stag ** (n + self.number_one) * sf_stag ** n +
                    self.fs * H_stag ** (n - self.number_one)))
 
+        # this is needed to use velocity as observation
+        self.u_stag = u_stag
+
         # flux on staggered grid
         q = u_stag * CS_stag
 
         # gradient of flux on unstaggered grid
-        q_grad = (q[self.kp_stag] - q[self.km_stag]) / dx
+        q_grad = (q[self.km_stag] - q[self.kp_stag]) / dx
 
         # choose timestap as long as possible to fullfill cfl criterion, and
         # check to be smaller than the maximum max_dt

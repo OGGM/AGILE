@@ -2,6 +2,7 @@ import copy
 import logging
 import pandas as pd
 import numpy as np
+from oggm.cfg import SEC_IN_YEAR
 from scipy.optimize import brentq
 
 from oggm import cfg, workflow, tasks, entity_task
@@ -286,6 +287,7 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_start_run,
                       filesuffix='_combine_true_init')
     rgi_date_area_km2 = model.area_km2
     rgi_date_volume_km3 = model.volume_km3
+    rgi_date_us_myr = model.u_stag[0] * model._surf_vel_fac * SEC_IN_YEAR
 
     # now run to the end for dhdt
     model.run_until_and_store(yr_end_run,
@@ -304,6 +306,7 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_start_run,
     all_measurements = {'dh:m': {'2000-2019': dh_m},
                         'area:km2': {str(yr_rgi): rgi_date_area_km2},
                         'volume:km3': {str(yr_rgi): rgi_date_volume_km3},
+                        'us:myr-1': {str(yr_rgi): rgi_date_us_myr},
                         }
     gdir.write_pickle(all_measurements, 'inversion_input',
                       filesuffix='_combine_measurements')

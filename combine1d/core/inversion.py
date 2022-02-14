@@ -106,6 +106,7 @@ def get_default_inversion_settings(get_doc=False):
            "'area' (unit: 'm2', 'km2') an additional total area measurement; " \
            "'dh' (unit: 'm') geodetic measurement ('time' is given as period, " \
            "e.g. '2009-2015')." \
+           "'us' (unit: myr-1) surface ice velocity (if no time given RGI date)" \
            "Default: {'fl_surface_h:m': {}, " \
            "'fl_total_area:m2': {}"
     _default = {'fl_surface_h:m': {},
@@ -137,7 +138,7 @@ def get_default_inversion_settings(get_doc=False):
            "(NOT GOOD) 'fl_surface_h_scale_1' scale fl_surface_h in cost function with 1/wk. " \
            "(NOT GOOD) 'fl_surface_h_scale_2' scale fl_surface_h in cost function with " \
            "1/sum(wk) ()² * wk." \
-           "(NOT GOOD) 'bed_h_grad_scale' scales the bed_h gradient with width." \
+           "'bed_h_grad_scale' scales the bed_h gradient with width." \
            "Default: {'smoothed_bed': 1}"
     _default = {'smoothed_bed': 1.}
     add_setting()

@@ -257,19 +257,13 @@ class DataLogger(object):
         #     b = pickle.load(handle)
 
 
-def initialise_DataLogger(gdir, inversion_input_filesuffix='_combine', init_model_filesuffix=None,
-                          init_model_fls=None, climate_filename='climate_historical',
+def initialise_DataLogger(gdir, inversion_input_filesuffix='_combine',
+                          init_model_filesuffix=None, init_model_fls=None,
+                          climate_filename='climate_historical',
                           climate_filesuffix='', output_filesuffix='_combine',
                           output_filepath=None):
     '''
     extract information out of gdir and save in datalogger. TODO
-
-    Parameters
-    ----------
-    gdir
-
-    Returns
-    -------
 
     '''
 

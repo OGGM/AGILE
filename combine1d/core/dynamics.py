@@ -88,6 +88,8 @@ def construct_needed_model_data(observations):
                 unit_check(obs_name, obs_unit, ['m2', 'km2'])
             elif obs_name in ['fl_surface_h', 'fl_widths']:
                 unit_check(obs_name, obs_unit, ['m'])
+            elif obs_name in ['us']:
+                unit_check(obs_name, obs_unit, ['myr-1'])
             else:
                 raise NotImplementedError(f'{obs_name} not implemented!')
 
@@ -131,6 +133,9 @@ def run_model_and_get_model_values(flowline, mb_models, needed_model_data):
                     actual_model_data[obs_yr][var] = flux_model.fls[0].surface_h
                 elif var == 'fl_widths:m':
                     actual_model_data[obs_yr][var] = flux_model.fls[0].widths_m
+                elif var == 'us:myr-1':
+                    actual_model_data[obs_yr][var] = flux_model.u_stag * \
+                        flux_model.surf_vel_fac * flux_model.sec_in_year
                 else:
                     raise NotImplementedError(f'{var}')
 
@@ -149,7 +154,8 @@ def calculate_model_observations(observations, actual_model_data):
     for var_key in out.keys():
         # first all observations where nothing need to be calculated
         if var_key in ['area:m2', 'area:km2', 'fl_total_area:m2',
-                       'fl_total_area:km2', 'fl_surface_h:m', 'fl_widths:m']:
+                       'fl_total_area:km2', 'fl_surface_h:m', 'fl_widths:m',
+                       'us:myr-1']:
             for year in out[var_key].keys():
                 out[var_key][year] = actual_model_data[int(year)][var_key]
 

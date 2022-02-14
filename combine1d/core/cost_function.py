@@ -622,6 +622,8 @@ def define_reg_parameters(data_logger):
                         'RGI60-16.02444': 2.3,
                         'RGI60-16.02207': 1.8,
                     }[data_logger.gdir.rgi_id]
+                elif obs_val == 'us:myr-1':
+                    ref_uncertainty = 10  # m yr-1
                 else:
                     raise NotImplementedError(f'No uncertainty defined for {obs_val}!')
 
