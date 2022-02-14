@@ -302,6 +302,7 @@ def individual_experiment_dashboard(working_dir, input_folder,
             # term = ds.c_terms_description.values[0]
             for var in term.keys():
                 var_use = var.replace(':', '_')
+                var_use = var_use.replace('-', '')
                 if type(term[var]) == dict:
                     yr = list(term[var].keys())[0]
                     yr_use = yr.replace('-', '_')

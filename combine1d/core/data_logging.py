@@ -319,7 +319,9 @@ def initialise_DataLogger(gdir, inversion_input_filesuffix='_combine',
     for reg_term in inversion_input['regularisation_terms']:
         if reg_term in ['fl_surface_h_scale_1', 'fl_surface_h_scale_2',
                         'bed_h_grad_scale']:
-            if 'fl_surface_h:m' not in inversion_input['observations'].keys():
+            if ('fl_surface_h:m' not in inversion_input['observations'].keys()
+                and (reg_term in ['fl_surface_h_scale_1',
+                                  'fl_surface_h_scale_2'])):
                 raise NotImplementedError('fl_surface_h must be observations '
                                           'if scaling should be used!')
             if all(k in inversion_input['regularisation_terms'] for k in
