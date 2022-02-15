@@ -222,6 +222,7 @@ def individual_experiment_dashboard(working_dir, input_folder,
 
         # get gradients
         data_grad_bed_h = None
+        data_grad_area_bed_h = None
         data_grad_w0_m = None
         data_grad_surface_h = None
         data_grad_height_shift_spinup = None
@@ -229,6 +230,9 @@ def individual_experiment_dashboard(working_dir, input_folder,
         if 'bed_h' in parameter_indices.keys():
             data_grad_bed_h = []
             grad_bed_h_lim = 0
+        if 'area_bed_h' in parameter_indices.keys():
+            data_grad_area_bed_h = []
+            grad_area_bed_h_lim = 0
         if 'w0_m' in parameter_indices.keys():
             data_grad_w0_m = []
             grad_w0_m_lim = 0
@@ -248,6 +252,12 @@ def individual_experiment_dashboard(working_dir, input_folder,
                 grad_bed_h_lim = np.max([grad_bed_h_lim, np.max(np.abs(grad_bed_h))])
                 for el in [(x, i, v) for x, v in zip(x_ice_mask, grad_bed_h)]:
                     data_grad_bed_h.append(el)
+            if 'area_bed_h' in parameter_indices.keys():
+                grad_area_bed_h = grad[parameter_indices['area_bed_h']]
+                grad_area_bed_h_lim = np.max([grad_area_bed_h_lim, np.max(np.abs(
+                    grad_area_bed_h))])
+                for el in [(x, i, v) for x, v in zip(x_ice_mask, grad_area_bed_h)]:
+                    data_grad_area_bed_h.append(el)
             if 'w0_m' in parameter_indices.keys():
                 grad_w0_m = grad[parameter_indices['w0_m']]
                 grad_w0_m_lim = np.max([grad_w0_m_lim, np.max(np.abs(grad_w0_m))])
@@ -267,6 +277,13 @@ def individual_experiment_dashboard(working_dir, input_folder,
             grad_plots = pn.Column(get_heatmap(data_grad_bed_h,
                                                grad_bed_h_lim,
                                                'Grad bed_h',
+                                               kdim='ice_mask_x',
+                                               height=200),
+                                   sizing_mode='stretch_width')
+        elif 'area_bed_h' in parameter_indices.keys():
+            grad_plots = pn.Column(get_heatmap(data_grad_area_bed_h,
+                                               grad_area_bed_h_lim,
+                                               'Grad area_bed_h',
                                                kdim='ice_mask_x',
                                                height=200),
                                    sizing_mode='stretch_width')
