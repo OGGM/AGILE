@@ -305,12 +305,14 @@ def initialise_flowline(unknown_parameters, data_logger):
                 raise NotImplementedError(f'{var}')
 
             if var in ['area_bed_h']:
+                scale_fct = torch.tensor(
+                    data_logger.observations_for_scaling['fl_widths:m'][var_index],
+                    dtype=torch_type,
+                    device=device,
+                    requires_grad=False)
                 fl_vars_total['bed_h'][var_index] = (
-                    fl_control_vars[var] /
-                    torch.tensor(data_logger.observations_for_scaling['fl_widths:m'][var_index],
-                                 dtype=torch_type,
-                                 device=device,
-                                 requires_grad=False))
+                        fl_control_vars[var] / scale_fct * scale_fct.mean()
+                )
                 fl_vars_total['bed_h'][~var_index] = torch.tensor(known_parameters['bed_h'],
                                                                   dtype=torch_type,
                                                                   device=device,

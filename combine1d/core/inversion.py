@@ -241,10 +241,11 @@ def get_control_var_bounds(data_logger):
         elif var == 'area_bed_h':
             fl = data_logger.flowline_init
             ice_mask = data_logger.ice_mask
+            scale = np.mean(fl.widths_m[ice_mask])
             bounds[var_indices] = [((sfc_h - data_logger.max_ice_thickness) *
-                                    width_m,
+                                    width_m / scale,
                                     (sfc_h - data_logger.min_ice_thickness) *
-                                    width_m)
+                                    width_m / scale)
                                    for sfc_h, width_m in zip(fl.surface_h[ice_mask],
                                                              fl.widths_m[ice_mask])
                                    ]
