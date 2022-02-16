@@ -250,6 +250,8 @@ class DataLogger(object):
         # save dataset as pickle
         out = os.path.join(self.output_filepath, self.filename + '.pkl')
         with open(out, 'wb') as handle:
+            # Attention pickle only is guaranteed to work if the same xarray
+            # version is used for opening as is used for writing!
             pickle.dump(ds, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         # to open it use:

@@ -638,7 +638,10 @@ def individual_experiment_dashboard(working_dir, input_folder,
                                             for file in current_file_first]))
     current_file_first = current_file_first[0]
     with open(input_folder + current_file_first, 'rb') as handle:
-        open_files[current_file_first] = CpuUnpickler(handle).load()
+        try:
+            open_files[current_file_first] = pickle.load(handle)
+        except:
+            open_files[current_file_first] = CpuUnpickler(handle).load()
         # pickle.load(handle)
 
     figure = get_individual_plot(current_file_first)
