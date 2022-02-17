@@ -2,6 +2,7 @@
 import logging
 import warnings
 import time
+import gc
 
 # External libs
 from scipy.optimize import minimize
@@ -276,7 +277,8 @@ def combine_inversion(gdir, inversion_input_filesuffix='_combine',
                       init_model_filesuffix=None, init_model_fls=None,
                       climate_filename='climate_historical',
                       climate_filesuffix='', output_filesuffix='_combine_output',
-                      output_filepath=None, save_dataset=True):
+                      output_filepath=None, save_dataset=True,
+                      give_data_logger_back=False):
     """TODO
     """
     log.debug('initialise Datalogger')
@@ -326,4 +328,15 @@ def combine_inversion(gdir, inversion_input_filesuffix='_combine',
     gdir.write_pickle(data_logger.flowlines[-1], 'model_flowlines',
                       filesuffix=output_filesuffix)
     log.debug('Combine Inversion finished')
-    return data_logger
+
+    if give_data_logger_back:
+        return data_logger
+    else:
+        # delete the data_logger (hopfully saved before with save_dataset=True)
+        # preventing memory overflow
+        del cost_fct
+        del first_guess
+        del bounds
+        del res
+        del data_logger
+        gc.collect()
