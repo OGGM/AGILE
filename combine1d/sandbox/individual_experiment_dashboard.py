@@ -5,7 +5,6 @@ from itertools import compress
 import os
 import io
 import torch
-import xarray as xr
 import pandas as pd
 import numpy as np
 from bokeh.models import HoverTool
@@ -15,8 +14,6 @@ from holoviews import opts
 
 pn.extension('tabulator')
 hv.extension('bokeh')
-
-import hvplot.xarray
 
 from oggm import cfg, utils, workflow, tasks, graphics
 
@@ -649,9 +646,11 @@ def individual_experiment_dashboard(working_dir, input_folder,
     def change_figure(event, open_files):
         # here get the right filename for the current selection
         current_file = list(compress(all_files,
-                                     [glacier_select.value in file and
+                                     [glacier_select.value + '_' +
                                       experiment_select.value in file
                                       for file in all_files]))
+
+        # select all other options
         for opt_select in options_selects:
             current_file = list(compress(current_file,
                                          ['_' + opt_select.value in file
@@ -668,7 +667,10 @@ def individual_experiment_dashboard(working_dir, input_folder,
             # if the first time open it
             if current_file not in open_files.keys():
                 with open(input_folder + current_file, 'rb') as handle:
-                    open_files[current_file] = CpuUnpickler(handle).load()
+                    try:
+                        open_files[current_file] = pickle.load(handle)
+                    except:
+                        open_files[current_file] = CpuUnpickler(handle).load()
                     # pickle.load(handle,)
 
             figure.objects = [get_individual_plot(current_file)]
