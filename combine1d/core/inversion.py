@@ -2,7 +2,6 @@
 import logging
 import warnings
 import time
-import gc
 
 # External libs
 from scipy.optimize import minimize
@@ -332,11 +331,7 @@ def combine_inversion(gdir, inversion_input_filesuffix='_combine',
     if give_data_logger_back:
         return data_logger
     else:
-        # delete the data_logger (hopfully saved before with save_dataset=True)
+        # delete the data_logger (hopefully saved before with save_dataset=True)
         # preventing memory overflow
-        del cost_fct
-        del first_guess
-        del bounds
-        del res
         del data_logger
-        gc.collect()
+        return None
