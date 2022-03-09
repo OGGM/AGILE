@@ -91,7 +91,7 @@ class TestInversion:
         prepare_for_combine_inversion(hef_gdir, inversion_settings=inversion_settings,
                                       filesuffix='_combine')
 
-        data_logger = combine_inversion(hef_gdir)
+        data_logger = combine_inversion(hef_gdir, give_data_logger_back=True)
 
         assert data_logger.minimize_message is not None
         assert data_logger.minimize_status is not None
@@ -106,3 +106,4 @@ class TestInversion:
         assert data_logger.len_unknown_parameter is not None
         assert data_logger.parameter_indices is not None
         assert data_logger.unknown_parameters is not None
+        assert data_logger.observations_mdl is not None
