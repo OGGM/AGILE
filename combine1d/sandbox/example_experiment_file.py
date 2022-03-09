@@ -2,7 +2,7 @@ import copy
 import numpy as np
 
 # here specifiy the glaciers which should be used for the experiments
-use_experiment_glaciers = ['Baltoro',  # 'Aletsch', 'Hintereisferner',
+use_experiment_glaciers = ['Hintereisferner'  # 'Aletsch', , 'Baltoro',
                            # 'Artesonraju', 'Shallap'
                            ]
 

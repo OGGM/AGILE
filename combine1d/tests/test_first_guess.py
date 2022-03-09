@@ -25,7 +25,8 @@ def test_get_first_guess(data_logger):
             mask = data_logger.ice_mask
             first_guess_ind = data_logger.parameter_indices[con_var]
             assert np.allclose(first_guess[first_guess_ind],
-                               fl.bed_h[mask] * fl.widths_m[mask])
+                               fl.bed_h[mask] * fl.widths_m[mask] /
+                               np.mean(fl.widths_m[mask]))
         elif con_var in ['surface_h']:
             first_guess_ind = data_logger.parameter_indices[con_var]
             assert np.allclose(first_guess[first_guess_ind],

@@ -7,6 +7,7 @@ import time
 from combine1d.core.dynamics import run_model_and_get_temporal_model_data
 from combine1d.core.massbalance import ConstantMassBalanceTorch
 from combine1d.core.flowline import MixedBedFlowline, FluxBasedModel
+from combine1d.core.flowline import OggmMixedBedFlowline as OggmFlowline
 
 log = logging.getLogger(__name__)
 
@@ -112,7 +113,7 @@ def get_indices_for_unknown_parameters(data_logger):
 
 
 def cost_fct(unknown_parameters, data_logger):
-    '''
+    """
     Calculates cost and gradient for the given parameters. At the moment only
     Trapezoidal optimisation.
 
@@ -132,7 +133,7 @@ def cost_fct(unknown_parameters, data_logger):
     :py:class:`numpy.ndarray`
         The gradient for each unknown_parameter with respect to the cost value.
 
-    '''
+    """
     log.debug('Start cost function calculation')
     flowline, fl_control_vars = initialise_flowline(unknown_parameters,
                                                     data_logger)
@@ -197,9 +198,6 @@ def cost_fct(unknown_parameters, data_logger):
     # calculate the gradient for the control variables
     c.backward()
 
-    # convert cost to numpy array
-    cost = c.detach().to('cpu').numpy().astype(np.float64)
-
     log.debug('get gradients')
     # get gradient/s as numpy array
     grad = get_gradients(fl_control_vars,
@@ -208,11 +206,14 @@ def cost_fct(unknown_parameters, data_logger):
                          data_logger,
                          length=len(unknown_parameters))
 
+    # convert cost to numpy array and detach
+    cost = c.detach().to('cpu').numpy().astype(np.float64)
+
     # save data in data_logger
     data_logger.save_data_in_datalogger('observations_mdl',
-                                        observations_mdl)
+                                        detach_observations_mdl(observations_mdl))
     data_logger.save_data_in_datalogger('sfc_h_start', sfc_h_start)
-    data_logger.save_data_in_datalogger('flowlines', final_fl)
+    data_logger.save_data_in_datalogger('flowlines', detach_flowline(final_fl))
     data_logger.save_data_in_datalogger('costs', cost)
     data_logger.save_data_in_datalogger('grads', grad)
     data_logger.save_data_in_datalogger('c_terms', c_terms)
@@ -698,3 +699,34 @@ def get_gradients(fl_control_vars, mb_control_vars, spinup_control_vars,
             raise NotImplementedError('No gradient available for ' + var + '!')
 
     return grad
+
+
+def detach_observations_mdl(observations_mdl_in):
+    observations_mdl_out = {}
+    for var in observations_mdl_in:
+        observations_mdl_out[var] = {}
+        for year in observations_mdl_in[var]:
+            observations_mdl_out[var][year] = \
+                observations_mdl_in[var][year].detach().to('cpu').numpy().astype(np.float64)
+    return observations_mdl_out
+
+
+def detach_flowline(final_fl_in):
+    return OggmFlowline(
+        line=final_fl_in.line,
+        dx=final_fl_in.dx.detach().to('cpu').numpy().astype(np.float64),
+        map_dx=final_fl_in.map_dx.detach().to('cpu').numpy().astype(np.float64),
+        surface_h=final_fl_in.surface_h.detach().to('cpu').numpy().astype(np.float64),
+        bed_h=final_fl_in.bed_h.detach().to('cpu').numpy().astype(np.float64),
+        section=final_fl_in.section.detach().to('cpu').numpy().astype(np.float64),
+        bed_shape=final_fl_in.bed_shape.detach().to('cpu').numpy().astype(np.float64),
+        # here we need 'logical_or' as COMBINE separates rectangular and
+        # trapezoidal whereas OGGM do not separate
+        is_trapezoid=np.logical_or(
+            final_fl_in.is_trapezoid.detach().to('cpu').numpy().astype(np.bool),
+            final_fl_in.is_rectangular.detach().to('cpu').numpy().astype(np.bool)),
+        lambdas=final_fl_in._lambdas.detach().to('cpu').numpy().astype(np.float64),
+        rgi_id=final_fl_in.rgi_id,
+        water_level=final_fl_in.water_level,
+        widths_m=final_fl_in.widths_m.detach().to('cpu').numpy().astype(np.float64)
+    )

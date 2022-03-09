@@ -19,6 +19,7 @@ import oggm.cfg as cfg
 from oggm import utils
 from oggm.exceptions import InvalidParamsError
 from oggm.core.centerlines import Centerline
+from oggm.core.flowline import Flowline as OggmFlowline
 
 # help function for gradient calculation
 from combine1d.core.special_gradient_functions import para_width_from_thick
@@ -599,6 +600,132 @@ class MixedBedFlowline(Flowline):
         out = np.repeat('rectangular', self.nx)
         out[self.is_parabolic] = 'parabolic'
         out[self.is_trapezoid] = 'trapezoid'
+        return out
+
+    def _add_attrs_to_dataset(self, ds):
+        """Add bed specific parameters."""
+
+        ds['section'] = (['x'], self.section)
+        ds['bed_shape'] = (['x'], self.bed_shape)
+        ds['is_trapezoid'] = (['x'], self.is_trapezoid)
+        ds['widths_m'] = (['x'], self._w0_m)
+        ds['lambdas'] = (['x'], self._lambdas)
+
+
+class OggmMixedBedFlowline(OggmFlowline):
+    """A Flowline which can take a combination of different shapes (default)
+
+    This is adapted from oggms original flowline as for combine we want to allow
+    also to have trapezoidal bed shapes on the ice free topograhy, as this is
+    only used to save the results and not to initialise any model
+    The default shape is parabolic. At ice divides a rectangular shape is used.
+    And if the parabola gets too flat a trapezoidal shape is used.
+    """
+
+    def __init__(self, *, line=None, dx=None, map_dx=None, surface_h=None,
+                 bed_h=None, section=None, bed_shape=None,
+                 is_trapezoid=None, lambdas=None, widths_m=None, rgi_id=None,
+                 water_level=None, gdir=None):
+        """ Instantiate.
+
+        Parameters
+        ----------
+        line : :py:class:`shapely.geometry.LineString`
+            the geometrical line of a :py:class:`oggm.Centerline`
+        """
+
+        super(OggmMixedBedFlowline, self).__init__(line=line, dx=dx,
+                                                   map_dx=map_dx,
+                                                   surface_h=surface_h.copy(),
+                                                   bed_h=bed_h.copy(),
+                                                   rgi_id=rgi_id,
+                                                   water_level=water_level,
+                                                   gdir=gdir)
+
+        # To speedup calculations if no trapezoid bed is present
+        self._do_trapeze = np.any(is_trapezoid)
+
+        # Parabolic
+        assert len(bed_shape) == self.nx
+        self.bed_shape = bed_shape.copy()
+        self._sqrt_bed = np.sqrt(bed_shape)
+
+        # Trapeze
+        assert len(lambdas) == self.nx
+        assert len(is_trapezoid) == self.nx
+        self._lambdas = lambdas.copy()
+        self._ptrap = np.where(is_trapezoid)[0]
+        self.is_trapezoid = is_trapezoid
+        self.is_rectangular = self.is_trapezoid & (self._lambdas == 0)
+
+        # Sanity
+        self.bed_shape[is_trapezoid] = np.NaN
+        self._lambdas[~is_trapezoid] = np.NaN
+
+        # Here we have to compute the widths out of section and lambda
+        thick = surface_h - bed_h
+        with np.errstate(divide='ignore', invalid='ignore'):
+            self._w0_m = section / thick - lambdas * thick / 2
+
+        assert np.all(section >= 0)
+        need_w = (section == 0) & is_trapezoid
+        if np.any(need_w):
+            if widths_m is None:
+                raise ValueError('We need a non-zero section for trapezoid '
+                                 'shapes unless you provide widths_m.')
+            self._w0_m[need_w] = widths_m[need_w]
+
+        self._w0_m[~is_trapezoid] = np.NaN
+
+        if (np.any(self._w0_m[self._ptrap] <= 0) or
+                np.any(~np.isfinite(self._w0_m[self._ptrap]))):
+            raise ValueError('Trapezoid beds need to have origin widths > 0.')
+
+        # this check is not neded as we want also alow trapezoidal shape where
+        # ice-free
+        # assert np.all(self.bed_shape[~is_trapezoid] > 0)
+
+        self._prec = np.where(is_trapezoid & (lambdas == 0))[0]
+
+        assert np.allclose(section, self.section)
+
+    @property
+    def widths_m(self):
+        """Compute the widths out of H and shape"""
+        out = np.sqrt(4*self.thick/self.bed_shape)
+        if self._do_trapeze:
+            out[self._ptrap] = (self._w0_m[self._ptrap] +
+                                self._lambdas[self._ptrap] *
+                                self.thick[self._ptrap])
+        return out
+
+    @property
+    def section(self):
+        out = 2./3. * self.widths_m * self.thick
+        if self._do_trapeze:
+            out[self._ptrap] = ((self.widths_m[self._ptrap] +
+                                 self._w0_m[self._ptrap]) / 2 *
+                                self.thick[self._ptrap])
+        return out
+
+    @section.setter
+    def section(self, val):
+        out = (0.75 * val * self._sqrt_bed)**(2./3.)
+        if self._do_trapeze:
+            b = 2 * self._w0_m[self._ptrap]
+            a = 2 * self._lambdas[self._ptrap]
+            with np.errstate(divide='ignore', invalid='ignore'):
+                out[self._ptrap] = ((np.sqrt(b ** 2 + 4 * a * val[self._ptrap])
+                                     - b) / a)
+            out[self._prec] = val[self._prec] / self._w0_m[self._prec]
+        self.thick = out
+
+    @utils.lazy_property
+    def shape_str(self):
+        """The bed shape in text (for debug and other things)"""
+        out = np.repeat('rectangular', self.nx)
+        out[~ self.is_trapezoid] = 'parabolic'
+        out[self.is_trapezoid & ~ self.is_rectangular] = 'trapezoid'
         return out
 
     def _add_attrs_to_dataset(self, ds):
