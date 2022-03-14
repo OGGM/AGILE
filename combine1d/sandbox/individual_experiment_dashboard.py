@@ -163,13 +163,13 @@ def individual_experiment_dashboard(working_dir, input_folder,
             x_all = ds.coords['x'][ds.ice_mask].values
 
             # bed_h
-            d_bed_h = (fl.bed_h.detach().cpu().numpy() - fl_ref.bed_h)[ds.ice_mask]
+            d_bed_h = (fl.bed_h - fl_ref.bed_h)[ds.ice_mask]
             d_bed_h_lim = np.max([d_bed_h_lim, np.max(np.abs(d_bed_h))])
             for el in [(x, i, v) for x, v in zip(x_all, d_bed_h)]:
                 data_bed_h.append(el)
 
             # w0_m
-            d_w0_m = (fl._w0_m.detach().cpu().numpy() - fl_ref._w0_m)[ds.ice_mask]
+            d_w0_m = (fl._w0_m - fl_ref._w0_m)[ds.ice_mask]
             d_w0_m_lim = np.max([d_w0_m_lim, np.max(np.abs(d_w0_m))])
             for el in [(x, i, v) for x, v in zip(x_all, d_w0_m)]:
                 data_w0_m.append(el)
@@ -395,10 +395,10 @@ def individual_experiment_dashboard(working_dir, input_folder,
         table_data_sfc_h_end = []
         for i, fl in enumerate(ds.flowlines.values):
             x_all = ds.coords['x'].values
-            d_sfc_h_end = (fl.surface_h.detach().cpu().numpy() -
+            d_sfc_h_end = (fl.surface_h -
                            fl_ref_end.surface_h)
             d_sfc_h_end_lim = np.max([d_sfc_h_end_lim, np.max(np.abs(d_sfc_h_end))])
-            table_data_sfc_h_end.append(fl.surface_h.detach().cpu().numpy())
+            table_data_sfc_h_end.append(fl.surface_h)
             for el in [(x, i, v) for x, v in zip(x_all, d_sfc_h_end)]:
                 data_sfc_h_end.append(el)
         delta_sfc_h_end_plot = get_heatmap(data_sfc_h_end,
@@ -417,11 +417,11 @@ def individual_experiment_dashboard(working_dir, input_folder,
             table_data_sfc_h_rgi = []
             for i, obs in enumerate(ds.observations_mdl.values):
                 x_all = ds.coords['x'].values
-                d_sfc_h_rgi = (list(obs['fl_surface_h:m'].values())[0].detach().cpu().numpy() -
+                d_sfc_h_rgi = (list(obs['fl_surface_h:m'].values())[0] -
                                fl_ref_rgi.surface_h)
                 d_sfc_h_rgi_lim = np.max([d_sfc_h_rgi_lim, np.max(np.abs(d_sfc_h_rgi))])
                 table_data_sfc_h_rgi.append(list(obs['fl_surface_h:m'].values()
-                                                 )[0].detach().cpu().numpy())
+                                                 )[0])
                 for el in [(x, i, v) for x, v in zip(x_all, d_sfc_h_rgi)]:
                     data_sfc_h_rgi.append(el)
             delta_sfc_h_rgi_plot = get_heatmap(data_sfc_h_rgi,
@@ -462,7 +462,7 @@ def individual_experiment_dashboard(working_dir, input_folder,
         def get_performance_array(fct, attr):
             return [np.around(fct(val, getattr(fl_ref, attr)[ds.ice_mask]),
                               decimals=2) for val in
-                    [getattr(fl.values.item(), attr).detach().cpu().numpy()[ds.ice_mask]
+                    [getattr(fl.values.item(), attr)[ds.ice_mask]
                      for fl in ds.flowlines]]
 
         def get_performance_table(attr):
@@ -497,7 +497,7 @@ def individual_experiment_dashboard(working_dir, input_folder,
         thick_end_lim = 0.
         for i, fl in enumerate(ds.flowlines.values):
             x_all = ds.coords['x'].values
-            thick_end = fl.thick.detach().cpu().numpy()
+            thick_end = fl.thick
             thick_end_lim = np.max([thick_end_lim, np.max(np.abs(thick_end))])
             for el in [(x, i, v) for x, v in zip(x_all, thick_end)]:
                 data_thick_end.append(el)
