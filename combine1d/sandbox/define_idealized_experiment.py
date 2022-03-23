@@ -1,5 +1,6 @@
 import copy
 import logging
+import warnings
 from combine1d.sandbox.create_glaciers_with_measurements import \
     create_idealized_experiments
 from combine1d.core.inversion import prepare_for_combine_inversion, \
@@ -30,8 +31,10 @@ def idealized_experiment(use_experiment_glaciers=None,
 
     print('Create glacier directories with idealized glaciers:')
     # Size of the map around the glacier.
-    prepro_border = 160
-    cfg.PARAMS['border'] = prepro_border
+    if cfg.PARAMS['border'] != 160:
+        msg = (f"Border is {cfg.PARAMS['border']} but experiments was "
+               f"created with border=160!")
+        warnings.warn(msg)
     # Degree of processing level.
     from_prepro_level = 3
     # URL of the preprocessed gdirs
@@ -40,7 +43,7 @@ def idealized_experiment(use_experiment_glaciers=None,
                'L3-L5_files/CRU/elev_bands/qc3/pcp2.5/no_match/'
 
     gdirs = create_idealized_experiments(use_experiment_glaciers,
-                                         prepro_border=prepro_border,
+                                         prepro_border=cfg.PARAMS['border'],
                                          from_prepro_level=from_prepro_level,
                                          base_url=base_url, )
 
