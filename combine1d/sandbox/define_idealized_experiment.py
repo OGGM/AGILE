@@ -15,8 +15,7 @@ def idealized_experiment(use_experiment_glaciers=None,
                          inversion_settings_all=None,
                          working_dir='', output_folder='',
                          params_file=None, override_params=None,
-                         logging_level='WORKFLOW', continue_on_error=True,
-                         use_multiprocessing=True):
+                         logging_level='WORKFLOW'):
     # Local paths
     if override_params is None:
         override_params = {}
@@ -28,10 +27,6 @@ def idealized_experiment(use_experiment_glaciers=None,
 
     cfg.initialize(file=params_file, params=override_params,
                    logging_level=logging_level, future=True)
-
-    cfg.PARAMS['cfl_number'] = 0.01
-    cfg.PARAMS['use_multiprocessing'] = use_multiprocessing
-    cfg.PARAMS['continue_on_error'] = continue_on_error
 
     print('Create glacier directories with idealized glaciers:')
     # Size of the map around the glacier.

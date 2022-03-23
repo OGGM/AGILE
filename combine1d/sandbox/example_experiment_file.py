@@ -2,7 +2,7 @@ import copy
 import numpy as np
 
 # here specifiy the glaciers which should be used for the experiments
-use_experiment_glaciers = ['Hintereisferner'  # 'Aletsch', , 'Baltoro',
+use_experiment_glaciers = ['Baltoro',  # 'Hintereisferner'  # 'Aletsch',
                            # 'Artesonraju', 'Shallap'
                            ]
 
@@ -14,37 +14,53 @@ general_description = 'test_functionality'
 # parameters for all observations needed
 experiment_options = \
     {
-        'control_vars': {'con1': ['bed_h'],
-                         # 'con2': ['bed_h', 'w0_m']
+        'control_vars': {'con1': ['area_bed_h'],
+                         #'con2': ['bed_h']
                          },
 
-        'observations': {'obs1': ['fl_surface_h:m', 'dh:m'],
-                         # 'obs2': ['fl_surface_h:m', 'fl_total_area:km2', ]
+        'observations': {'obs1': ['fl_surface_h:m'],
+                         #'obs2': ['fl_surface_h:m', 'dh:m'],
                          },
-
-        'obs_reg_parameters': {'obsreg1': {'uncertainty': {'fl_surface_h:m': 1.,
-                                                           'fl_total_area:km2': 1.,
-                                                           'dh:m': 1.}},
-                               # 'reg2': {'uncertainty': {'fl_surface_h:m': 0.1,
-                               #                         'fl_total_area:km2': 0.1,
-                               #                         'dh:m': 1.}}
-                               },
+        'obs_reg_parameters': {
+            'obsreg1': {'uncertainty': {
+                'fl_surface_h:m': 1.,
+                'dh:m': 1.}},
+            # 'obsreg2': {'uncertainty': {
+            #     'fl_surface_h:m': 10.,
+            #     'dh:m': 1.}},
+            # 'obsreg3': {'uncertainty': {
+            #     'fl_surface_h:m': 100.,
+            #     'dh:m': 1.}},
+            # 'obsreg4': {'uncertainty': {
+            #     'fl_surface_h:m': 1.,
+            #     'dh:m': 10.}},
+            # 'obsreg5': {'uncertainty': {
+            #     'fl_surface_h:m': 1.,
+            #     'dh:m': 100.}},
+        },
         'regularisation_terms': {'reg1': {'smoothed_bed': 0., 'bed_h_grad_scale': 0},
-                                 # 'reg2': {'smoothed_bed': 10., 'bed_h_grad_scale':0},
-                                 # 'reg3': {'smoothed_bed': 100., 'bed_h_grad_scale':0},
-                                 # 'reg4': {'smoothed_bed': 1., 'bed_h_grad_scale':0},
-                                 # 'reg5': {'smoothed_bed': 1000.},
-                                 # 'reg6': {'smoothed_bed': 100., 'bed_h_grad_scale':0},
+                                 # 'reg2': {'smoothed_bed': 1., 'bed_h_grad_scale': 0},
+                                 # 'reg3': {'smoothed_bed': 10., 'bed_h_grad_scale': 0},
+                                 # 'reg4': {'smoothed_bed': 100., 'bed_h_grad_scale': 0},
+                                 # 'reg5': {'smoothed_bed': 1000., 'bed_h_grad_scale': 0},
                                  },
+
         # Options: 'surface_h', 'height_shift'
-        'spinup_options': {
-            'spn1': {
-                'height_shift':
-                    {'mb_model':
-                        {
-                            'type': 'constant',
-                            'years': np.array([1980, 2000]),
-                            'fg_height_shift': -100}}},
+        'spinup_options': {'spn1': {'height_shift': {'mb_model':
+            {
+                'type': 'constant',
+                'years': np.array([1980, 2000]),
+                'fg_height_shift': -100}}},
+            # 'spn2': {'height_shift': {'mb_model':
+            #     {
+            #         'type': 'constant',
+            #         'years': np.array([1980, 2000]),
+            #         'fg_height_shift': -150}}},
+            # 'spn3': {'height_shift': {'mb_model':
+            #     {
+            #         'type': 'constant',
+            #         'years': np.array([1980, 2000]),
+            #         'fg_height_shift': -200}}},
         }
     }
 # here define the different default inversion settings options for the experiments
