@@ -40,6 +40,7 @@ class DataLogger(object):
         self.solver = inversion_input['solver']
         self.minimize_options = inversion_input['minimize_options']
         self.max_time_minimize = inversion_input['max_time_minimize']
+        self.use_grad_smoothing = inversion_input['use_grad_smoothing']
 
         if self.spinup_options is None:
             spinup_type = None

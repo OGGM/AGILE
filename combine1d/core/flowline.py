@@ -3,6 +3,7 @@
 
 """
 # Builtins
+import copy
 from collections import OrderedDict
 from time import gmtime, strftime
 import warnings
@@ -24,6 +25,7 @@ from oggm.core.flowline import Flowline as OggmFlowline
 # help function for gradient calculation
 from combine1d.core.special_gradient_functions import para_width_from_thick
 from combine1d.core.special_gradient_functions import para_thick_from_section
+from combine1d.core.smoothing import smooth_velocity, smooth_slope
 
 # Constants
 from oggm.cfg import SEC_IN_DAY, SEC_IN_YEAR
@@ -1496,7 +1498,8 @@ class FluxBasedModel(FlowlineModel):
 
     def __init__(self, flowlines, mb_model=None, y0=0., glen_a=None, fs=None,
                  fixed_dt=None, min_dt=SEC_IN_DAY, max_dt=31 * SEC_IN_DAY,
-                 inplace=False, cfl_nr=None, **kwargs):
+                 inplace=False, cfl_nr=None, velocity_smoothing=False,
+                 **kwargs):
         """ Instanciate.
 
         Parameters
@@ -1520,6 +1523,8 @@ class FluxBasedModel(FlowlineModel):
         # datatype for torch tensors
         self.torch_type = self.fls[0].torch_type
         self.device = self.fls[0].device
+
+        self.velocity_smoothing = velocity_smoothing
 
         self.dt_warning = False,
         if fixed_dt is not None:
@@ -1596,10 +1601,37 @@ class FluxBasedModel(FlowlineModel):
         # TODO: Implement shape factor function
         sf_stag = self.number_one
 
+        # smoothe slope
+        if self.velocity_smoothing:
+            end_index = np.argwhere(H.detach().numpy() > 0)[-1][0]
+            S_grad = smooth_slope.apply(S_grad,
+                                        end_index,
+                                        copy.deepcopy(dt.detach()),
+                                        copy.deepcopy(self.max_dt.detach()),
+                                        copy.deepcopy(self.cfl_nr.detach()),
+                                        copy.deepcopy(dx.detach()),
+                                        copy.deepcopy(self.t.detach()),
+                                        copy.deepcopy(H_stag.detach()),
+                                        copy.deepcopy(self.rho.detach()),
+                                        copy.deepcopy(self.G.detach()),
+                                        copy.deepcopy(n.detach()),
+                                        copy.deepcopy(self._fd.detach()),
+                                        copy.deepcopy(self.fs.detach()),
+                                        copy.deepcopy(sf_stag.detach()))
+
         # velocity on staggered grid
         u_stag = ((self.rho * self.G * S_grad)**n *
                   (self._fd * H_stag**(n + self.number_one) * sf_stag**n +
                    self.fs * H_stag**(n - self.number_one)))
+
+        #if self.velocity_smoothing:
+        #    # u_stag = torch.abs(u_stag)
+        #    u_stag = smooth_velocity.apply(u_stag,
+        #                                   copy.deepcopy(dt.detach()),
+        #                                   copy.deepcopy(self.max_dt.detach()),
+        #                                   copy.deepcopy(self.cfl_nr.detach()),
+        #                                   copy.deepcopy(dx.detach()),
+        #                                   copy.deepcopy(self.t.detach()))
 
         # this is needed to use velocity as observation
         self.u_stag = u_stag

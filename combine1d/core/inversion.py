@@ -152,6 +152,13 @@ def get_default_inversion_settings(get_doc=False):
     _default = {'smoothed_bed': 1.}
     add_setting()
 
+    _key = "use_grad_smoothing"
+    _doc = "Defines if the calculated gradients should be smoothed before " \
+           "returned to the minimization algorithm. This could be useful if " \
+           "you expect instabilities during the forward runs"
+    _default = True
+    add_setting()
+
     _key = "experiment_description"
     _doc = "Explanation of the current experiment. If a dataset is saved this" \
            "is the filename of the resulting nc datafile. " \

@@ -7,7 +7,8 @@ import numpy as np
 from combine1d.core.flowline import FluxBasedModel
 
 
-def run_model_and_get_temporal_model_data(flowline, mb_models, observations):
+def run_model_and_get_temporal_model_data(flowline, mb_models, observations,
+                                          velocity_smoothing=False):
     """TODO
 
     Parameters
@@ -26,9 +27,9 @@ def run_model_and_get_temporal_model_data(flowline, mb_models, observations):
 
     needed_model_data = construct_needed_model_data(observations)
 
-    actual_model_data, flowline = run_model_and_get_model_values(flowline,
-                                                                 mb_models,
-                                                                 needed_model_data)
+    actual_model_data, flowline = run_model_and_get_model_values(
+        flowline, mb_models, needed_model_data,
+        velocity_smoothing=velocity_smoothing)
 
     # postprocessing model data and calculate actual observations (e.g. calculate
     # delta values)
@@ -102,7 +103,8 @@ def construct_needed_model_data(observations):
     return needed_model_data
 
 
-def run_model_and_get_model_values(flowline, mb_models, needed_model_data):
+def run_model_and_get_model_values(flowline, mb_models, needed_model_data,
+                                   velocity_smoothing=False):
     # start the actual forward run and get observations from model
     actual_model_data = {}
     for mb_key in mb_models.keys():
@@ -110,7 +112,8 @@ def run_model_and_get_model_values(flowline, mb_models, needed_model_data):
                                     mb_model=mb_models[mb_key]['mb_model'],
                                     y0=mb_models[mb_key]['years'][0],
                                     fs=0.,
-                                    mb_elev_feedback='annual')
+                                    mb_elev_feedback='annual',
+                                    velocity_smoothing=velocity_smoothing)
 
         # years with observations using the same mass balance model
         obs_yrs_current_mb_model = [k for k in needed_model_data.keys()

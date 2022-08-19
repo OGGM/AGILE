@@ -8,6 +8,7 @@ from combine1d.core.dynamics import run_model_and_get_temporal_model_data
 from combine1d.core.massbalance import ConstantMassBalanceTorch
 from combine1d.core.flowline import MixedBedFlowline, FluxBasedModel
 from combine1d.core.flowline import OggmMixedBedFlowline as OggmFlowline
+from combine1d.core.smoothing import detect_instabilities, smoothe_instabilities, filter_spikes
 
 log = logging.getLogger(__name__)
 
@@ -173,7 +174,8 @@ def cost_fct(unknown_parameters, data_logger):
         observations_mdl, final_fl = run_model_and_get_temporal_model_data(
             flowline=flowline,
             mb_models=mb_models,
-            observations=observations)
+            observations=observations,
+            velocity_smoothing=data_logger.use_grad_smoothing)
 
     except MemoryError:
         msg = 'MemoryError in forward model run (due to a too small ' \
@@ -445,7 +447,8 @@ def do_height_shift_spinup(flowline, unknown_parameters, data_logger):
 
     model = FluxBasedModel(flowline,
                            mb_spinup,
-                           y0=y_start)
+                           y0=y_start,
+                           velocity_smoothing=data_logger.use_grad_smoothing)
     model.run_until(y_end)
 
     return model.fls[0], spinup_control_vars
@@ -697,6 +700,25 @@ def get_gradients(fl_control_vars, mb_control_vars, spinup_control_vars,
             ).to('cpu').numpy().astype(np.float64)
         else:
             raise NotImplementedError('No gradient available for ' + var + '!')
+
+    #if data_logger.use_grad_smoothing:
+    #    grad = smooth_grad(grad)
+
+    return grad
+
+
+def smooth_grad(grad):
+    instability_starts, instability_lengths = detect_instabilities(grad,
+                                                                   min_length=5,
+                                                                   min_distance=3)
+    if instability_starts:
+        grad = smoothe_instabilities(grad,
+                                     instability_starts,
+                                     instability_lengths,
+                                     smoothing_window=3,
+                                     smoothing_steps=2)
+
+    grad = filter_spikes(grad, std_limit=1, use_smoothing=True)
 
     return grad
 
