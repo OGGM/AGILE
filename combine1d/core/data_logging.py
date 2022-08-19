@@ -32,6 +32,7 @@ class DataLogger(object):
         self.min_w0_m = inversion_input['min_w0_m']
         self.min_ice_thickness = inversion_input['min_ice_thickness']
         self.max_ice_thickness = inversion_input['max_ice_thickness']
+        self.additional_ice_thickness = inversion_input['additional_ice_thickness']
         self.max_deviation_surface_h = inversion_input['max_deviation_surface_h']
         self.limits_lambda = inversion_input['limits_lambda']
         self.limits_height_shift_spinup = inversion_input['limits_height_shift_spinup']

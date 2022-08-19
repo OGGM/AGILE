@@ -9,6 +9,7 @@ import numpy as np
 
 # Locals
 from oggm import utils, cfg
+from oggm.cfg import G
 from oggm import entity_task
 from combine1d.core.cost_function import create_cost_fct
 from combine1d.core.data_logging import initialise_DataLogger
@@ -66,6 +67,14 @@ def get_default_inversion_settings(get_doc=False):
     _default = 1000.
     add_setting()
 
+    _key = "additional_ice_thickness"
+    _doc = "The upper boundary of the ice thickness is calculated using the " \
+           "approach from GlabTop (Linsbauer 2021) and this value is added " \
+           "additionally for the definition of the upper boundary. " \
+           "Default: 100"
+    _default = 100.
+    add_setting()
+
     _key = "max_deviation_surface_h"
     _doc = "Maximum allowed deviation of surface_h in m, calculated from " \
            "surface height of initial flowline. " \
@@ -114,20 +123,20 @@ def get_default_inversion_settings(get_doc=False):
     add_setting()
 
     _key = "obs_reg_parameters"
-    _doc = "TODO (not updated): Defines the relative contribution to of the observations to the " \
-           "total cost value. Could be given directly by using a dict with the " \
-           "same keys as 'observations' (e.g. {'fl_surface_h': 1./10., " \
-           "'fl_total_area:m2': 1./}). The values could reperesent " \
-           "1/measurement_uncertainty. Or (NOT GOOD) one can use a dict with " \
-           "key 'scale' (e.g. " \
+    _doc = "Defines the relative contribution of the observations to the " \
+           "total cost value. There are two options 'uncertainty' and 'scale'." \
+           " If 'uncertainty' is given the reg parameter of an observations " \
+           "equals '1 / uncertainty² * number_given_in_dict'. The uncertainty " \
+           "is prescribed in cost_function define_reg_parameters. Or (NOT " \
+           "RECOMMENDED) one can use a dict with key 'scale' (e.g. " \
            "{'scale': {'fl_surface_h': 10., 'fl_widths_m': 1.}}), this option " \
            "first express the individual mismatches in percent of the " \
-           "observation and then multiple with the given numbers (from example " \
-           "above this means a mismatch of 1% to 'fl_surface_h' is equally " \
-           "weighted as a 10% mismatch to 'fl_widths_m'). " \
-           "Default: {'scale': {'fl_surface_h': 1., 'fl_widths_m': 1.}}"
+           "observation and afterwards multiple with the given numbers (from example " \
+           "above this means a mismatch of 1% at 'fl_surface_h' is equally " \
+           "weighted as a 10% mismatch at 'fl_widths_m'). " \
+           "Default: {'uncertainty': {'fl_surface_h:m': 1., 'dh:m': 1.}}"
     _default = {'uncertainty': {'fl_surface_h:m': 1.,
-                                'fl_total_area:m2': 1.}}
+                                'dh:m': 1.}}
     add_setting()
 
     _key = "regularisation_terms"
@@ -163,16 +172,11 @@ def get_default_inversion_settings(get_doc=False):
            "(e.g. {'height_shift': {'mb_model': " \
            "{'type': 'constant', 'years': np.array([1980, 2000]), " \
            "'fg_height_shift': 100}}}). " \
-           "Default: {'surface_h': {'mb_model': {'type': 'constant'," \
-           "'years': np.array([1980, 2000]), 't_bias': -2}}}"
+           "Default: {'height_shift': {'mb_model': {'type': 'constant'," \
+           "'years': np.array([1980, 2000]), 'fg_height_shift': -100}}}"
     _default = {'height_shift': {'mb_model': {'type': 'constant',
                                               'years': np.array([1980, 2000]),
                                               'fg_height_shift': -100}}}
-    # {'surface_h': {'mb_model': {'type': 'constant',
-    #                                        'years': np.array([1980, 2000]),
-    #                                        't_bias': -2}
-    #                           }
-    #             }
     add_setting()
 
     _key = "minimize_options"
@@ -235,19 +239,33 @@ def get_control_var_bounds(data_logger):
         if var == 'bed_h':
             fl = data_logger.flowline_init
             ice_mask = data_logger.ice_mask
-            bounds[var_indices] = [(sfc_h - data_logger.max_ice_thickness,
+            upper_limits = get_adaptive_upper_ice_thickness_limit(
+                fl,
+                additional_ice_thickness=data_logger.additional_ice_thickness,
+                max_thickness=data_logger.max_ice_thickness,
+                w0_min=data_logger.min_w0_m)
+            bounds[var_indices] = [(sfc_h - upper_limit,
                                     sfc_h - data_logger.min_ice_thickness)
-                                   for sfc_h in fl.surface_h[ice_mask]]
+                                   for sfc_h, upper_limit in
+                                   zip(fl.surface_h[ice_mask],
+                                       upper_limits)]
         elif var == 'area_bed_h':
             fl = data_logger.flowline_init
             ice_mask = data_logger.ice_mask
+            upper_limits = get_adaptive_upper_ice_thickness_limit(
+                fl,
+                additional_ice_thickness=data_logger.additional_ice_thickness,
+                max_thickness=data_logger.max_ice_thickness,
+                w0_min=data_logger.min_w0_m)
             scale = np.mean(fl.widths_m[ice_mask])
-            bounds[var_indices] = [((sfc_h - data_logger.max_ice_thickness) *
+            bounds[var_indices] = [((sfc_h - upper_limit) *
                                     width_m / scale,
                                     (sfc_h - data_logger.min_ice_thickness) *
                                     width_m / scale)
-                                   for sfc_h, width_m in zip(fl.surface_h[ice_mask],
-                                                             fl.widths_m[ice_mask])
+                                   for sfc_h, width_m, upper_limit in
+                                   zip(fl.surface_h[ice_mask],
+                                       fl.widths_m[ice_mask],
+                                       upper_limits)
                                    ]
         elif var == 'surface_h':
             fl = data_logger.flowline_init
@@ -269,6 +287,53 @@ def get_control_var_bounds(data_logger):
             raise NotImplementedError(f'{var}')
 
     return bounds
+
+
+def get_adaptive_upper_ice_thickness_limit(fl, additional_ice_thickness=100,
+                                           min_thickness=1, max_thickness=1000,
+                                           f=0.8, w0_min=10):
+    """
+    Function to get an estimate for the maximum ice thickness using the
+    approach from GlabTop (Linsbauer 2012) and adding an additional_thickness
+    to this estimate.
+
+    Parameters
+    ----------
+    fl
+    additional_ice_thickness
+    min_thickness
+    max_thickness
+    f
+    w0_min
+
+    Returns
+    -------
+
+    """
+    ice_surface_h = fl.surface_h[fl.thick > 0]
+    dH = ice_surface_h[0] - ice_surface_h[-1]
+
+    if dH > 1600:
+        tau = 150000  # Pa
+    else:
+        tau = 5 + 1598 * dH - 435 * dH**2  # Pa
+
+    slope_stag = np.zeros(len(ice_surface_h) + 1)
+    slope_stag[0] = 1
+    slope_stag[1:-1] = (ice_surface_h[0:-1] - ice_surface_h[1:]) / fl.dx_meter
+    slope_stag[-1] = slope_stag[-2]
+
+    rho_ice = cfg.PARAMS['ice_density']
+
+    h_shear_stress = tau / (f * rho_ice * G * slope_stag)
+    upper_h_limit = h_shear_stress[1:] + additional_ice_thickness
+    upper_h_limit = np.clip(upper_h_limit, min_thickness, max_thickness)
+
+    # also take here into account maximum thickness so that w0 > 0 always
+    h_max_w0 = (fl.widths_m[fl.thick > 0] - w0_min) / fl._lambdas[fl.thick > 0]
+    upper_h_limit = np.minimum(h_max_w0, upper_h_limit)
+
+    return upper_h_limit
 
 
 @entity_task(log, writes=['model_flowlines'])

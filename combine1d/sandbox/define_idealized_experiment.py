@@ -32,9 +32,10 @@ def idealized_experiment(use_experiment_glaciers=None,
     print('Create glacier directories with idealized glaciers:')
     # Size of the map around the glacier.
     if cfg.PARAMS['border'] != 160:
-        msg = (f"Border is {cfg.PARAMS['border']} but experiments was "
+        msg = (f"Border is {cfg.PARAMS['border']} but experiments were "
                f"created with border=160!")
         warnings.warn(msg)
+        raise RuntimeError(msg)
     # Degree of processing level.
     from_prepro_level = 3
     # URL of the preprocessed gdirs
@@ -61,11 +62,13 @@ def idealized_experiment(use_experiment_glaciers=None,
     workflow.execute_entity_task(conduct_combine_inversion, all_experiments)
 
     print('Experiments finished!')
+    return gdirs
 
 
 @entity_task(log, writes=['inversion_input', 'model_flowlines'])
 def conduct_combine_inversion(gdir, inversion_settings=None,
-                              output_folder=None):
+                              output_folder=None,
+                              init_model_fls='_combine_first_guess'):
     """TODO"""
 
     # check if mb_model_settings should be loaded from gdir
@@ -97,7 +100,7 @@ def conduct_combine_inversion(gdir, inversion_settings=None,
                       inversion_input_filesuffix=
                       inversion_settings['experiment_description'],
                       init_model_filesuffix=None,
-                      init_model_fls='_combine_first_guess',
+                      init_model_fls=init_model_fls,
                       climate_filename='climate_historical',
                       climate_filesuffix='',
                       output_filesuffix='_combine_output_' +

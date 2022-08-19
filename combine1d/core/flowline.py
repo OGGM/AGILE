@@ -692,7 +692,7 @@ class OggmMixedBedFlowline(OggmFlowline):
     @property
     def widths_m(self):
         """Compute the widths out of H and shape"""
-        out = np.sqrt(4*self.thick/self.bed_shape)
+        out = np.sqrt(4 * self.thick / self.bed_shape)
         if self._do_trapeze:
             out[self._ptrap] = (self._w0_m[self._ptrap] +
                                 self._lambdas[self._ptrap] *
@@ -701,7 +701,7 @@ class OggmMixedBedFlowline(OggmFlowline):
 
     @property
     def section(self):
-        out = 2./3. * self.widths_m * self.thick
+        out = 2. / 3. * self.widths_m * self.thick
         if self._do_trapeze:
             out[self._ptrap] = ((self.widths_m[self._ptrap] +
                                  self._w0_m[self._ptrap]) / 2 *
@@ -710,7 +710,7 @@ class OggmMixedBedFlowline(OggmFlowline):
 
     @section.setter
     def section(self, val):
-        out = (0.75 * val * self._sqrt_bed)**(2./3.)
+        out = (0.75 * val * self._sqrt_bed)**(2. / 3.)
         if self._do_trapeze:
             b = 2 * self._w0_m[self._ptrap]
             a = 2 * self._lambdas[self._ptrap]
@@ -836,6 +836,10 @@ class FlowlineModel(object):
                                 dtype=self.torch_type,
                                 device=self.device,
                                 requires_grad=False)
+        self.G =torch.tensor(G,
+                             dtype=self.torch_type,
+                             device=self.device,
+                             requires_grad=False)
         if check_for_boundaries is None:
             check_for_boundaries = cfg.PARAMS[('error_when_glacier_reaches_'
                                                'boundaries')]
@@ -899,7 +903,9 @@ class FlowlineModel(object):
     def reset_y0(self, y0):
         """Reset the initial model time"""
         self.y0 = y0
-        self.t = 0
+        self.t = torch.tensor(0,
+                              dtype=self.torch_type,
+                              device=self.device)
 
     def reset_flowlines(self, flowlines, inplace=True):
         """Reset the initial model flowlines"""
@@ -1490,7 +1496,7 @@ class FluxBasedModel(FlowlineModel):
 
     def __init__(self, flowlines, mb_model=None, y0=0., glen_a=None, fs=None,
                  fixed_dt=None, min_dt=SEC_IN_DAY, max_dt=31 * SEC_IN_DAY,
-                 inplace=False, cfl_nr=0.01, **kwargs):
+                 inplace=False, cfl_nr=None, **kwargs):
         """ Instanciate.
 
         Parameters
@@ -1528,6 +1534,8 @@ class FluxBasedModel(FlowlineModel):
                                    device=self.device,
                                    requires_grad=False)
         # defines cfl criterion
+        if cfl_nr is None:
+            cfl_nr = cfg.PARAMS['cfl_number']
         self.cfl_nr = torch.tensor(cfl_nr,
                                    dtype=self.torch_type,
                                    device=self.device,
@@ -1589,9 +1597,9 @@ class FluxBasedModel(FlowlineModel):
         sf_stag = self.number_one
 
         # velocity on staggered grid
-        u_stag = ((self.rho * G * S_grad) ** n *
-                  (self._fd * H_stag ** (n + self.number_one) * sf_stag ** n +
-                   self.fs * H_stag ** (n - self.number_one)))
+        u_stag = ((self.rho * self.G * S_grad)**n *
+                  (self._fd * H_stag**(n + self.number_one) * sf_stag**n +
+                   self.fs * H_stag**(n - self.number_one)))
 
         # this is needed to use velocity as observation
         self.u_stag = u_stag

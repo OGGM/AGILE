@@ -282,7 +282,10 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_start_run,
     model = FluxBasedModel(copy.deepcopy(model.fls),
                            mb_run,
                            y0=yr_start_run)
-    model.run_until(yr_rgi)
+    model.run_until_and_store(yr_rgi,
+                              diag_path=gdir.get_filepath('model_diagnostics',
+                                                          filesuffix='_combine_true_init')
+                              )
     gdir.write_pickle(model.fls, 'model_flowlines',
                       filesuffix='_combine_true_init')
     rgi_date_area_km2 = model.area_km2
@@ -292,7 +295,11 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_start_run,
     # now run to the end for dhdt
     model.run_until_and_store(yr_end_run,
                               diag_path=gdir.get_filepath('model_diagnostics',
-                                                          filesuffix='_combine_end'))
+                                                          filesuffix='_combine_end'),
+                              geom_path=gdir.get_filepath('model_geometry',
+                                                          filesuffix='_combine_end',
+                                                          delete=True)
+                              )
     gdir.write_pickle(model.fls, 'model_flowlines',
                       filesuffix='_combine_true_end')
     dh_volume[1] = model.volume_m3
