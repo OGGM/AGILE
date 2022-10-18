@@ -117,9 +117,9 @@ def get_default_inversion_settings(get_doc=False):
            "e.g. '2009-2015')." \
            "'us' (unit: myr-1) surface ice velocity (if no time given RGI date)" \
            "Default: {'fl_surface_h:m': {}, " \
-           "'fl_total_area:m2': {}"
+           "'dh:m': {}"
     _default = {'fl_surface_h:m': {},
-                'fl_total_area:m2': {}}
+                'dh:m': {}}
     add_setting()
 
     _key = "obs_reg_parameters"
@@ -316,7 +316,8 @@ def get_adaptive_upper_ice_thickness_limit(fl, additional_ice_thickness=100,
     if dH > 1600:
         tau = 150000  # Pa
     else:
-        tau = 5 + 1598 * dH - 435 * dH**2  # Pa
+        # equation calculates tau in bar -> convert to Pa with 1e5
+        tau = (0.005 + 1.598 * dH / 1000 - 0.435 * (dH / 1000)**2) * 1e5  # Pa
 
     slope_stag = np.zeros(len(ice_surface_h) + 1)
     slope_stag[0] = 1
@@ -325,7 +326,7 @@ def get_adaptive_upper_ice_thickness_limit(fl, additional_ice_thickness=100,
 
     rho_ice = cfg.PARAMS['ice_density']
 
-    h_shear_stress = tau / (f * rho_ice * G * slope_stag)
+    h_shear_stress = tau / (f * rho_ice * G * np.abs(slope_stag))
     upper_h_limit = h_shear_stress[1:] + additional_ice_thickness
     upper_h_limit = np.clip(upper_h_limit, min_thickness, max_thickness)
 
@@ -338,7 +339,7 @@ def get_adaptive_upper_ice_thickness_limit(fl, additional_ice_thickness=100,
 
 @entity_task(log, writes=['model_flowlines'])
 def combine_inversion(gdir, inversion_input_filesuffix='_combine',
-                      init_model_filesuffix=None, init_model_fls=None,
+                      init_model_filesuffix=None, init_model_fls='_trapezoidal',
                       climate_filename='climate_historical',
                       climate_filesuffix='', output_filesuffix='_combine_output',
                       output_filepath=None, save_dataset=True,

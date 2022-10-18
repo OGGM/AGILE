@@ -7,10 +7,12 @@ import numpy as np
 from oggm.utils import mkdir
 from oggm import cfg, utils, workflow, tasks, global_tasks
 from oggm.workflow import execute_entity_task
+from oggm.shop.bedtopo import add_consensus_thickness
 
 from combine1d.core.inversion import prepare_for_combine_inversion, get_default_inversion_settings
 from combine1d.core.data_logging import initialise_DataLogger
 from combine1d.core.cost_function import get_indices_for_unknown_parameters, get_known_parameters
+from distutils import dir_util
 
 
 @pytest.fixture(scope='session')
@@ -27,23 +29,56 @@ def hef_gdir(test_dir):
     cfg.PARAMS['use_multiple_flowlines'] = False
     cfg.PARAMS['use_rgi_area'] = False
     cfg.PATHS['working_dir'] = test_dir
+    cfg.PARAMS['border'] = 160
+    cfg.PARAMS['continue_on_error'] = False
+    cfg.PARAMS['baseline_climate'] = 'W5E5'
 
     rgi_ids = ['RGI60-11.00897']
     gl = utils.get_rgi_glacier_entities(rgi_ids)
-    gdirs = workflow.init_glacier_directories(gl, from_prepro_level=1)
+    gdirs = workflow.init_glacier_directories(
+        gl, from_prepro_level=1,
+        prepro_base_url='https://cluster.klima.uni-bremen.de/~oggm/gdirs/'
+                        'oggm_v1.6/L1-L2_files/elev_bands/')
 
-    global_tasks.gis_prepro_tasks(gdirs)
+    # create elevation band flowline
+    execute_entity_task(tasks.simple_glacier_masks, gdirs)
+    execute_entity_task(add_consensus_thickness, gdirs)
+    vn = 'consensus_ice_thickness'
+    execute_entity_task(tasks.elevation_band_flowline,
+                        gdirs, bin_variables=vn)
+    execute_entity_task(tasks.fixed_dx_elevation_band_flowline,
+                        gdirs, bin_variables=vn)
 
-    cfg.PARAMS['baseline_climate'] = 'CRU'
-    global_tasks.climate_tasks(gdirs,
-                               base_url='https://cluster.klima.uni-bremen.de/~oggm/ref_mb_params'
-                                        '/oggm_v1.4/RGIV62/CRU/centerlines/qc3/pcp2.5')
+    # downstream line
+    task_list = [
+        tasks.compute_downstream_line,
+        tasks.compute_downstream_bedshape,
+    ]
+    for task in task_list:
+        workflow.execute_entity_task(task, gdirs)
 
-    execute_entity_task(tasks.prepare_for_inversion, gdirs,
-                        invert_all_trapezoid=True)
-    execute_entity_task(tasks.mass_conservation_inversion, gdirs)
+    # climate
+    execute_entity_task(tasks.process_climate_data, gdirs)
+    if cfg.PARAMS['climate_qc_months'] > 0:
+        execute_entity_task(tasks.historical_climate_qc, gdirs)
 
-    execute_entity_task(tasks.init_present_time_glacier, gdirs)
+    # mb model calibration to geodetic mass balance
+    utils.get_geodetic_mb_dataframe()  # Small optim to avoid concurrency
+    execute_entity_task(tasks.mu_star_calibration_from_geodetic_mb, gdirs)
+    execute_entity_task(tasks.apparent_mb_from_any_mb, gdirs)
+
+    # Inversion
+    workflow.calibrate_inversion_from_consensus(gdirs,
+                                                apply_fs_on_mismatch=True,
+                                                error_on_mismatch=False,
+                                                filter_inversion_output=True)
+
+    execute_entity_task(tasks.init_present_time_glacier, gdirs,
+                        filesuffix='_parabola')
+
+    cfg.PARAMS['downstream_line_shape'] = 'trapezoidal'
+    execute_entity_task(tasks.init_present_time_glacier, gdirs,
+                        filesuffix='_trapezoidal')
 
     return gdirs[0]
 
@@ -120,3 +155,19 @@ def data_logger(data_logger_init):
     data_logger.parameter_indices = parameter_indices
 
     return data_logger
+
+
+@pytest.fixture(scope='function')
+def data_dir(tmpdir, request):
+    """
+    Fixture responsible for searching a folder with the same name of test
+    module and, if available, moving all contents to a temporary directory so
+    tests can use them freely.
+    """
+    filename = request.module.__file__
+    test_dir, _ = os.path.splitext(filename)
+
+    if os.path.isdir(test_dir):
+        dir_util.copy_tree(test_dir, str(tmpdir))
+
+    return tmpdir

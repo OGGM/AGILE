@@ -261,7 +261,8 @@ class DataLogger(object):
 
 
 def initialise_DataLogger(gdir, inversion_input_filesuffix='_combine',
-                          init_model_filesuffix=None, init_model_fls=None,
+                          init_model_filesuffix=None,
+                          init_model_fls='_trapezoidal',
                           climate_filename='climate_historical',
                           climate_filesuffix='', output_filesuffix='_combine',
                           output_filepath=None):
@@ -276,9 +277,7 @@ def initialise_DataLogger(gdir, inversion_input_filesuffix='_combine',
         fmod = FileModel(fp)
         init_model_fls = fmod.fls
 
-    if init_model_fls is None:
-        fls_init = gdir.read_pickle('model_flowlines')
-    elif type(init_model_fls) is str:
+    if type(init_model_fls) is str:
         fls_init = gdir.read_pickle('model_flowlines',
                                     filesuffix=init_model_fls)
     else:
