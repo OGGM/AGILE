@@ -7,6 +7,7 @@ import xarray as xr
 import time
 from combine1d.core.arithmetics import RMSE, mean_BIAS, max_dif
 from combine1d.core.exception import MaxCalculationTimeReached
+from combine1d.core.flowline import FluxBasedModel, ImplicitModelTrapezoidal
 import os
 import warnings
 import copy
@@ -40,6 +41,15 @@ class DataLogger(object):
         self.solver = inversion_input['solver']
         self.minimize_options = inversion_input['minimize_options']
         self.max_time_minimize = inversion_input['max_time_minimize']
+
+        if inversion_input['dynamic_model'] == 'flux_based':
+            self.dynamic_model = FluxBasedModel
+        elif inversion_input['dynamic_model'] == 'implicit':
+            self.dynamic_model = ImplicitModelTrapezoidal
+        else:
+            raise ValueError("Unknown dynamic model "
+                             f"{inversion_input['dynamic_model']}! (Options "
+                             f"are 'flux_based' or 'implicit'")
 
         if self.spinup_options is None:
             spinup_type = None
@@ -239,12 +249,12 @@ class DataLogger(object):
         path = self.gdir.dir
         list_of_files = os.listdir(path)
         if (self.filename + '.pkl') in list_of_files:
-            for file_nr in range(20):
+            for file_nr in range(50):
                 if (self.filename + '_' + str(file_nr) + '.pkl') \
                         not in list_of_files:
                     self.filename += ('_' + str(file_nr))
                     break
-                if file_nr == 19:
+                if file_nr == 49:
                     raise ValueError('There are to many files with the same '
                                      'name!')
 

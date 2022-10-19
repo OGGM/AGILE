@@ -1682,7 +1682,7 @@ class ImplicitModelTrapezoidal(FlowlineModel):
         if len(self.fls) > 1:
             raise ValueError('Implicit model does not work with tributaries.')
 
-        if ~np.all(self.fls[0].is_trapezoid.cpu().numpy().astype(np.bool_)):
+        if ~np.all(self.fls[0].is_trapezoid.cpu().numpy().astype(bool)):
             raise ValueError('Implicit model only works with a pure '
                              'trapezoidal flowline!')
 
@@ -1802,12 +1802,13 @@ class ImplicitModelTrapezoidal(FlowlineModel):
             if cfl_dt < dt:
                 dt = cfl_dt
                 if cfl_dt < self.min_dt:
-                    raise RuntimeError(
+                    raise MemoryError(
                         'CFL error: required time step smaller '
                         'than the minimum allowed: '
                         '{:.1f}s vs {:.1f}s. Happening at '
                         'simulation year {:.1f}, fl_id {}, '
-                        'bin_id {} and max_D {:.3f} m2 yr-1.'
+                        'bin_id {} and max_D/w {:.3f} m2 yr-1. '
+                        'To avoid memory overflow!'
                         ''.format(cfl_dt, self.min_dt, self.yr, 0,
                                   np.argmax(np.abs(D_stag)),
                                   divisor * cfg.SEC_IN_YEAR))

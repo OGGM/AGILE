@@ -14,7 +14,7 @@ pytestmark = pytest.mark.filterwarnings("ignore:<class 'combine1d.core.torch_int
                                         "should not be instantiated.:DeprecationWarning")
 
 
-def test_special_gradient_functions():
+def test_parabolic_functions():
     test_shape = torch.abs(torch.randn(1000, dtype=torch.double, requires_grad=True))
     test_thick = torch.abs(torch.randn(1000, dtype=torch.double, requires_grad=True)) * 1000
 

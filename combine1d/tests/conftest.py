@@ -128,8 +128,14 @@ def spinup_option(request):
     return request.param
 
 
+@pytest.fixture(params=['flux_based', 'implicit'],
+                ids=['flux_based', 'implicit'])
+def dynamic_models(request):
+    return request.param
+
+
 @pytest.fixture(scope='function')
-def data_logger_init(hef_gdir, control_vars, spinup_option,
+def data_logger_init(hef_gdir, control_vars, spinup_option, dynamic_models,
                      all_supported_control_vars):
     # data_logger after initialisation (before creation of cost function)
     inversion_settings = get_default_inversion_settings(get_doc=False)
@@ -137,6 +143,7 @@ def data_logger_init(hef_gdir, control_vars, spinup_option,
         inversion_settings['control_vars'] = all_supported_control_vars
     else:
         inversion_settings['control_vars'] = control_vars
+    inversion_settings['dynamic_model'] = dynamic_models
     inversion_settings['spinup_options'] = spinup_option
     prepare_for_combine_inversion(hef_gdir, inversion_settings=inversion_settings,
                                   filesuffix='_combine')
