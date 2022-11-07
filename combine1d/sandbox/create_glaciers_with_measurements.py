@@ -5,7 +5,7 @@ import numpy as np
 from oggm.cfg import SEC_IN_YEAR
 from scipy.optimize import brentq
 
-from oggm import cfg, workflow, tasks, entity_task
+from oggm import cfg, workflow, tasks, entity_task, utils
 from oggm.core.flowline import MixedBedFlowline, FluxBasedModel
 from oggm.core.massbalance import ConstantMassBalance, MultipleFlowlineMassBalance, \
     PastMassBalance
@@ -40,6 +40,8 @@ def create_idealized_experiments(all_glaciers,
 
     cfg.PARAMS['min_ice_thick_for_length'] = 0.01
     cfg.PARAMS['glacier_length_method'] = 'consecutive'
+    # use very small cfl_number to avoid instabilities in experiment creation
+    cfg.PARAMS['cfl_number'] = 0.001
 
     # check if glaciers are already defined
     for glacier in all_glaciers:
@@ -60,6 +62,23 @@ def create_idealized_experiments(all_glaciers,
     for gdir in gdirs:
         gdir.name = rgi_id_to_name[gdir.rgi_id]
 
+    # climate
+    workflow.execute_entity_task(tasks.process_climate_data, gdirs)
+    if cfg.PARAMS['climate_qc_months'] > 0:
+        workflow.execute_entity_task(tasks.historical_climate_qc, gdirs)
+    utils.get_geodetic_mb_dataframe()  # Small optim to avoid concurrency
+    workflow.execute_entity_task(tasks.mu_star_calibration_from_geodetic_mb, gdirs)
+    workflow.execute_entity_task(tasks.apparent_mb_from_any_mb, gdirs)
+
+    # inversion
+    workflow.calibrate_inversion_from_consensus(gdirs,
+                                                apply_fs_on_mismatch=False,
+                                                error_on_mismatch=True,
+                                                filter_inversion_output=False)
+
+    # initialise original flowline
+    workflow.execute_entity_task(tasks.init_present_time_glacier, gdirs)
+
     # add thickness from consensus thickness estimate
     workflow.execute_entity_task(bedtopo.add_consensus_thickness, gdirs)
 
@@ -75,6 +94,14 @@ def create_idealized_experiments(all_glaciers,
                                  bin_variables=['consensus_ice_thickness'],
                                  preserve_totals=[True]
                                  )
+
+    # initialise trapezoidal flowline
+    workflow.execute_entity_task(tasks.compute_downstream_bedshape, gdirs)
+    cfg.PARAMS['downstream_line_shape'] = 'trapezoidal'
+    workflow.execute_entity_task(tasks.init_present_time_glacier, gdirs,
+                                 filesuffix='_trapezoidal')
+    assert np.all(gdir.read_pickle('model_flowlines',
+                                   filesuffix='_trapezoidal')[0].is_trapezoid)
 
     # add consensus flowline
     workflow.execute_entity_task(initialise_consensus_flowline, gdirs)
@@ -104,7 +131,6 @@ def create_idealized_experiments(all_glaciers,
                                      yr_spinup=yr_spinup,
                                      used_mb_models=used_mb_models)
 
-
     # create glacier with experiment measurements
     workflow.execute_entity_task(evolve_glacier_and_create_measurements, gdirs,
                                  used_mb_models=used_mb_models,
@@ -115,24 +141,26 @@ def create_idealized_experiments(all_glaciers,
     # now OGGM inversion from idealized glacier surface for first guess
     workflow.execute_entity_task(oggm_inversion_for_first_guess, gdirs)
 
+    # change back to default
+    cfg.PARAMS['cfl_number'] = 0.02
+
     print('Experiment creation finished')
     return gdirs
 
 
 @entity_task(log, writes=['model_flowlines'])
 def initialise_consensus_flowline(gdir):
-    """TODO
+    """ Initialise the consensus flowline. Update w0 so that surface_h and
+    widhts_m are unchanged. Saved as 'model_flowlines_consensus'.
     """
 
-    # initialise the consensus flowline (with consensus thickness and update w0,
-    # so that surface_h and widths_m is unchanged)
-    # and save as 'model_flowlines_consensus'
     df_regular = pd.read_csv(gdir.get_filepath('elevation_band_flowline',
                                                filesuffix='_fixed_dx'),
                              index_col=0)
     ice_thick_consensus = df_regular['consensus_ice_thickness'].values
 
-    fl_consensus = copy.deepcopy(gdir.read_pickle('model_flowlines')[0])
+    fl_consensus = copy.deepcopy(
+        gdir.read_pickle('model_flowlines', filesuffix='_trapezoidal')[0])
     widths_m_original = copy.deepcopy(fl_consensus.widths_m)
     fl_consensus.bed_h[:len(ice_thick_consensus)] = \
         fl_consensus.surface_h[:len(ice_thick_consensus)] - ice_thick_consensus
@@ -143,25 +171,42 @@ def initialise_consensus_flowline(gdir):
                 ice_thick_consensus,
                 10, None)
 
-    gdir.write_pickle([fl_consensus], 'model_flowlines', filesuffix='_consensus')
+    gdir.write_pickle([fl_consensus], 'model_flowlines',
+                      filesuffix='_consensus')
 
 
 @entity_task(log, writes=['model_flowlines'])
 def create_spinup_glacier(gdir, rgi_id_to_name, yr_start_run, yr_end_run,
                           yr_spinup, used_mb_models):
-    """TODO
     """
+    Finds the tbias used for the spinup mb if not given in experiment glaciers,
+    also saves the glacier state after spinup at yr_start_run (1980) as
+    'model_flowlines_spinup'.
+    """
+    # define how many years the additional spinup should be
+    years_to_run_spinup = 100
+
     # now creat spinup glacier with consensus flowline starting from ice free,
-    # try to match length at rgi_date for 'realistic' experiment setting
+    # try to match area at rgi_date for 'realistic' experiment setting
     fl_consensus = gdir.read_pickle('model_flowlines',
                                     filesuffix='_consensus')[0]
     length_m_ref = fl_consensus.length_m
 
-    fls_spinup = copy.deepcopy([fl_consensus])
-    fls_spinup[0].thick = np.zeros(len(fls_spinup[0].thick))
-    halfsize = (yr_start_run - yr_spinup) / 2
     yr_rgi = gdir.rgi_date
 
+    fls_spinup = copy.deepcopy([fl_consensus])
+    fls_spinup[0].thick = np.zeros(len(fls_spinup[0].thick))
+
+    halfsize_initial = (yr_end_run - yr_spinup) / 2
+    mb_spinup_initial = MultipleFlowlineMassBalance(gdir,
+                                            fls=fls_spinup,
+                                            mb_model_class=ConstantMassBalance,
+                                            filename='climate_historical',
+                                            input_filesuffix='',
+                                            y0=yr_spinup + halfsize_initial,
+                                            halfsize=halfsize_initial)
+
+    halfsize = (yr_end_run - yr_spinup) / 2
     mb_spinup = MultipleFlowlineMassBalance(gdir,
                                             fls=fls_spinup,
                                             mb_model_class=ConstantMassBalance,
@@ -170,28 +215,70 @@ def create_spinup_glacier(gdir, rgi_id_to_name, yr_start_run, yr_end_run,
                                             y0=yr_spinup + halfsize,
                                             halfsize=halfsize)
 
-    mb_historical = MultipleFlowlineMassBalance(gdir,
-                                                fls=fls_spinup,
-                                                mb_model_class=PastMassBalance,
-                                                filename='climate_historical',
-                                                input_filesuffix='')
+    halfsize_hist_1 = (yr_start_run - yr_spinup) / 2
+    mb_historical_1 = MultipleFlowlineMassBalance(gdir,
+                                                  fls=fls_spinup,
+                                                  mb_model_class=ConstantMassBalance,
+                                                  filename='climate_historical',
+                                                  input_filesuffix='',
+                                                  y0=yr_spinup + halfsize_hist_1,
+                                                  halfsize=halfsize_hist_1
+                                                  )
 
-    def spinup_run(t_bias):
-        # with t_bias the glacier state after spinup is changed between iterations
+    halfsize_hist_2 = (yr_rgi - yr_start_run) / 2
+    mb_historical_2 = MultipleFlowlineMassBalance(gdir,
+                                                  fls_spinup,
+                                                  mb_model_class=ConstantMassBalance,
+                                                  filename='climate_historical',
+                                                  y0=yr_start_run + halfsize_hist_2,
+                                                  halfsize=halfsize_hist_2
+                                                  )
+
+    def get_spinup_glacier(t_bias):
+        # first create an equilibrium glacier
+        model_initial = FluxBasedModel(copy.deepcopy(fls_spinup),
+                                       mb_spinup_initial,
+                                       y0=0)
+        model_initial.run_until_equilibrium(rate=0.01, max_ite=100)
+
+        # afterwards let the glacier evolve for years_to_run_spinup using t_bias
         mb_spinup.temp_bias = t_bias
         # run the spinup
-        model_spinup = FluxBasedModel(copy.deepcopy(fls_spinup),
+        model_spinup = FluxBasedModel(model_initial.fls,
                                       mb_spinup,
                                       y0=0)
-        model_spinup.run_until_equilibrium(max_ite=1000)
+        model_spinup.run_until(years_to_run_spinup)
+
+        # finally conduct a fake transient evolution (before the actual
+        # evolution, this gives the nicest looking transient test glaciers...)
+        model_spinup = FluxBasedModel(model_spinup.fls,
+                                      mb_historical_1,
+                                      y0=yr_spinup)
+        model_spinup.run_until(yr_start_run)
+
+        model_spinup = FluxBasedModel(model_spinup.fls,
+                                      mb_historical_2,
+                                      y0=yr_start_run)
+        model_spinup.run_until(yr_rgi)
+
+        return model_spinup
+
+    def spinup_run(t_bias):
+
+        model_spinup = get_spinup_glacier(t_bias)
 
         # Now conduct the actual model run to the rgi date
-        model_historical = FluxBasedModel(model_spinup.fls,
-                                          mb_historical,
-                                          y0=yr_spinup)
-        model_historical.run_until(yr_rgi)
+        model_historical_1 = FluxBasedModel(model_spinup.fls,
+                                            mb_historical_1,
+                                            y0=yr_spinup)
+        model_historical_1.run_until(yr_start_run)
 
-        cost = (model_historical.length_m - length_m_ref) / length_m_ref * 100
+        model_historical_2 = FluxBasedModel(model_historical_1.fls,
+                                            mb_historical_2,
+                                            y0=yr_start_run)
+        model_historical_2.run_until(yr_rgi)
+
+        cost = (model_historical_2.length_m - length_m_ref) / length_m_ref * 100
 
         return cost
 
@@ -204,7 +291,7 @@ def create_spinup_glacier(gdir, rgi_id_to_name, yr_start_run, yr_end_run,
             experiment_glaciers[glacier_name]['t_bias_spinup_limits']
 
     if experiment_glaciers[glacier_name]['t_bias_spinup'] is None:
-        # search for it by giving back
+        # search for it
         t_bias_spinup = brentq(spinup_run,
                                t_bias_spinup_limits[0],
                                t_bias_spinup_limits[1],
@@ -213,13 +300,9 @@ def create_spinup_glacier(gdir, rgi_id_to_name, yr_start_run, yr_end_run,
         t_bias_spinup = experiment_glaciers[glacier_name]['t_bias_spinup']
 
     print(f'{gdir.name} spinup tbias: {t_bias_spinup} with L mismatch at rgi_date:'
-          f' {spinup_run(t_bias_spinup)} m')
+          f' {spinup_run(t_bias_spinup) / 100 * length_m_ref} m')
 
-    mb_spinup.temp_bias = t_bias_spinup
-    model_spinup = FluxBasedModel(copy.deepcopy(fls_spinup),
-                                  mb_spinup,
-                                  y0=0)
-    model_spinup.run_until_equilibrium(max_ite=1000)
+    model_spinup = get_spinup_glacier(t_bias_spinup)
 
     gdir.write_pickle(model_spinup.fls, 'model_flowlines', filesuffix='_spinup')
 
@@ -345,26 +428,11 @@ def oggm_inversion_for_first_guess(gdir):
     fls_inversion.apparent_mb = None
     gdir.write_pickle([fls_inversion], 'inversion_flowlines')
 
-    # now calculate flux for inversion
-    # depending on used base url
-    # no match
-    # Climate period
-    df = gdir.read_json('local_mustar')
-    t_star = df['t_star']
-    mu_hp = int(cfg.PARAMS['mu_star_halfperiod'])
-    yr_range = [t_star - mu_hp, t_star + mu_hp]
-
-    workflow.execute_entity_task(tasks.apparent_mb_from_any_mb, gdir,
-                                 mb_years=yr_range)
-
-    # e.g. for per glacier, UNTESTED
-    # per_glacier_tasks = [tasks.mu_star_calibration_from_geodetic_mb,
-    #                      tasks.apparent_mb_from_any_mb]
+    workflow.execute_entity_task(tasks.apparent_mb_from_any_mb, gdir)
 
     # now do the inversion
     inversion_tasks = [tasks.prepare_for_inversion,
-                       tasks.mass_conservation_inversion,
-                       tasks.filter_inversion_output]
+                       tasks.mass_conservation_inversion]
     for task in inversion_tasks:
         workflow.execute_entity_task(task, gdir)
 
