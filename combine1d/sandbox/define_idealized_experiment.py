@@ -5,7 +5,7 @@ from combine1d.sandbox.create_glaciers_with_measurements import \
     create_idealized_experiments
 from combine1d.core.inversion import prepare_for_combine_inversion, \
     combine_inversion
-from oggm import cfg, utils, workflow
+from oggm import cfg, utils, workflow, tasks
 from oggm import entity_task
 
 # Module logger
@@ -32,16 +32,16 @@ def idealized_experiment(use_experiment_glaciers=None,
     print('Create glacier directories with idealized glaciers:')
     # Size of the map around the glacier.
     if cfg.PARAMS['border'] != 160:
-        msg = (f"Border is {cfg.PARAMS['border']} but experiments were "
+        msg = (f"cfg.PARAMS['border'] is {cfg.PARAMS['border']} but experiments were "
                f"created with border=160!")
         warnings.warn(msg)
         raise RuntimeError(msg)
     # Degree of processing level.
-    from_prepro_level = 3
+    from_prepro_level = 2
     # URL of the preprocessed gdirs
     # we use elevation bands flowlines here
-    base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.4/' \
-               'L3-L5_files/CRU/elev_bands/qc3/pcp2.5/no_match/'
+    base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/' \
+               'L1-L2_files/elev_bands/'
 
     gdirs = create_idealized_experiments(use_experiment_glaciers,
                                          prepro_border=cfg.PARAMS['border'],

@@ -8,9 +8,8 @@ from scipy.optimize import minimize
 import numpy as np
 
 # Locals
-from oggm import utils, cfg
+from oggm import utils, cfg, workflow, tasks, entity_task
 from oggm.cfg import G
-from oggm import entity_task
 from combine1d.core.cost_function import create_cost_fct
 from combine1d.core.data_logging import initialise_DataLogger
 from combine1d.core.exception import MaxCalculationTimeReached
@@ -32,8 +31,9 @@ def get_default_inversion_settings(get_doc=False):
     _key = "control_vars"
     _doc = "Defines the control variables in an array which are changed during " \
            "the inversion. " \
-           "Options: 'bed_h', 'lambdas', 'w0_m', 'area_bed_h'. Default: ['bed_h']"
-    _default = ['bed_h']
+           "Options: 'bed_h' (not good), 'lambdas', 'w0_m', 'area_bed_h'." \
+           "Default: ['area_bed_h']"
+    _default = ['area_bed_h']
     add_setting()
 
     _key = "mb_models_settings"
@@ -46,6 +46,14 @@ def get_default_inversion_settings(get_doc=False):
            "'MB2': {'type': 'constant', 'years': np.array([2000, 2019])}}"
     _default = {'MB1': {'type': 'constant', 'years': np.array([1980, 2000])},
                 'MB2': {'type': 'constant', 'years': np.array([2000, 2019])}}
+    add_setting()
+
+    _key = "dynamic_model"
+    _doc = "Define which dynamic solver should be used. The options are " \
+           "'flux_based', which is a reimplemented and simplified version " \
+           "of OGGMs FluxBasedModel, or 'implicit', which is a implicit " \
+           "solver only for a trapezoidal flowline. Default is 'implicit'. "
+    _default = 'implicit'
     add_setting()
 
     _key = "min_w0_m"
@@ -84,9 +92,9 @@ def get_default_inversion_settings(get_doc=False):
 
     _key = "limits_lambda"
     _doc = "Allowed limits for lambda (the angle of trapezoidal side wall)," \
-           "0 -> 90°, 2 -> 45°. " \
-           "Default: (0., 4.)"
-    _default = (0., 4.)
+           "0.1 -> ~87°, 2 -> 45°. " \
+           "Default: (0.1, 4.)"
+    _default = (0.1, 4.)
     add_setting()
 
     _key = "limits_height_shift_spinup"
@@ -117,9 +125,9 @@ def get_default_inversion_settings(get_doc=False):
            "e.g. '2009-2015')." \
            "'us' (unit: myr-1) surface ice velocity (if no time given RGI date)" \
            "Default: {'fl_surface_h:m': {}, " \
-           "'fl_total_area:m2': {}"
+           "'dh:m': {}"
     _default = {'fl_surface_h:m': {},
-                'fl_total_area:m2': {}}
+                'dh:m': {}}
     add_setting()
 
     _key = "obs_reg_parameters"
@@ -230,6 +238,18 @@ def prepare_for_combine_inversion(gdir, inversion_settings=None,
     gdir.write_pickle(inversion_settings, filename='inversion_input',
                       filesuffix=filesuffix)
 
+    # if dynamic model is implicit, initialise trapezoidal flowline here
+    if inversion_settings['dynamic_model'] == 'implicit':
+        cfg.PARAMS['downstream_line_shape'] = 'trapezoidal'
+        workflow.execute_entity_task(tasks.init_present_time_glacier, [gdir],
+                                     filesuffix='_trapezoidal')
+        fls = gdir.read_pickle('model_flowlines',
+                               filesuffix='_trapezoidal')
+        if ~np.all(fls[0].is_trapezoid):
+            raise ValueError('Implicit model only works with a pure '
+                             'trapezoidal flowline! You should use the '
+                             'elevation band flowlines of OGGM!')
+
 
 def get_control_var_bounds(data_logger):
     bounds = np.zeros(data_logger.len_unknown_parameter, dtype='object')
@@ -316,7 +336,8 @@ def get_adaptive_upper_ice_thickness_limit(fl, additional_ice_thickness=100,
     if dH > 1600:
         tau = 150000  # Pa
     else:
-        tau = 5 + 1598 * dH - 435 * dH**2  # Pa
+        # equation calculates tau in bar -> convert to Pa with 1e5
+        tau = (0.005 + 1.598 * dH / 1000 - 0.435 * (dH / 1000)**2) * 1e5  # Pa
 
     slope_stag = np.zeros(len(ice_surface_h) + 1)
     slope_stag[0] = 1
@@ -325,7 +346,7 @@ def get_adaptive_upper_ice_thickness_limit(fl, additional_ice_thickness=100,
 
     rho_ice = cfg.PARAMS['ice_density']
 
-    h_shear_stress = tau / (f * rho_ice * G * slope_stag)
+    h_shear_stress = tau / (f * rho_ice * G * np.abs(slope_stag))
     upper_h_limit = h_shear_stress[1:] + additional_ice_thickness
     upper_h_limit = np.clip(upper_h_limit, min_thickness, max_thickness)
 
@@ -338,7 +359,7 @@ def get_adaptive_upper_ice_thickness_limit(fl, additional_ice_thickness=100,
 
 @entity_task(log, writes=['model_flowlines'])
 def combine_inversion(gdir, inversion_input_filesuffix='_combine',
-                      init_model_filesuffix=None, init_model_fls=None,
+                      init_model_filesuffix=None, init_model_fls='_trapezoidal',
                       climate_filename='climate_historical',
                       climate_filesuffix='', output_filesuffix='_combine_output',
                       output_filepath=None, save_dataset=True,

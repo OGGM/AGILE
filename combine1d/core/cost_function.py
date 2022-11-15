@@ -25,7 +25,8 @@ def create_cost_fct(data_logger):
     known_parameters = get_known_parameters(data_logger)
     data_logger.known_parameters = known_parameters
 
-    # here create now the indices for all control variables of the unknown_parameters variable
+    # here create now the indices for all control variables of the
+    # unknown_parameters variable
     parameter_indices = get_indices_for_unknown_parameters(data_logger)
     data_logger.parameter_indices = parameter_indices
 
@@ -75,7 +76,8 @@ def get_known_parameters(data_logger):
         else:
             raise NotImplementedError(f'{con_var}')
 
-        known_parameters[con_var] = getattr(fl, prefix_var + con_var)[known_index]
+        known_parameters[con_var] = getattr(fl,
+                                            prefix_var + con_var)[known_index]
 
     return known_parameters
 
@@ -103,7 +105,8 @@ def get_indices_for_unknown_parameters(data_logger):
                                       f'implemented!')
 
         parameter_indices[control_var] = np.arange(current_start_ind,
-                                                   current_start_ind + parameter_length)
+                                                   current_start_ind +
+                                                   parameter_length)
         current_start_ind += parameter_length
 
     # save the number (length) of the resulting unknown_parameter array
@@ -138,6 +141,8 @@ def cost_fct(unknown_parameters, data_logger):
     flowline, fl_control_vars = initialise_flowline(unknown_parameters,
                                                     data_logger)
 
+    dynamic_model = data_logger.dynamic_model
+
     mb_models, mb_control_vars = initialise_mb_models(unknown_parameters,
                                                       data_logger)
 
@@ -158,8 +163,8 @@ def cost_fct(unknown_parameters, data_logger):
             grad = np.empty(len(unknown_parameters)) * np.nan
             return cost, grad
     elif data_logger.spinup_type not in [None, 'surface_h']:
-        raise NotImplementedError(f'The spinup type {data_logger.spinup_type} '
-                                  'possibility is not integrated!')
+        raise NotImplementedError(f'The spinup option {data_logger.spinup_type} '
+                                  'is not implemented!')
     else:
         spinup_control_vars = {}
 
@@ -172,6 +177,7 @@ def cost_fct(unknown_parameters, data_logger):
     try:
         observations_mdl, final_fl = run_model_and_get_temporal_model_data(
             flowline=flowline,
+            dynamic_model=dynamic_model,
             mb_models=mb_models,
             observations=observations)
 
@@ -210,14 +216,15 @@ def cost_fct(unknown_parameters, data_logger):
     cost = c.detach().to('cpu').numpy().astype(np.float64)
 
     # save data in data_logger
-    data_logger.save_data_in_datalogger('observations_mdl',
-                                        detach_observations_mdl(observations_mdl))
+    data_logger.save_data_in_datalogger(
+        'observations_mdl', detach_observations_mdl(observations_mdl))
     data_logger.save_data_in_datalogger('sfc_h_start', sfc_h_start)
     data_logger.save_data_in_datalogger('flowlines', detach_flowline(final_fl))
     data_logger.save_data_in_datalogger('costs', cost)
     data_logger.save_data_in_datalogger('grads', grad)
     data_logger.save_data_in_datalogger('c_terms', c_terms)
-    data_logger.save_data_in_datalogger('unknown_parameters', unknown_parameters)
+    data_logger.save_data_in_datalogger('unknown_parameters',
+                                        unknown_parameters)
     data_logger.save_data_in_datalogger('time_needed',
                                         time.time() - data_logger.start_time)
 
@@ -418,6 +425,7 @@ def do_height_shift_spinup(flowline, unknown_parameters, data_logger):
     device = data_logger.device
     gdir = data_logger.gdir
     parameter_indices = data_logger.parameter_indices
+    dynamic_model = data_logger.dynamic_model
 
     y_start = mb_models_settings['years'][0]
     y_end = mb_models_settings['years'][1]
@@ -443,9 +451,9 @@ def do_height_shift_spinup(flowline, unknown_parameters, data_logger):
     else:
         raise NotImplementedError
 
-    model = FluxBasedModel(flowline,
-                           mb_spinup,
-                           y0=y_start)
+    model = dynamic_model(flowline,
+                          mb_spinup,
+                          y0=y_start)
     model.run_until(y_end)
 
     return model.fls[0], spinup_control_vars
@@ -723,8 +731,8 @@ def detach_flowline(final_fl_in):
         # here we need 'logical_or' as COMBINE separates rectangular and
         # trapezoidal whereas OGGM do not separate
         is_trapezoid=np.logical_or(
-            final_fl_in.is_trapezoid.detach().to('cpu').numpy().astype(np.bool),
-            final_fl_in.is_rectangular.detach().to('cpu').numpy().astype(np.bool)),
+            final_fl_in.is_trapezoid.detach().to('cpu').numpy().astype(bool),
+            final_fl_in.is_rectangular.detach().to('cpu').numpy().astype(bool)),
         lambdas=final_fl_in._lambdas.detach().to('cpu').numpy().astype(np.float64),
         rgi_id=final_fl_in.rgi_id,
         water_level=final_fl_in.water_level,

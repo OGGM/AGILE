@@ -77,14 +77,15 @@ def get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
                                                     data_logger)
     mb_models, mb_control_vars = initialise_mb_models(unknown_parameters,
                                                       data_logger)
+    dynamic_model = data_logger.dynamic_model
 
     if data_logger.spinup_type == 'height_shift_spinup':
         # Here a spinup run is conducted using the control variable
         # height_shift_spinup (vertically shift the whole mb profile)
         flowline, spinup_control_vars = \
-            do_height_shift_spinup(flowline,
-                                   unknown_parameters,
-                                   data_logger)
+            do_height_shift_spinup(flowline=flowline,
+                                   unknown_parameters=unknown_parameters,
+                                   data_logger=data_logger)
     elif data_logger.spinup_type not in [None, 'surface_h']:
         raise NotImplementedError(f'The spinup type {data_logger.spinup_type} '
                                   'possibility is not integrated!')
@@ -92,8 +93,10 @@ def get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
         spinup_control_vars={}
 
     observations_mdl, final_fl = \
-        run_model_and_get_temporal_model_data(flowline, mb_models,
-                                              observations)
+        run_model_and_get_temporal_model_data(flowline=flowline,
+                                              dynamic_model=dynamic_model,
+                                              mb_models=mb_models,
+                                              observations=observations)
 
     # now add artificial observation values
     for obs_var in observations.keys():
@@ -274,6 +277,7 @@ class TestCostFct:
         data_logger.spinup_options = {'do_spinup': 'whatever'}
         data_logger.spinup_type = 'do_spinup'
         with pytest.raises(NotImplementedError,
-                           match=f'The spinup type {data_logger.spinup_type} '
-                                  'possibility is not integrated!'):
+                           match=f'The spinup option {data_logger.spinup_type} '
+                                 'is not implemented!'
+                           ):
             cost_fct(unknown_parameters, data_logger)

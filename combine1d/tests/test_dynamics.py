@@ -10,6 +10,7 @@ from combine1d.core.dynamics import (run_model_and_get_temporal_model_data,
 from combine1d.core.first_guess import get_first_guess
 from combine1d.core.cost_function import (initialise_flowline,
                                           initialise_mb_models)
+from combine1d.core.flowline import FluxBasedModel, ImplicitModelTrapezoidal
 
 
 pytestmark = pytest.mark.filterwarnings("ignore:<class 'combine1d.core.torch_interp1d.Interp1d'> "
@@ -38,6 +39,10 @@ def mb_models(data_logger, unknown_parameters):
 
     return mb_models
 
+@pytest.fixture(scope='function')
+def dynamic_model(data_logger):
+    return data_logger.dynamic_model
+
 
 class TestDynamicRunWithModelObservations:
     def test_construct_needed_model_data(self, observations):
@@ -64,12 +69,12 @@ class TestDynamicRunWithModelObservations:
                                match=f'Wrong unit for {obs_name}!'):
                 construct_needed_model_data({f'{obs_name}:{wrong_unit}': {}})
 
-    def test_run_model_and_get_model_values(self, flowline, mb_models,
-                                            observations):
+    def test_run_model_and_get_model_values(self, flowline, dynamic_model,
+                                            mb_models, observations):
         needed_model_data = construct_needed_model_data(observations)
-        actual_model_data, flowline = run_model_and_get_model_values(flowline,
-                                                                     mb_models,
-                                                                     needed_model_data)
+        actual_model_data, flowline = run_model_and_get_model_values(
+            flowline=flowline, dynamic_model=dynamic_model,
+            mb_models=mb_models, needed_model_data=needed_model_data)
 
         # check that every needed entry is their and has a value
         for year in needed_model_data.keys():
@@ -77,12 +82,12 @@ class TestDynamicRunWithModelObservations:
                 assert actual_model_data[year][var] != []
                 assert type(actual_model_data[year][var]) == torch.Tensor
 
-    def test_calculate_model_observations(self, flowline, mb_models,
-                                          observations):
+    def test_calculate_model_observations(self, flowline, dynamic_model,
+                                          mb_models, observations):
         needed_model_data = construct_needed_model_data(observations)
-        actual_model_data, flowline = run_model_and_get_model_values(flowline,
-                                                                     mb_models,
-                                                                     needed_model_data)
+        actual_model_data, flowline = run_model_and_get_model_values(
+            flowline=flowline, dynamic_model=dynamic_model,
+            mb_models=mb_models, needed_model_data=needed_model_data)
         calculated_model_observations = calculate_model_observations(observations,
                                                                      actual_model_data)
 
@@ -92,11 +97,13 @@ class TestDynamicRunWithModelObservations:
                 assert calculated_model_observations[var][year] != []
                 assert type(calculated_model_observations[var][year]) == torch.Tensor
 
-    def test_run_model_and_get_temporal_model_data(self, flowline, mb_models,
+    def test_run_model_and_get_temporal_model_data(self, flowline,
+                                                   dynamic_model, mb_models,
                                                    observations):
         calculated_model_observations, flowline = \
-            run_model_and_get_temporal_model_data(flowline, mb_models,
-                                                  observations)
+            run_model_and_get_temporal_model_data(
+                flowline=flowline, dynamic_model=dynamic_model,
+                mb_models=mb_models, observations=observations)
 
         # check that every observation has a model counterpart
         for var in observations.keys():

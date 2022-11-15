@@ -7,7 +7,8 @@ import numpy as np
 from combine1d.core.flowline import FluxBasedModel
 
 
-def run_model_and_get_temporal_model_data(flowline, mb_models, observations):
+def run_model_and_get_temporal_model_data(flowline, dynamic_model, mb_models,
+                                          observations):
     """TODO
 
     Parameters
@@ -26,14 +27,14 @@ def run_model_and_get_temporal_model_data(flowline, mb_models, observations):
 
     needed_model_data = construct_needed_model_data(observations)
 
-    actual_model_data, flowline = run_model_and_get_model_values(flowline,
-                                                                 mb_models,
-                                                                 needed_model_data)
+    actual_model_data, flowline = run_model_and_get_model_values(
+        flowline=flowline, dynamic_model=dynamic_model, mb_models=mb_models,
+        needed_model_data=needed_model_data)
 
-    # postprocessing model data and calculate actual observations (e.g. calculate
-    # delta values)
-    calculated_model_observations = calculate_model_observations(observations,
-                                                                 actual_model_data)
+    # postprocessing model data and calculate actual observations (e.g.
+    # calculate delta values)
+    calculated_model_observations = calculate_model_observations(
+        observations=observations, actual_model_data=actual_model_data)
 
     return calculated_model_observations, flowline
 
@@ -102,15 +103,16 @@ def construct_needed_model_data(observations):
     return needed_model_data
 
 
-def run_model_and_get_model_values(flowline, mb_models, needed_model_data):
+def run_model_and_get_model_values(flowline, dynamic_model, mb_models,
+                                   needed_model_data):
     # start the actual forward run and get observations from model
     actual_model_data = {}
     for mb_key in mb_models.keys():
-        flux_model = FluxBasedModel(flowline,
-                                    mb_model=mb_models[mb_key]['mb_model'],
-                                    y0=mb_models[mb_key]['years'][0],
-                                    fs=0.,
-                                    mb_elev_feedback='annual')
+        dyn_model = dynamic_model(flowline,
+                                  mb_model=mb_models[mb_key]['mb_model'],
+                                  y0=mb_models[mb_key]['years'][0],
+                                  fs=0.,
+                                  mb_elev_feedback='annual')
 
         # years with observations using the same mass balance model
         obs_yrs_current_mb_model = [k for k in needed_model_data.keys()
@@ -118,32 +120,32 @@ def run_model_and_get_model_values(flowline, mb_models, needed_model_data):
                                         mb_models[mb_key]['years'][1])]
         for obs_yr in obs_yrs_current_mb_model:
             # let the model run to the year of observation
-            flux_model.run_until(obs_yr)
+            dyn_model.run_until(obs_yr)
 
             actual_model_data[obs_yr] = {}
             # save model counterparts of observation
             for var in needed_model_data[obs_yr]:
                 if var in ['area:m2', 'fl_total_area:m2']:
-                    actual_model_data[obs_yr][var] = flux_model.area_m2
+                    actual_model_data[obs_yr][var] = dyn_model.area_m2
                 elif var in ['area:km2', 'fl_total_area:km2']:
-                    actual_model_data[obs_yr][var] = flux_model.area_km2
+                    actual_model_data[obs_yr][var] = dyn_model.area_km2
                 elif var == 'volume:m3':
-                    actual_model_data[obs_yr][var] = flux_model.volume_m3
+                    actual_model_data[obs_yr][var] = dyn_model.volume_m3
                 elif var == 'fl_surface_h:m':
-                    actual_model_data[obs_yr][var] = flux_model.fls[0].surface_h
+                    actual_model_data[obs_yr][var] = dyn_model.fls[0].surface_h
                 elif var == 'fl_widths:m':
-                    actual_model_data[obs_yr][var] = flux_model.fls[0].widths_m
+                    actual_model_data[obs_yr][var] = dyn_model.fls[0].widths_m
                 elif var == 'us:myr-1':
-                    actual_model_data[obs_yr][var] = flux_model.u_stag * \
-                        flux_model.surf_vel_fac * flux_model.sec_in_year
+                    actual_model_data[obs_yr][var] = dyn_model.u_stag * \
+                        dyn_model.surf_vel_fac * dyn_model.sec_in_year
                 else:
                     raise NotImplementedError(f'{var}')
 
         # after getting everything run the model to ye of the current mb_model
-        flux_model.run_until(mb_models[mb_key]['years'][1])
+        dyn_model.run_until(mb_models[mb_key]['years'][1])
 
         # save flowline for switching to the next mb_model
-        flowline = flux_model.fls[0]
+        flowline = dyn_model.fls[0]
 
     return actual_model_data, flowline
 

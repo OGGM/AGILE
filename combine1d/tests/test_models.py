@@ -5,6 +5,7 @@ from combine1d.core.massbalance import ConstantMassBalanceTorch
 from oggm.core.massbalance import ConstantMassBalance
 from combine1d.core.flowline import MixedBedFlowline
 from combine1d.core.flowline import FluxBasedModel as combine_flux_model
+from combine1d.core.flowline import ImplicitModelTrapezoidal as combine_impl_model
 from oggm.core.flowline import FluxBasedModel as oggm_flux_model
 from oggm.utils._funcs import date_to_floatyear
 
@@ -23,7 +24,8 @@ class TestModels:
         combine_mb_model_shift = ConstantMassBalanceTorch(
             hef_gdir, y0=y0, halfsize=halfsize, height_shift=test_height_shift)
 
-        fls = hef_gdir.read_pickle('model_flowlines')
+        fls = hef_gdir.read_pickle('model_flowlines',
+                                   filesuffix='_parabola')
         h = []
         for fl in fls:
             # We use bed because of overdeepenings
@@ -63,9 +65,13 @@ class TestModels:
             assert type(combine_monthly_mbs_shift) == torch.Tensor
             assert combine_monthly_mbs_shift.shape == heights_torch_shift.shape
 
-    def test_fluxmodel(self, hef_gdir):
+    @pytest.mark.parametrize('model_to_use', [('_parabola', combine_flux_model),
+                                              ('_trapezoidal', combine_impl_model)])
+    def test_DynamicModels(self, hef_gdir, model_to_use):
+        oggm_fl_type, combine_dyn_model = model_to_use
         # define flowlines
-        oggm_fls = hef_gdir.read_pickle('model_flowlines')
+        oggm_fls = hef_gdir.read_pickle('model_flowlines',
+                                        filesuffix=oggm_fl_type)
         fl = oggm_fls[0]
         combine_fls = MixedBedFlowline(line=fl.line,
                                        dx=fl.dx,
@@ -91,7 +97,9 @@ class TestModels:
         # define FluxModels
         oggm_model = oggm_flux_model(oggm_fls, mb_model=oggm_mb_model, y0=0,
                                      cfl_number=0.01)
-        combine_model = combine_flux_model(combine_fls, mb_model=combine_mb_model, y0=0)
+        combine_model = combine_dyn_model(combine_fls,
+                                          mb_model=combine_mb_model,
+                                          y0=0)
 
         # Let models run
         oggm_model.run_until(30.)
@@ -99,11 +107,19 @@ class TestModels:
 
         # Compare models
         def compare_mdls(combine_mdl, oggm_mdl):
-            assert np.isclose(combine_mdl.area_m2, oggm_mdl.area_m2, rtol=1e-4)
-            assert np.isclose(combine_mdl.area_km2, oggm_mdl.area_km2, rtol=1e-4)
-            assert np.isclose(combine_mdl.volume_m3, oggm_mdl.volume_m3, rtol=1e-3)
-            assert np.isclose(combine_mdl.volume_km3, oggm_mdl.volume_km3, rtol=1e-3)
-            assert np.allclose(combine_mdl.fls[0].surface_h, oggm_mdl.fls[0].surface_h, rtol=1e-4)
+            # actually not needed to check m2 and km3, but it is a test that
+            # the conversion is done right in COMBINE
+            assert np.isclose(combine_mdl.area_m2, oggm_mdl.area_m2,
+                              rtol=1e-4, atol=0.001)
+            assert np.isclose(combine_mdl.area_km2, oggm_mdl.area_km2,
+                              rtol=1e-4, atol=0.001)
+            assert np.isclose(combine_mdl.volume_m3, oggm_mdl.volume_m3,
+                              rtol=1e-3, atol=0.001)
+            assert np.isclose(combine_mdl.volume_km3, oggm_mdl.volume_km3,
+                              rtol=1e-3, atol=0.001)
+            assert np.allclose(combine_mdl.fls[0].surface_h,
+                               oggm_mdl.fls[0].surface_h,
+                               rtol=1e-3, atol=0.01)
 
         compare_mdls(combine_model, oggm_model)
 
