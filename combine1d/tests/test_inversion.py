@@ -72,7 +72,7 @@ class TestInversion:
                                                  {'type': 'constant',
                                                   'years': np.array(
                                                       [1980, 2000]),
-                                                  'fg_height_shift': 100}
+                                                  'fg_height_shift': -100}
                                              }
                             }
                            ],
@@ -94,7 +94,7 @@ class TestInversion:
             control_vars = all_supported_control_vars
         inversion_settings['control_vars'] = control_vars
         inversion_settings['spinup_options'] = spinup_options
-        inversion_settings['dynamic_model'] = 'implicit'  # dynamic_model
+        inversion_settings['dynamic_model'] = dynamic_model
 
         prepare_for_combine_inversion(hef_gdir,
                                       inversion_settings=inversion_settings,

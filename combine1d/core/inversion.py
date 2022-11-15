@@ -31,8 +31,9 @@ def get_default_inversion_settings(get_doc=False):
     _key = "control_vars"
     _doc = "Defines the control variables in an array which are changed during " \
            "the inversion. " \
-           "Options: 'bed_h', 'lambdas', 'w0_m', 'area_bed_h'. Default: ['bed_h']"
-    _default = ['bed_h']
+           "Options: 'bed_h' (not good), 'lambdas', 'w0_m', 'area_bed_h'." \
+           "Default: ['area_bed_h']"
+    _default = ['area_bed_h']
     add_setting()
 
     _key = "mb_models_settings"

@@ -73,6 +73,7 @@ def hef_gdir(test_dir):
                                                 error_on_mismatch=False,
                                                 filter_inversion_output=True)
 
+    cfg.PARAMS['downstream_line_shape'] = 'parabola'
     execute_entity_task(tasks.init_present_time_glacier, gdirs,
                         filesuffix='_parabola')
 

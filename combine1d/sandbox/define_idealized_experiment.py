@@ -32,7 +32,7 @@ def idealized_experiment(use_experiment_glaciers=None,
     print('Create glacier directories with idealized glaciers:')
     # Size of the map around the glacier.
     if cfg.PARAMS['border'] != 160:
-        msg = (f"Border is {cfg.PARAMS['border']} but experiments were "
+        msg = (f"cfg.PARAMS['border'] is {cfg.PARAMS['border']} but experiments were "
                f"created with border=160!")
         warnings.warn(msg)
         raise RuntimeError(msg)
