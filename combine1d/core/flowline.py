@@ -932,6 +932,33 @@ class FlowlineModelTorch(FlowlineModelOGGM):
                     raise FloatingPointError('NaN in numerical solution, '
                                              'at year: {}'.format(self.yr))
 
+    def run_until_and_store(self, y1,
+                            diag_path=None,
+                            fl_diag_path=False,
+                            geom_path=False,
+                            store_monthly_step=None,
+                            stop_criterion=None,
+                            fixed_geometry_spinup_yr=None,
+                            dynamic_spinup_min_ice_thick=None,
+                            make_compatible=False
+                            ):
+        ds = FlowlineModelOGGM.run_until_and_store(
+            self, y1=y1, diag_path=None, fl_diag_path=fl_diag_path,
+            geom_path=geom_path, store_monthly_step=store_monthly_step,
+            stop_criterion=stop_criterion,
+            fixed_geometry_spinup_yr=fixed_geometry_spinup_yr,
+            dynamic_spinup_min_ice_thick=dynamic_spinup_min_ice_thick,
+            make_compatible=make_compatible)
+
+        # convert some values to numpy
+        ds.attrs['glen_a'] = ds.attrs['glen_a'].detach().to('cpu').numpy()
+        ds.attrs['fs'] = ds.attrs['fs'].detach().to('cpu').numpy()
+
+        if diag_path is not None:
+            ds.to_netcdf(diag_path)
+
+        return ds
+
 
 class RectangularBedDiffusiveFlowlineModel(FlowlineModelTorch):
     """A rectangular bed diffusive model, not used in the Thesis of COMBINE1D.
