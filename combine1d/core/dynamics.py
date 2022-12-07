@@ -2,9 +2,6 @@ from collections import OrderedDict
 import copy
 
 import torch
-import numpy as np
-
-from combine1d.core.flowline import FluxBasedModel
 
 
 def run_model_and_get_temporal_model_data(flowline, dynamic_model, mb_models,
@@ -14,6 +11,7 @@ def run_model_and_get_temporal_model_data(flowline, dynamic_model, mb_models,
     Parameters
     ----------
     flowline: py:class:`oggm.Flowline`
+    dynamic_model: py:class:`oggm.FlowlineModel`
     mb_models: dict
         {'MB1': {'mb_model': lala, 'years': np.array([1950, 2010])}}
     observations: dict
@@ -137,7 +135,7 @@ def run_model_and_get_model_values(flowline, dynamic_model, mb_models,
                     actual_model_data[obs_yr][var] = dyn_model.fls[0].widths_m
                 elif var == 'us:myr-1':
                     actual_model_data[obs_yr][var] = dyn_model.u_stag * \
-                        dyn_model.surf_vel_fac * dyn_model.sec_in_year
+                        dyn_model._surf_vel_fac * dyn_model.sec_in_year
                 else:
                     raise NotImplementedError(f'{var}')
 
