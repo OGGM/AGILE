@@ -168,7 +168,8 @@ def cost_fct(unknown_parameters, data_logger):
     else:
         spinup_control_vars = {}
 
-    # sfc_h only saved for the evaluation of idealized experiments
+    # sfc_h saved to be able to save the past glacier evolution after the
+    # minimisation and for the evaluation of idealized experiments
     sfc_h_start = flowline.surface_h.detach().clone()
 
     observations = data_logger.observations
@@ -321,19 +322,18 @@ def initialise_flowline(unknown_parameters, data_logger):
                 fl_vars_total['bed_h'][var_index] = (
                         fl_control_vars[var] / scale_fct * scale_fct.mean()
                 )
-                fl_vars_total['bed_h'][~var_index] = torch.tensor(known_parameters['bed_h'],
-                                                                  dtype=torch_type,
-                                                                  device=device,
-                                                                  requires_grad=False)
+                fl_vars_total['bed_h'][~var_index] = torch.tensor(
+                    known_parameters['bed_h'], dtype=torch_type, device=device,
+                    requires_grad=False)
             else:
                 fl_vars_total[var][var_index] = fl_control_vars[var]
-                fl_vars_total[var][~var_index] = torch.tensor(known_parameters[var],
-                                                              dtype=torch_type,
-                                                              device=device,
-                                                              requires_grad=False)
+                fl_vars_total[var][~var_index] = torch.tensor(
+                    known_parameters[var], dtype=torch_type, device=device,
+                    requires_grad=False)
 
         else:
-            # if w0_m is no control variable it is calculated to fit widths_m of flowline_init
+            # if w0_m is no control variable it is calculated to fit widths_m
+            # of flowline_init
             if var == 'w0_m':
                 var_index = (trap_index & ice_mask)
                 init_widths = torch.tensor(fl_init.widths_m,
@@ -355,7 +355,8 @@ def initialise_flowline(unknown_parameters, data_logger):
                                  fl_vars_total['bed_h'][var_index]),
                                 min=data_logger.min_w0_m)
                 fl_vars_total[var][~var_index] = torch.tensor(
-                    fl_init._w0_m[~(data_logger.ice_mask & data_logger.is_trapezoid)],
+                    fl_init._w0_m[~(data_logger.ice_mask &
+                                    data_logger.is_trapezoid)],
                     dtype=torch_type,
                     device=device,
                     requires_grad=False)
@@ -403,18 +404,19 @@ def initialise_mb_models(unknown_parameters,
             # -1 because period defined as [y0 - halfsize, y0 + halfsize + 1]
             y0 = (y_start + y_end - 1) / 2
             halfsize = (y_end - y_start - 1) / 2
-            mb_models[mb_mdl_set] = {'mb_model': ConstantMassBalanceTorch(gdir,
-                                                                          y0=y0,
-                                                                          halfsize=halfsize,
-                                                                          torch_type=torch_type,
-                                                                          device=device),
-                                     'years': mb_models_settings[mb_mdl_set]['years']}
+            mb_models[mb_mdl_set] = {'mb_model':
+                                     ConstantMassBalanceTorch(
+                                         gdir, y0=y0, halfsize=halfsize,
+                                         torch_type=torch_type, device=device),
+                                     'years':
+                                     mb_models_settings[mb_mdl_set]['years']}
         else:
             raise NotImplementedError("The MassBalance type "
-                                      f"{mb_models_settings[mb_mdl_set]['type']} is not "
-                                      "implemented!")
+                                      f"{mb_models_settings[mb_mdl_set]['type']} "
+                                      f"is not implemented!")
 
-    mb_control_var = {}  # only needed if in the future control variables are included in MB-Models
+    # only needed if in the future control variables are included in MB-Models
+    mb_control_var = {}
     return mb_models, mb_control_var
 
 

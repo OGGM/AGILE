@@ -1,4 +1,5 @@
 import numpy as np
+import xarray as xr
 import pytest
 
 from combine1d.core.first_guess import get_first_guess
@@ -81,7 +82,8 @@ class TestInversion:
                              ids=['flux_based', 'implicit'])
     def test_combine_inversion(self, hef_gdir, control_vars, spinup_options,
                                dynamic_model, all_supported_control_vars):
-        # Final integration test that the inversion runs with no errors
+        # Final integration test that the inversion runs with no errors, also
+        # test the saving of the final past evolution
         inversion_settings = get_default_inversion_settings(get_doc=False)
         inversion_settings['minimize_options'] = {'maxiter': 2,
                                                   'ftol': 1e-7,
@@ -100,8 +102,10 @@ class TestInversion:
                                       inversion_settings=inversion_settings,
                                       filesuffix='_combine')
 
-        data_logger = combine_inversion(hef_gdir, give_data_logger_back=True)
+        data_logger = combine_inversion(hef_gdir, give_data_logger_back=True,
+                                        save_past_evolution=True)
 
+        # test if data_logger contains data
         assert data_logger.minimize_message is not None
         assert data_logger.minimize_status is not None
         assert data_logger.costs is not None
@@ -116,3 +120,22 @@ class TestInversion:
         assert data_logger.parameter_indices is not None
         assert data_logger.unknown_parameters is not None
         assert data_logger.observations_mdl is not None
+
+        # test past evolution
+        assert hef_gdir.has_file(
+            'model_diagnostics',
+            filesuffix='Hintereisferner_COMBINE_inversion_results')
+        assert not hef_gdir.has_file('model_diagnostics',
+                                     filesuffix='_temporary_run')
+        fp = hef_gdir.get_filepath(
+            'model_diagnostics',
+            filesuffix='Hintereisferner_COMBINE_inversion_results')
+        with xr.open_dataset(fp) as ds:
+            ds = ds.load()
+
+        # include some test that all the years are there
+        assert ds.time[0] == 1980
+        assert ds.time[-1] == 2019
+        assert np.all(np.isfinite(ds.volume_m3))
+        assert np.all(np.isfinite(ds.area_m2))
+        assert np.all(np.isfinite(ds.length_m))

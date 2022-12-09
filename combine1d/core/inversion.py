@@ -1,16 +1,20 @@
 # Built ins
 import logging
+import shutil
 import warnings
 import time
 
 # External libs
+from combine1d.core.dynamics import run_model_and_get_model_values
+from combine1d.core.flowline import MixedBedFlowline
 from scipy.optimize import minimize
 import numpy as np
 
 # Locals
 from oggm import utils, cfg, workflow, tasks, entity_task
 from oggm.cfg import G
-from combine1d.core.cost_function import create_cost_fct
+from combine1d.core.cost_function import create_cost_fct, initialise_mb_models, \
+    initialise_flowline, do_height_shift_spinup
 from combine1d.core.data_logging import initialise_DataLogger
 from combine1d.core.exception import MaxCalculationTimeReached
 from combine1d.core.first_guess import get_first_guess
@@ -357,13 +361,40 @@ def get_adaptive_upper_ice_thickness_limit(fl, additional_ice_thickness=100,
     return upper_h_limit
 
 
+def save_past_evolution_to_disk(gdir, data_logger):
+    # recreate initial flowline
+    fl_final = data_logger.flowlines[-1]
+    # set to initial ice thickness distribution, this already includes a
+    # potential spinup
+    fl_final.surface_h = data_logger.sfc_h_start[-1]
+    # convert flowline to torch flowline
+    fl_final = MixedBedFlowline(
+        line=fl_final.line, dx=fl_final.dx, map_dx=fl_final.map_dx,
+        surface_h=fl_final.surface_h, bed_h=fl_final.bed_h,
+        section=fl_final.section, bed_shape=fl_final.bed_shape,
+        is_trapezoid=fl_final.is_trapezoid, lambdas=fl_final._lambdas,
+        w0_m=fl_final._w0_m, rgi_id=fl_final.rgi_id,
+        water_level=fl_final.water_level, torch_type=data_logger.torch_type,
+        device=data_logger.device)
+
+    run_model_and_get_model_values(flowline=fl_final,
+                                   dynamic_model=data_logger.dynamic_model,
+                                   mb_models=initialise_mb_models(
+                                       unknown_parameters=None,
+                                       data_logger=data_logger)[0],
+                                   needed_model_data={}, save_run=True,
+                                   gdir=gdir,
+                                   output_filesuffix=data_logger.filename,
+                                   force=False)
+
+
 @entity_task(log, writes=['model_flowlines'])
 def combine_inversion(gdir, inversion_input_filesuffix='_combine',
                       init_model_filesuffix=None, init_model_fls='_trapezoidal',
                       climate_filename='climate_historical',
                       climate_filesuffix='', output_filesuffix='_combine_output',
                       output_filepath=None, save_dataset=True,
-                      give_data_logger_back=False):
+                      give_data_logger_back=False, save_past_evolution=True):
     """TODO
     """
     log.debug('initialise Datalogger')
@@ -409,6 +440,20 @@ def combine_inversion(gdir, inversion_input_filesuffix='_combine',
         log.debug('Save Dataset')
         # save results to file
         data_logger.create_and_save_dataset()
+
+    if save_past_evolution:
+        log.debug('Save past evolution')
+        # only save if no MemoryError occured
+        if not data_logger.memory_error:
+            save_past_evolution_to_disk(gdir=gdir, data_logger=data_logger)
+
+            # move the file to the output_folder if it differs from gdir.dir
+            if output_filepath is not None:
+                shutil.move(gdir.get_filepath('model_diagnostics',
+                                              filesuffix=data_logger.filename),
+                            data_logger.output_filepath)
+        else:
+            log.debug('Could not save past evolution due to a MemoryError!')
 
     gdir.write_pickle(data_logger.flowlines[-1], 'model_flowlines',
                       filesuffix=output_filesuffix)
