@@ -372,6 +372,19 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_start_run,
                       filesuffix='_combine_true_end')
     dh_volume[1] = model.volume_m3
     dh_area[1] = model.area_m2
+    # combine model diagnostics to one file for the whole period
+    tasks.merge_consecutive_run_outputs(
+        gdir,
+        input_filesuffix_1='_combine_spinup',
+        input_filesuffix_2='_combine_true_init',
+        output_filesuffix='_combine_total_run',
+        delete_input=False)
+    tasks.merge_consecutive_run_outputs(
+        gdir,
+        input_filesuffix_1='_combine_total_run',
+        input_filesuffix_2='_combine_end',
+        output_filesuffix='_combine_total_run',
+        delete_input=False)
 
     # calculate dh
     dh_m = (dh_volume[1] - dh_volume[0]) / \
