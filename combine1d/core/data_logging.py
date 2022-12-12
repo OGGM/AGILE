@@ -264,6 +264,12 @@ class DataLogger(object):
             # Attention pickle only is guaranteed to work if the same xarray
             # version is used for opening as is used for writing!
             pickle.dump(ds, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        # also save version of xarray
+        out = os.path.join(self.output_filepath, self.filename + '_xr_version.txt')
+        with open(out, 'w') as f:
+            f.write('The xarray version is needed to open the pickle file '
+                    'correctly \n')
+            f.write(f'xarray = {xr.__version__}')
 
         # to open it use:
         # with open('filename.pkl', 'rb') as handle:

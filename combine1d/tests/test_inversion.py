@@ -1,3 +1,5 @@
+import os
+import pickle
 import numpy as np
 import xarray as xr
 import pytest
@@ -120,6 +122,22 @@ class TestInversion:
         assert data_logger.parameter_indices is not None
         assert data_logger.unknown_parameters is not None
         assert data_logger.observations_mdl is not None
+
+        # test if data during minimisation is saved to disk
+        # look for xarray version and check
+        fp = os.path.join(hef_gdir.dir,
+                          'Hintereisferner_COMBINE_inversion_results_'
+                          'xr_version.txt')
+        with open(fp, 'r') as f:
+            saved_version = f.readlines()[1].split(' ')[2]
+        assert xr.__version__ == saved_version
+
+        fp = os.path.join(hef_gdir.dir,
+                          'Hintereisferner_COMBINE_inversion_results.pkl')
+        with open(fp, 'rb') as handle:
+            ds_saved = pickle.load(handle)
+        assert type(ds_saved) == xr.core.dataset.Dataset
+        assert ds_saved.costs[0] > ds_saved.costs[-1]
 
         # test past evolution
         assert hef_gdir.has_file(
