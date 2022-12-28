@@ -151,7 +151,7 @@ def run_model_and_get_model_values(flowline, dynamic_model, mb_models,
                 elif var == 'fl_widths:m':
                     actual_model_data[obs_yr][var] = dyn_model.fls[0].widths_m
                 elif var == 'us:myr-1':
-                    actual_model_data[obs_yr][var] = dyn_model.u_stag * \
+                    actual_model_data[obs_yr][var] = dyn_model.u_stag[0] * \
                         dyn_model._surf_vel_fac * dyn_model.sec_in_year
                 else:
                     raise NotImplementedError(f'{var}')

@@ -6,8 +6,9 @@ from combine1d.core.massbalance import ConstantMassBalanceTorch
 from oggm.core.massbalance import ConstantMassBalance
 from combine1d.core.flowline import MixedBedFlowline
 from combine1d.core.flowline import FluxBasedModel as combine_flux_model
-from combine1d.core.flowline import ImplicitModelTrapezoidal as combine_impl_model
+from combine1d.core.flowline import SemiImplicitModel as combine_impl_model
 from oggm.core.flowline import FluxBasedModel as oggm_flux_model
+from oggm.core.flowline import SemiImplicitModel as oggm_impl_model
 from oggm.utils._funcs import date_to_floatyear
 from oggm import cfg
 
@@ -67,10 +68,13 @@ class TestModels:
             assert type(combine_monthly_mbs_shift) == torch.Tensor
             assert combine_monthly_mbs_shift.shape == heights_torch_shift.shape
 
-    @pytest.mark.parametrize('model_to_use', [('_parabola', combine_flux_model),
-                                              ('_trapezoidal', combine_impl_model)])
+    @pytest.mark.parametrize('model_to_use', [('_parabola', combine_flux_model,
+                                               oggm_flux_model),
+                                              ('_trapezoidal',
+                                               combine_impl_model,
+                                               oggm_impl_model)])
     def test_DynamicModels(self, hef_gdir, model_to_use):
-        oggm_fl_type, combine_dyn_model = model_to_use
+        oggm_fl_type, combine_dyn_model, oggm_dyn_model = model_to_use
         # define flowlines
         oggm_fls = hef_gdir.read_pickle('model_flowlines',
                                         filesuffix=oggm_fl_type)
@@ -97,11 +101,9 @@ class TestModels:
         oggm_mb_model = ConstantMassBalance(hef_gdir, y0=y0, halfsize=halfsize)
 
         # define FluxModels
-        oggm_model = oggm_flux_model(oggm_fls, mb_model=oggm_mb_model, y0=0,
-                                     cfl_number=0.01)
+        oggm_model = oggm_dyn_model(oggm_fls, mb_model=oggm_mb_model, y0=0)
         combine_model = combine_dyn_model(combine_fls,
-                                          mb_model=combine_mb_model,
-                                          y0=0)
+                                          mb_model=combine_mb_model, y0=0)
 
         # Let models run
         oggm_model.run_until(30.)
@@ -122,6 +124,8 @@ class TestModels:
             assert np.allclose(combine_mdl.fls[0].surface_h,
                                oggm_mdl.fls[0].surface_h,
                                rtol=1e-3, atol=0.01)
+            assert np.allclose(combine_mdl.u_stag[0], oggm_mdl.u_stag[0])
+            assert np.allclose(combine_mdl.flux_stag[0], oggm_mdl.flux_stag[0])
 
         compare_mdls(combine_model, oggm_model)
 
