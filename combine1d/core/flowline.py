@@ -1124,10 +1124,14 @@ class FluxBasedModel(FlowlineModelTorch):
         # factor for surface velocity
         self._surf_vel_fac = (self.glen_n + 2) / (self.glen_n + 1)
 
-        self.u_stag = torch.zeros(self.fls[0].nx + 1,
-                                  dtype=self.torch_type,
-                                  device=self.device,
-                                  requires_grad=False)
+        self.u_stag = [torch.zeros(self.fls[0].nx + 1,
+                                   dtype=self.torch_type,
+                                   device=self.device,
+                                   requires_grad=False)]
+        self.flux_stag = [torch.zeros(self.fls[0].nx + 1,
+                                      dtype=self.torch_type,
+                                      device=self.device,
+                                      requires_grad=False)]
 
         # defines cfl criterion
         if cfl_nr is None:
@@ -1198,10 +1202,11 @@ class FluxBasedModel(FlowlineModelTorch):
                    self.fs * H_stag ** (n - self.number_one)))
 
         # this is needed to use velocity as observation
-        self.u_stag = u_stag
+        self.u_stag[0] = u_stag
 
         # flux on staggered grid
         q = u_stag * CS_stag
+        self.flux_stag[0] = q
 
         # gradient of flux on unstaggered grid
         q_grad = (q[self.km_stag] - q[self.kp_stag]) / dx
@@ -1251,8 +1256,14 @@ class FluxBasedModel(FlowlineModelTorch):
         return dt_use
 
 
-class ImplicitModelTrapezoidal(FlowlineModelTorch):
-    """Dynamic Implicit Solver for a trapezoidal flowline
+class SemiImplicitModel(FlowlineModelTorch):
+    """Semi implicit flowline model from OGGM, adapted for the use with PyTorch
+
+    It solves the same equation as the FluxBasedModel, but the ice flux q is
+    implemented as q^t = D^t * (ds/dx)^(t+1).
+
+    It supports only a single flowline (no tributaries) with bed shapes
+    rectangular, trapezoidal or a mixture of both.
 
     The underlying equation is dC/dt = w*m + nable(q), with
     C ... cross section area
@@ -1264,15 +1275,13 @@ class ImplicitModelTrapezoidal(FlowlineModelTorch):
     """
 
     def __init__(self, flowlines, mb_model=None, y0=0., glen_a=None, fs=0.,
-                 fixed_dt=None, min_dt=SEC_IN_DAY,
-                 max_dt=31 * SEC_IN_DAY,
-                 cfl_number=0.6, **kwargs):
+                 fixed_dt=None, min_dt=None, cfl_number=0.5, **kwargs):
         """ Instantiate. """
 
-        super(ImplicitModelTrapezoidal, self).__init__(flowlines,
-                                                       mb_model=mb_model,
-                                                       y0=y0, glen_a=glen_a,
-                                                       fs=fs, **kwargs)
+        super(SemiImplicitModel, self).__init__(flowlines,
+                                                mb_model=mb_model,
+                                                y0=y0, glen_a=glen_a,
+                                                fs=fs, **kwargs)
 
         if len(self.fls) > 1:
             raise ValueError('Implicit model does not work with tributaries.')
@@ -1286,18 +1295,16 @@ class ImplicitModelTrapezoidal(FlowlineModelTorch):
 
         if fixed_dt is not None:
             min_dt = fixed_dt
-            max_dt = fixed_dt
             self.fixed_dt = torch.tensor(fixed_dt,
                                          dtype=self.torch_type,
                                          device=self.device,
                                          requires_grad=False)
         else:
             self.fixed_dt = None
+
+        if min_dt is None:
+            min_dt = cfg.PARAMS['cfl_min_dt']
         self.min_dt = torch.tensor(min_dt,
-                                   dtype=self.torch_type,
-                                   device=self.device,
-                                   requires_grad=False)
-        self.max_dt = torch.tensor(max_dt,
                                    dtype=self.torch_type,
                                    device=self.device,
                                    requires_grad=False)
@@ -1311,11 +1318,6 @@ class ImplicitModelTrapezoidal(FlowlineModelTorch):
 
         # factor for surface velocity
         self._surf_vel_fac = (self.glen_n + 2) / (self.glen_n + 1)
-
-        self.u_stag = torch.zeros(self.fls[0].nx + 1,
-                                  dtype=self.torch_type,
-                                  device=self.device,
-                                  requires_grad=False)
 
         self.bed_h_exp = torch.cat((torch.tensor([self.fls[-1].bed_h[0]],
                                                  dtype=self.torch_type,
@@ -1347,22 +1349,98 @@ class ImplicitModelTrapezoidal(FlowlineModelTorch):
                                        device=self.device,
                                        requires_grad=False)
 
+        # variables needed for the calculation of some diagnostics, this
+        # calculations are done with @property, because they are not computed
+        # on the fly during the dynamic run as in FluxBasedModel
+        self._u_stag = torch.zeros(self.fls[0].nx + 1,
+                                   dtype=self.torch_type,
+                                   device=self.device,
+                                   requires_grad=False)
+        self._flux_stag = torch.zeros(self.fls[0].nx + 1,
+                                      dtype=self.torch_type,
+                                      device=self.device,
+                                      requires_grad=False)
+        self._slope_stag = torch.zeros(self.fls[0].nx + 1,
+                                       dtype=self.torch_type,
+                                       device=self.device,
+                                       requires_grad=False)
+        self._thick_stag = torch.zeros(self.fls[0].nx + 1,
+                                       dtype=self.torch_type,
+                                       device=self.device,
+                                       requires_grad=False)
+        self._section_stag = torch.zeros(self.fls[0].nx + 1,
+                                         dtype=self.torch_type,
+                                         device=self.device,
+                                         requires_grad=False)
+
+    @property
+    def slope_stag(self):
+        slope_stag = self._slope_stag
+
+        surface_h = self.fls[0].surface_h
+        dx = self.fls[0].dx_meter
+
+        slope_stag[0] = 0
+        slope_stag[1:-1] = (surface_h[0:-1] - surface_h[1:]) / dx
+        slope_stag[-1] = slope_stag[-2]
+
+        return [slope_stag]
+
+    @property
+    def thick_stag(self):
+        thick_stag = self._thick_stag
+
+        thick = self.fls[0].thick
+
+        thick_stag[1:-1] = (thick[0:-1] + thick[1:]) / self.number_two
+        thick_stag[[0, -1]] = thick[[0, -1]]
+
+        return [thick_stag]
+
+    @property
+    def section_stag(self):
+        section_stag = self._section_stag
+
+        section = self.fls[0].section
+
+        section_stag[1:-1] = (section[0:-1] + section[1:]) / self.number_two
+        section_stag[[0, -1]] = section[[0, -1]]
+
+        return [section_stag]
+
+    @property
+    def u_stag(self):
+        u_stag = self._u_stag
+
+        slope_stag = self.slope_stag[0]
+        thick_stag = self.thick_stag[0]
+        N = self.glen_n
+        rhog = self.rhog
+
+        rhogh = rhog * slope_stag ** N
+
+        u_stag[:] = ((thick_stag ** (N + 1)) * self._fd * rhogh +
+                     (thick_stag ** (N - 1)) * self.fs * rhogh)
+
+        return [u_stag]
+
+    @property
+    def flux_stag(self):
+        flux_stag = self._flux_stag
+
+        section_stag = self.section_stag[0]
+        u_stag = self.u_stag[0]
+
+        flux_stag[:] = u_stag * section_stag
+
+        return [flux_stag]
+
     def step(self, dt):
         """Advance one step."""
 
         # Just a check to avoid useless computations
         if dt <= 0:
             raise InvalidParamsError('dt needs to be strictly positive')
-
-        if type(dt) != torch.Tensor:
-            dt = torch.tensor(dt,
-                              dtype=self.torch_type,
-                              device=self.device,
-                              requires_grad=False)
-
-        # This is to guarantee a precise arrival on a specific date if asked
-        min_dt = dt if dt < self.min_dt else self.min_dt
-        dt = utils.clip_scalar(dt, min_dt, self.max_dt)
 
         # read out variables from current flowline
         fl = self.fls[0]
@@ -1385,18 +1463,28 @@ class ImplicitModelTrapezoidal(FlowlineModelTorch):
         # calculate diffusivity (including sliding fs)
         # boundary condition D_stag_0 = D_stag_end = 0
         # TODO: potential optimisation possible, maybe with .index_fill()
-        # D_stag = self.D_stag[0]
-        D_stag = torch.zeros(nx + 1,
+        # d_stag = self.d_stag[0]
+        d_stag = torch.zeros(nx + 1,
                              dtype=self.torch_type,
                              device=self.device)
-        D_stag[1:-1] = ((self._fd * thick_stag ** (N + self.number_two) +
+        d_stag[1:-1] = ((self._fd * thick_stag ** (N + self.number_two) +
                          self.fs * thick_stag ** N) * rhog *
                         (w0_stag + width_stag) / self.number_two *
                         torch.abs(slope_stag) ** (N - self.number_one))
 
-        # insert stability criterion dt < dx^2 / max(D/w)
-        if not self.fixed_dt:
-            divisor = torch.max(torch.abs(D_stag[1:-1] / width_stag))
+        # Time step
+        if type(dt) != torch.Tensor:
+            dt = torch.tensor(dt,
+                              dtype=self.torch_type,
+                              device=self.device,
+                              requires_grad=False)
+        if self.fixed_dt:
+            # change only if step dt is larger than the chosen dt
+            if self.fixed_dt < dt:
+                dt = self.fixed_dt
+        else:
+            # use stability criterion dt < dx^2 / max(D/w)
+            divisor = torch.max(torch.abs(d_stag[1:-1] / width_stag))
             if divisor > cfg.FLOAT_EPS:
                 cfl_dt = self.cfl_number * dx ** self.number_two / divisor
             else:
@@ -1413,68 +1501,49 @@ class ImplicitModelTrapezoidal(FlowlineModelTorch):
                         'bin_id {} and max_D/w {:.3f} m2 yr-1. '
                         'To avoid memory overflow!'
                         ''.format(cfl_dt, self.min_dt, self.yr, 0,
-                                  np.argmax(np.abs(D_stag)),
+                                  np.argmax(np.abs(d_stag)),
                                   divisor * cfg.SEC_IN_YEAR))
 
         # calculate diagonals of Amat
-        d0 = dt / dx ** self.number_two * (D_stag[:-1] + D_stag[1:]) / width
-        dm = - dt / dx ** self.number_two * D_stag[:-1] / width
-        dp = - dt / dx ** self.number_two * D_stag[1:] / width
+        d0 = dt / dx ** self.number_two * (d_stag[:-1] + d_stag[1:]) / width
+        dm = - dt / dx ** self.number_two * d_stag[:-1] / width
+        dp = - dt / dx ** self.number_two * d_stag[1:] / width
 
         # construct banded form of the matrix, which is used during solving
         # (see https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.solve_banded.html)
         # original matrix:
-        # Amat = np.diag(np.ones(len(d0)) + d0) + np.diag(dm[1:], -1) + np.diag(dp[:-1], 1)
+        # d_matrix = (np.diag(np.ones(len(d0)) + d0) +
+        #             np.diag(dm[1:], -1) +
+        #             np.diag(dp[:-1], 1))
         # TODO: potential optimisation possible
-        # self.Amat_banded[0, 1:] = dp[:-1]
-        # self.Amat_banded[1, :] = np.ones(len(d0)) + d0
-        # self.Amat_banded[2, :-1] = dm[1:]
-        Amat_banded = torch.zeros((3, nx),
-                                  dtype=self.torch_type,
-                                  device=self.device)
-        Amat_banded[0, 1:] = dp[:-1]
-        Amat_banded[1, :] = torch.ones(len(d0),
-                                       dtype=self.torch_type,
-                                       device=self.device) + d0
-        Amat_banded[2, :-1] = dm[1:]
+        # self.d_matrix_banded[0, 1:] = dp[:-1]
+        # self.d_matrix_banded[1, :] = np.ones(len(d0)) + d0
+        # self.d_matrix_banded[2, :-1] = dm[1:]
+        d_matrix_banded = torch.zeros((3, nx),
+                                      dtype=self.torch_type,
+                                      device=self.device)
+        d_matrix_banded[0, 1:] = dp[:-1]
+        d_matrix_banded[1, :] = torch.ones(len(d0),
+                                           dtype=self.torch_type,
+                                           device=self.device) + d0
+        d_matrix_banded[2, :-1] = dm[1:]
 
         # correction term for glacier bed (original equation is an equation for
         # the surface height s, which is transformed in an equation for h, as
         # s = h + b the term below comes from the '- b'
-        Q = - D_stag * self.dbed_h_exp_dx
+        b_corr = - d_stag * self.dbed_h_exp_dx
 
         # prepare rhs
         smb = self.get_mb(surface_h, year=self.yr, fl_id=0)
-        rhs = thick + smb * dt + dt / width * (Q[:-1] - Q[1:]) / dx
+        rhs = thick + smb * dt + dt / width * (b_corr[:-1] - b_corr[1:]) / dx
 
         # solve matrix and ensure that new thickness >= 0
-        thick_new = torch.clamp(SolveBandedPyTorch.apply(Amat_banded,
+        thick_new = torch.clamp(SolveBandedPyTorch.apply(d_matrix_banded,
                                                          rhs),
                                 min=0)
 
         # update flowline thickness
         fl.thick = thick_new
-
-        # calculate velocity
-        # TODO: maybe not needed at each timestep, e.g. only if we end at a
-        #  full year or month
-        #u_stag = torch.zeros(self.fls[0].nx + 1,
-        #                     dtype=self.torch_type,
-        #                     device=self.device,
-        #                     requires_grad=False)
-        u_stag = self.u_stag
-        thick_stag = (fl.thick[0:-1] + fl.thick[1:]) / 2.
-        slope_stag = (fl.surface_h[1:] - fl.surface_h[0:-1]) / dx
-        Q = - D_stag[1:-1] * slope_stag
-        inner_stag_index = thick_stag > 0.
-        # add False at beginning and end as a boundary condition u_stag_0 = 0
-        # and u_stag_end = 0
-        outer_stag_index = torch.hstack((torch.tensor([False]),
-                                        inner_stag_index,
-                                        torch.tensor([False])))
-        u_stag[outer_stag_index] = Q[inner_stag_index] / \
-            (thick_stag[inner_stag_index] * width_stag[inner_stag_index])
-        self.u_stag = u_stag
 
         # Next step
         self.t += dt

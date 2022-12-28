@@ -7,7 +7,7 @@ import xarray as xr
 import time
 from combine1d.core.arithmetics import RMSE, mean_BIAS, max_dif
 from combine1d.core.exception import MaxCalculationTimeReached
-from combine1d.core.flowline import FluxBasedModel, ImplicitModelTrapezoidal
+from combine1d.core.flowline import FluxBasedModel, SemiImplicitModel
 import os
 import warnings
 import copy
@@ -45,7 +45,7 @@ class DataLogger(object):
         if inversion_input['dynamic_model'] == 'flux_based':
             self.dynamic_model = FluxBasedModel
         elif inversion_input['dynamic_model'] == 'implicit':
-            self.dynamic_model = ImplicitModelTrapezoidal
+            self.dynamic_model = SemiImplicitModel
         else:
             raise ValueError("Unknown dynamic model "
                              f"{inversion_input['dynamic_model']}! (Options "

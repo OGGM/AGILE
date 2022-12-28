@@ -10,7 +10,7 @@ from combine1d.core.dynamics import (run_model_and_get_temporal_model_data,
 from combine1d.core.first_guess import get_first_guess
 from combine1d.core.cost_function import (initialise_flowline,
                                           initialise_mb_models)
-from combine1d.core.flowline import FluxBasedModel, ImplicitModelTrapezoidal
+from combine1d.core.flowline import FluxBasedModel, SemiImplicitModel
 
 
 pytestmark = pytest.mark.filterwarnings("ignore:<class 'combine1d.core.torch_interp1d.Interp1d'> "
