@@ -11,7 +11,7 @@ experiment_glaciers = {
     'Hintereisferner': {
         'rgi_id': 'RGI60-11.00897',
         't_bias_spinup_limits': (-1, 0),  # not used during creation
-        't_bias_spinup': 1.2,
+        't_bias_spinup': 1.4,
     },
     'Aletsch': {
         'rgi_id': 'RGI60-11.01450',

@@ -6,7 +6,7 @@ from oggm.cfg import SEC_IN_YEAR
 from scipy.optimize import brentq
 
 from oggm import cfg, workflow, tasks, entity_task, utils
-from oggm.core.flowline import MixedBedFlowline, FluxBasedModel
+from oggm.core.flowline import MixedBedFlowline, SemiImplicitModel
 from oggm.core.massbalance import ConstantMassBalance, MultipleFlowlineMassBalance, \
     PastMassBalance, RandomMassBalance
 from oggm.shop import bedtopo
@@ -40,8 +40,6 @@ def create_idealized_experiments(all_glaciers,
 
     cfg.PARAMS['min_ice_thick_for_length'] = 0.01
     cfg.PARAMS['glacier_length_method'] = 'consecutive'
-    # use very small cfl_number to avoid instabilities in experiment creation
-    cfg.PARAMS['cfl_number'] = 0.001
 
     # check if glaciers are already defined
     for glacier in all_glaciers:
@@ -235,15 +233,15 @@ def create_spinup_glacier(gdir, rgi_id_to_name, yr_start_run, yr_end_run,
     def get_spinup_glacier(t_bias):
         # first run random climate with t_bias
         mb_random.temp_bias = t_bias
-        model = FluxBasedModel(copy.deepcopy(fls_spinup),
-                               mb_random,
-                               y0=0)
+        model = SemiImplicitModel(copy.deepcopy(fls_spinup),
+                                  mb_random,
+                                  y0=0)
         model.run_until(years_to_run_random)
 
         # from their use a climate run
-        model = FluxBasedModel(copy.deepcopy(model.fls),
-                               mb_past,
-                               y0=1930)
+        model = SemiImplicitModel(copy.deepcopy(model.fls),
+                                  mb_past,
+                                  y0=1930)
         model.run_until(yr_spinup)
 
         return model
@@ -253,14 +251,14 @@ def create_spinup_glacier(gdir, rgi_id_to_name, yr_start_run, yr_end_run,
         model_spinup = get_spinup_glacier(t_bias)
 
         # Now conduct the actual model run to the rgi date
-        model_historical_1 = FluxBasedModel(model_spinup.fls,
-                                            mb_const_1,
-                                            y0=yr_spinup)
+        model_historical_1 = SemiImplicitModel(model_spinup.fls,
+                                               mb_const_1,
+                                               y0=yr_spinup)
         model_historical_1.run_until(yr_start_run)
 
-        model_historical_2 = FluxBasedModel(model_historical_1.fls,
-                                            mb_const_2,
-                                            y0=yr_start_run)
+        model_historical_2 = SemiImplicitModel(model_historical_1.fls,
+                                               mb_const_2,
+                                               y0=yr_start_run)
         model_historical_2.run_until(yr_rgi)
 
         cost = (model_historical_2.length_m - length_m_ref) / length_m_ref * 100
@@ -333,12 +331,18 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_start_run,
         raise NotImplementedError(f'{used_mb_models}')
 
     # do spinup period before first measurement
-    model = FluxBasedModel(copy.deepcopy(fls_spinup),
-                           mb_spinup,
-                           y0=yr_spinup)
-    model.run_until_and_store(yr_start_run,
-                              diag_path=gdir.get_filepath('model_diagnostics',
-                                                          filesuffix='_combine_spinup'))
+    model = SemiImplicitModel(copy.deepcopy(fls_spinup),
+                              mb_spinup,
+                              y0=yr_spinup)
+    model.run_until_and_store(
+        yr_start_run,
+        diag_path=gdir.get_filepath('model_diagnostics',
+                                    filesuffix='_combine_spinup',
+                                    delete=True),
+        fl_diag_path=gdir.get_filepath('fl_diagnostics',
+                                       filesuffix='_combine_spinup',
+                                       delete=True)
+    )
 
     # get measurements for dhdt
     dh_volume = [None, None]
@@ -347,13 +351,18 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_start_run,
     dh_area[0] = model.area_m2
 
     # switch to mb_run and run to rgi_date and save measurements and flowline
-    model = FluxBasedModel(copy.deepcopy(model.fls),
-                           mb_run,
-                           y0=yr_start_run)
-    model.run_until_and_store(yr_rgi,
-                              diag_path=gdir.get_filepath('model_diagnostics',
-                                                          filesuffix='_combine_true_init')
-                              )
+    model = SemiImplicitModel(copy.deepcopy(model.fls),
+                              mb_run,
+                              y0=yr_start_run)
+    model.run_until_and_store(
+        yr_rgi,
+        diag_path=gdir.get_filepath('model_diagnostics',
+                                    filesuffix='_combine_true_init',
+                                    delete=True),
+        fl_diag_path=gdir.get_filepath('fl_diagnostics',
+                                       filesuffix='_combine_true_init',
+                                       delete=True)
+    )
     gdir.write_pickle(model.fls, 'model_flowlines',
                       filesuffix='_combine_true_init')
     rgi_date_area_km2 = model.area_km2
@@ -361,17 +370,35 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_start_run,
     rgi_date_us_myr = model.u_stag[0] * model._surf_vel_fac * SEC_IN_YEAR
 
     # now run to the end for dhdt
-    model.run_until_and_store(yr_end_run,
-                              diag_path=gdir.get_filepath('model_diagnostics',
-                                                          filesuffix='_combine_end'),
-                              geom_path=gdir.get_filepath('model_geometry',
-                                                          filesuffix='_combine_end',
-                                                          delete=True)
+    model.run_until_and_store(
+        yr_end_run,
+        diag_path=gdir.get_filepath('model_diagnostics',
+                                    filesuffix='_combine_end',
+                                    delete=True),
+        geom_path=gdir.get_filepath('model_geometry',
+                                    filesuffix='_combine_end',
+                                    delete=True),
+        fl_diag_path=gdir.get_filepath('fl_diagnostics',
+                                       filesuffix='_combine_end',
+                                       delete=True)
                               )
     gdir.write_pickle(model.fls, 'model_flowlines',
                       filesuffix='_combine_true_end')
     dh_volume[1] = model.volume_m3
     dh_area[1] = model.area_m2
+    # combine model diagnostics to one file for the whole period
+    tasks.merge_consecutive_run_outputs(
+        gdir,
+        input_filesuffix_1='_combine_spinup',
+        input_filesuffix_2='_combine_true_init',
+        output_filesuffix='_combine_total_run',
+        delete_input=False)
+    tasks.merge_consecutive_run_outputs(
+        gdir,
+        input_filesuffix_1='_combine_total_run',
+        input_filesuffix_2='_combine_end',
+        output_filesuffix='_combine_total_run',
+        delete_input=False)
 
     # calculate dh
     dh_m = (dh_volume[1] - dh_volume[0]) / \

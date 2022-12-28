@@ -70,7 +70,7 @@ class TestDynamicRunWithModelObservations:
                 construct_needed_model_data({f'{obs_name}:{wrong_unit}': {}})
 
     def test_run_model_and_get_model_values(self, flowline, dynamic_model,
-                                            mb_models, observations):
+                                            mb_models, observations, hef_gdir):
         needed_model_data = construct_needed_model_data(observations)
         actual_model_data, flowline = run_model_and_get_model_values(
             flowline=flowline, dynamic_model=dynamic_model,
@@ -81,6 +81,32 @@ class TestDynamicRunWithModelObservations:
             for var in needed_model_data[year]:
                 assert actual_model_data[year][var] != []
                 assert type(actual_model_data[year][var]) == torch.Tensor
+
+        # test saving
+        filesuffix = '_test_saving'
+        # necessary to use the same test for different argument combinations
+        hef_gdir.get_filepath('model_diagnostics', filesuffix=filesuffix,
+                              delete=True)
+        run_model_and_get_model_values(flowline, dynamic_model, mb_models,
+                                       observations, save_run=True,
+                                       gdir=hef_gdir,
+                                       output_filesuffix=filesuffix)
+        assert hef_gdir.has_file('model_diagnostics', filesuffix=filesuffix)
+
+        with pytest.raises(ValueError,
+                           match='You are about to delete an old file! To do '
+                                 'this set force=True.'):
+            run_model_and_get_model_values(flowline, dynamic_model, mb_models,
+                                           observations, save_run=True,
+                                           gdir=hef_gdir,
+                                           output_filesuffix=filesuffix,
+                                           force=False)
+        # but working when forcing
+        run_model_and_get_model_values(flowline, dynamic_model, mb_models,
+                                       observations, save_run=True,
+                                       gdir=hef_gdir,
+                                       output_filesuffix=filesuffix,
+                                       force=True)
 
     def test_calculate_model_observations(self, flowline, dynamic_model,
                                           mb_models, observations):

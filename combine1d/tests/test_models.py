@@ -1,5 +1,6 @@
 import pytest
 import numpy as np
+import xarray as xr
 import torch
 from combine1d.core.massbalance import ConstantMassBalanceTorch
 from oggm.core.massbalance import ConstantMassBalance
@@ -8,6 +9,7 @@ from combine1d.core.flowline import FluxBasedModel as combine_flux_model
 from combine1d.core.flowline import ImplicitModelTrapezoidal as combine_impl_model
 from oggm.core.flowline import FluxBasedModel as oggm_flux_model
 from oggm.utils._funcs import date_to_floatyear
+from oggm import cfg
 
 
 pytestmark = pytest.mark.filterwarnings("ignore:<class 'combine1d.core.torch_interp1d.Interp1d'> "
@@ -133,3 +135,31 @@ class TestModels:
         combine_model.run_until_equilibrium()
 
         compare_mdls(combine_model, oggm_model)
+
+        # test run_until_and_store
+        combine_model = combine_dyn_model(combine_fls,
+                                          mb_model=combine_mb_model,
+                                          y0=100)
+
+        ds_run = combine_model.run_until_and_store(
+            200, diag_path=hef_gdir.get_filepath('model_diagnostics',
+                                                 filesuffix='_test_run',
+                                                 delete=True))
+
+        assert ds_run.time[0] == 100
+        assert ds_run.time[-1] == 200
+        assert len(ds_run.volume_m3) == 101
+        assert np.all(np.isfinite(ds_run.volume_m3))
+        assert np.all(np.isfinite(ds_run.area_m2))
+        assert np.all(np.isfinite(ds_run.length_m))
+        assert ds_run.attrs['mb_model_rho'] == cfg.PARAMS['ice_density']
+        assert ds_run.attrs['mb_model_device'] == 'cpu'
+        assert ds_run.attrs['mb_model_class'] == 'ConstantMassBalanceTorch'
+
+        # compare to what was saved on disk
+        fp = hef_gdir.get_filepath('model_diagnostics', filesuffix='_test_run')
+        with xr.open_dataset(fp) as ds:
+            ds_disk = ds.load()
+        assert np.all(ds_run.volume_m3 == ds_disk.volume_m3)
+        assert np.all(ds_run.area_m2 == ds_disk.area_m2)
+        assert np.all(ds_run.length_m == ds_disk.length_m)

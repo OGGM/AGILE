@@ -206,9 +206,12 @@ class ConstantMassBalanceTorch(ConstantMassBalance):
             the file suffix of the input climate file
         """
 
-        super(ConstantMassBalanceTorch, self).__init__(gdir, mu_star=mu_star, bias=bias,
-                                                       y0=y0, halfsize=halfsize, filename=filename,
-                                                       input_filesuffix=input_filesuffix, **kwargs)
+        super(ConstantMassBalanceTorch, self).__init__(gdir, mu_star=mu_star,
+                                                       bias=bias, y0=y0,
+                                                       halfsize=halfsize,
+                                                       filename=filename,
+                                                       input_filesuffix=input_filesuffix,
+                                                       **kwargs)
 
         self.torch_type = torch_type
         self.device = device

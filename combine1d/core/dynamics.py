@@ -2,9 +2,7 @@ from collections import OrderedDict
 import copy
 
 import torch
-import numpy as np
-
-from combine1d.core.flowline import FluxBasedModel
+from oggm import tasks
 
 
 def run_model_and_get_temporal_model_data(flowline, dynamic_model, mb_models,
@@ -14,6 +12,7 @@ def run_model_and_get_temporal_model_data(flowline, dynamic_model, mb_models,
     Parameters
     ----------
     flowline: py:class:`oggm.Flowline`
+    dynamic_model: py:class:`oggm.FlowlineModel`
     mb_models: dict
         {'MB1': {'mb_model': lala, 'years': np.array([1950, 2010])}}
     observations: dict
@@ -104,7 +103,23 @@ def construct_needed_model_data(observations):
 
 
 def run_model_and_get_model_values(flowline, dynamic_model, mb_models,
-                                   needed_model_data):
+                                   needed_model_data, save_run=False,
+                                   gdir=None, output_filesuffix='',
+                                   force=False):
+
+    # only saves run when no model data is wanted
+    if save_run:
+        needed_model_data = {}
+
+        if gdir.has_file('model_diagnostics',
+                         filesuffix=output_filesuffix) and not force:
+            raise ValueError('You are about to delete an old file! To do this '
+                             'set force=True.')
+        elif gdir.has_file('model_diagnostics',
+                           filesuffix=output_filesuffix) and force:
+            gdir.get_filepath('model_diagnostics', filesuffix=output_filesuffix,
+                              delete=True)
+
     # start the actual forward run and get observations from model
     actual_model_data = {}
     for mb_key in mb_models.keys():
@@ -137,12 +152,36 @@ def run_model_and_get_model_values(flowline, dynamic_model, mb_models,
                     actual_model_data[obs_yr][var] = dyn_model.fls[0].widths_m
                 elif var == 'us:myr-1':
                     actual_model_data[obs_yr][var] = dyn_model.u_stag * \
-                        dyn_model.surf_vel_fac * dyn_model.sec_in_year
+                        dyn_model._surf_vel_fac * dyn_model.sec_in_year
                 else:
                     raise NotImplementedError(f'{var}')
 
-        # after getting everything run the model to ye of the current mb_model
-        dyn_model.run_until(mb_models[mb_key]['years'][1])
+        if save_run:
+            # check if it is the first run or if an old one already exists
+            if gdir.has_file('model_diagnostics',
+                             filesuffix=output_filesuffix):
+                filesuffix_use = '_temporary_run'
+            else:
+                filesuffix_use = output_filesuffix
+            fp = gdir.get_filepath('model_diagnostics',
+                                   filesuffix=filesuffix_use,
+                                   delete=True)
+            dyn_model.run_until_and_store(mb_models[mb_key]['years'][1],
+                                          diag_path=fp)
+
+            # merge files into final file if needed
+            if gdir.has_file('model_diagnostics',
+                             filesuffix='_temporary_run'):
+                tasks.merge_consecutive_run_outputs(
+                    gdir,
+                    input_filesuffix_1=output_filesuffix,
+                    input_filesuffix_2='_temporary_run',
+                    output_filesuffix=output_filesuffix,
+                    delete_input=True)
+        else:
+            # after getting everything run the model to ye of the current
+            # mb_model
+            dyn_model.run_until(mb_models[mb_key]['years'][1])
 
         # save flowline for switching to the next mb_model
         flowline = dyn_model.fls[0]
