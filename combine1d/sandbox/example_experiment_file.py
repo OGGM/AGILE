@@ -19,24 +19,24 @@ experiment_options = \
                          },
 
         'observations': {'obs1': ['fl_surface_h:m'],
-                         #'obs2': ['fl_surface_h:m', 'dh:m'],
+                         #'obs2': ['fl_surface_h:m', 'dmdtda:kg m-2 yr-1'],
                          },
         'obs_reg_parameters': {
             'obsreg1': {'uncertainty': {
                 'fl_surface_h:m': 1.,
-                'dh:m': 1.}},
+                'dmdtda:kg m-2 yr-1': 1.}},
             # 'obsreg2': {'uncertainty': {
             #     'fl_surface_h:m': 10.,
-            #     'dh:m': 1.}},
+            #     'dmdtda:kg m-2 yr-1': 1.}},
             # 'obsreg3': {'uncertainty': {
             #     'fl_surface_h:m': 100.,
-            #     'dh:m': 1.}},
+            #     'dmdtda:kg m-2 yr-1': 1.}},
             # 'obsreg4': {'uncertainty': {
             #     'fl_surface_h:m': 1.,
-            #     'dh:m': 10.}},
+            #     'dmdtda:kg m-2 yr-1': 10.}},
             # 'obsreg5': {'uncertainty': {
             #     'fl_surface_h:m': 1.,
-            #     'dh:m': 100.}},
+            #     'dmdtda:kg m-2 yr-1': 100.}},
         },
         'regularisation_terms': {'reg1': {'smoothed_bed': 0., 'bed_h_grad_scale': 0},
                                  # 'reg2': {'smoothed_bed': 1., 'bed_h_grad_scale': 0},
@@ -75,11 +75,11 @@ default_inversion_settings_options = \
 
         # Used observations (are loaded from gdir)
         # Options: fl_surface_h:m, fl_widths:m, fl_total_area:m2, fl_total_area:km2,
-        # area:m2, area:km2, dh:m
-        'observations': ['fl_surface_h:m', 'fl_total_area:km2', 'dh:m'],
+        # area:m2, area:km2, dmdtda:kg m-2 yr-1
+        'observations': ['fl_surface_h:m', 'fl_total_area:km2', 'dmdtda:kg m-2 yr-1'],
         'obs_reg_parameters': {'scale': {'fl_surface_h:m': 1.,
                                          'fl_total_area:km2': 1.,
-                                         'dh:m': 1.}},
+                                         'dmdtda:kg m-2 yr-1': 1.}},
 
         # Options: 'smoothed_bed'
         'regularisation_terms': {'smoothed_bed': 1.},
