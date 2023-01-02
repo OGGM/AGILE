@@ -100,6 +100,10 @@ class TestInversion:
         inversion_settings['spinup_options'] = spinup_options
         inversion_settings['dynamic_model'] = dynamic_model
 
+        # add an artificial measurement for dmdtda
+        measure_key = 'dmdtda:kg m-2 yr-1'
+        inversion_settings['observations'][measure_key]['2000-2019'] = -1.
+
         prepare_for_combine_inversion(hef_gdir,
                                       inversion_settings=inversion_settings,
                                       filesuffix='_combine')
