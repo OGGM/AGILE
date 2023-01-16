@@ -125,13 +125,19 @@ def get_default_inversion_settings(get_doc=False):
            "initial flowline (extracted from initial flowline, if no time " \
            "given RGI date); " \
            "'area' (unit: 'm2', 'km2') an additional total area measurement; " \
-           "'dh' (unit: 'm') geodetic measurement ('time' is given as period, " \
-           "e.g. '2009-2015')." \
+           "'dmdtda' (unit: 'kg m-2 yr-1', 'kg yr-1') geodetic measurement, if " \
+           "unit is 'kg m-2 yr-1' the mean area of the start year and end " \
+           "year of the given period is used; if unit is 'kg yr-1' it is " \
+           "assumed a fixed area was used during the creation of the " \
+           "geodetic mass-balance, in this case it is assumed the provided " \
+           "'dmdtda' was already multiplied by the fixed area (e.g. " \
+           "provided_dmdtda = original_dmdtda * RGI_area); the time " \
+           "is given as period (e.g. 'dmdtda:kg m-2 yr-1': {'2009-2015': 20})." \
            "'us' (unit: myr-1) surface ice velocity (if no time given RGI date)" \
            "Default: {'fl_surface_h:m': {}, " \
-           "'dh:m': {}"
+           "'dmdtda:kg m-2 yr-1': {}"
     _default = {'fl_surface_h:m': {},
-                'dh:m': {}}
+                'dmdtda:kg m-2 yr-1': {}}
     add_setting()
 
     _key = "obs_reg_parameters"
@@ -143,12 +149,14 @@ def get_default_inversion_settings(get_doc=False):
            "RECOMMENDED) one can use a dict with key 'scale' (e.g. " \
            "{'scale': {'fl_surface_h': 10., 'fl_widths_m': 1.}}), this option " \
            "first express the individual mismatches in percent of the " \
-           "observation and afterwards multiple with the given numbers (from example " \
+           "observation and afterwards multiple with the given numbers (from " \
+           "example " \
            "above this means a mismatch of 1% at 'fl_surface_h' is equally " \
            "weighted as a 10% mismatch at 'fl_widths_m'). " \
-           "Default: {'uncertainty': {'fl_surface_h:m': 1., 'dh:m': 1.}}"
+           "Default: {'uncertainty': {'fl_surface_h:m': 1.," \
+           "'dmdtda:kg m-2 yr-1': 1.}}"
     _default = {'uncertainty': {'fl_surface_h:m': 1.,
-                                'dh:m': 1.}}
+                                'dmdtda:kg m-2 yr-1': 1.}}
     add_setting()
 
     _key = "regularisation_terms"
@@ -335,13 +343,14 @@ def get_adaptive_upper_ice_thickness_limit(fl, additional_ice_thickness=100,
 
     """
     ice_surface_h = fl.surface_h[fl.thick > 0]
-    dH = ice_surface_h[0] - ice_surface_h[-1]
+    delta_height = ice_surface_h[0] - ice_surface_h[-1]
 
-    if dH > 1600:
+    if delta_height > 1600:
         tau = 150000  # Pa
     else:
         # equation calculates tau in bar -> convert to Pa with 1e5
-        tau = (0.005 + 1.598 * dH / 1000 - 0.435 * (dH / 1000)**2) * 1e5  # Pa
+        tau = (0.005 + 1.598 * delta_height / 1000 - 0.435 *
+               (delta_height / 1000)**2) * 1e5  # Pa
 
     slope_stag = np.zeros(len(ice_surface_h) + 1)
     slope_stag[0] = 1

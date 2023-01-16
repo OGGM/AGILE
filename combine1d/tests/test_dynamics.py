@@ -51,7 +51,7 @@ class TestDynamicRunWithModelObservations:
         assert type(needed_model_data) == collections.OrderedDict
 
         all_years = np.array([yr for yr in needed_model_data.keys()])
-        years_should_have = [2000, 2002, 2003, 2005, 2007, 2009, 2010]
+        years_should_have = [2000, 2002, 2003, 2005, 2007, 2009, 2010, 2015]
         # check that years are sorted
         assert np.all(np.diff(all_years) > 0.)
 
@@ -64,7 +64,7 @@ class TestDynamicRunWithModelObservations:
         # check if wrong measurement unit is detected
         wrong_unit = 'something'
         for obs_name in ['fl_surface_h', 'fl_widths', 'fl_total_area', 'area',
-                         'dh']:
+                         'dmdtda']:
             with pytest.raises(NotImplementedError,
                                match=f'Wrong unit for {obs_name}!'):
                 construct_needed_model_data({f'{obs_name}:{wrong_unit}': {}})

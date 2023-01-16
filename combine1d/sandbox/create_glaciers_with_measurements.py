@@ -344,11 +344,11 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_start_run,
                                        delete=True)
     )
 
-    # get measurements for dhdt
-    dh_volume = [None, None]
-    dh_area = [None, None]
-    dh_volume[0] = model.volume_m3
-    dh_area[0] = model.area_m2
+    # get measurements for dmdtda
+    dmdtda_volume = [None, None]
+    dmdtda_area = [None, None]
+    dmdtda_volume[0] = model.volume_m3
+    dmdtda_area[0] = model.area_m2
 
     # switch to mb_run and run to rgi_date and save measurements and flowline
     model = SemiImplicitModel(copy.deepcopy(model.fls),
@@ -369,7 +369,7 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_start_run,
     rgi_date_volume_km3 = model.volume_km3
     rgi_date_us_myr = model.u_stag[0] * model._surf_vel_fac * SEC_IN_YEAR
 
-    # now run to the end for dhdt
+    # now run to the end for dmdtda
     model.run_until_and_store(
         yr_end_run,
         diag_path=gdir.get_filepath('model_diagnostics',
@@ -384,8 +384,8 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_start_run,
                               )
     gdir.write_pickle(model.fls, 'model_flowlines',
                       filesuffix='_combine_true_end')
-    dh_volume[1] = model.volume_m3
-    dh_area[1] = model.area_m2
+    dmdtda_volume[1] = model.volume_m3
+    dmdtda_area[1] = model.area_m2
     # combine model diagnostics to one file for the whole period
     tasks.merge_consecutive_run_outputs(
         gdir,
@@ -400,12 +400,20 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_start_run,
         output_filesuffix='_combine_total_run',
         delete_input=False)
 
-    # calculate dh
-    dh_m = (dh_volume[1] - dh_volume[0]) / \
-           ((dh_area[1] + dh_area[0]) / 2.)
+    # calculate dmdtda
+    dmdtda = (
+        # mass change
+        (dmdtda_volume[1] - dmdtda_volume[0]) *
+        cfg.PARAMS['ice_density']
+        # divided by mean area
+        / ((dmdtda_area[1] + dmdtda_area[0]) / 2.)
+        # divided by period
+        / (yr_end_run - yr_start_run)
+    )
 
     # save measurements in gdir
-    all_measurements = {'dh:m': {'2000-2019': dh_m},
+    all_measurements = {'dmdtda:kg m-2 yr-1': {f'{yr_start_run}-{yr_end_run}':
+                                               dmdtda},
                         'area:km2': {str(yr_rgi): rgi_date_area_km2},
                         'volume:km3': {str(yr_rgi): rgi_date_volume_km3},
                         'us:myr-1': {str(yr_rgi): rgi_date_us_myr},

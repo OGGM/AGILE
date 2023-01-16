@@ -660,7 +660,7 @@ def define_reg_parameters(data_logger):
                 elif obs_val in ['fl_total_area:km2', 'area:km2']:
                     ref_uncertainty = (3 * 0.039 *
                                        (observations[obs_val][year]) ** 1.7)  # km2
-                elif obs_val == 'dh:m':
+                elif obs_val == 'dmdtda:kg m-2 yr-1':
                     ref_uncertainty = {
                         'RGI60-14.06794': 1.1,
                         'RGI60-11.00897': 1.7,

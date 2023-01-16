@@ -2,7 +2,7 @@ from collections import OrderedDict
 import copy
 
 import torch
-from oggm import tasks
+from oggm import tasks, cfg
 
 
 def run_model_and_get_temporal_model_data(flowline, dynamic_model, mb_models,
@@ -16,7 +16,8 @@ def run_model_and_get_temporal_model_data(flowline, dynamic_model, mb_models,
     mb_models: dict
         {'MB1': {'mb_model': lala, 'years': np.array([1950, 2010])}}
     observations: dict
-        {'Area', {'2010': np.array([23])}, 'dh': {'2010-2015': np.array([45])}}
+        {'fl_surface_h:m', {'2010': np.array([23])},
+         'dmdtda:kg m-2 yr-1': {'2010-2015': np.array([45])}}
 
     Returns
     -------
@@ -59,8 +60,8 @@ def construct_needed_model_data(observations):
 
     for obs_key in observations.keys():
         obs_name, obs_unit = obs_key.split(':')
-        if obs_name == 'dh':
-            unit_check('dh', obs_unit, ['m'])
+        if obs_name == 'dmdtda':
+            unit_check('dmdtda', obs_unit, ['kg m-2 yr-1', 'kg yr-1'])
 
             # extract measurement years
             needed_years = []
@@ -73,11 +74,13 @@ def construct_needed_model_data(observations):
 
             # add needed measurements
             for yr in needed_years:
-                if obs_unit == 'm':
+                if obs_unit == 'kg m-2 yr-1':
                     add_model_variable(yr, 'volume:m3')
                     add_model_variable(yr, 'area:m2')
+                elif obs_unit == 'kg yr-1':
+                    add_model_variable(yr, 'volume:m3')
                 else:
-                    raise NotImplementedError(f'{obs_unit} for dh')
+                    raise NotImplementedError(f'{obs_unit} for dmdtda')
 
         else:  # here now all measurements without a period
             # extract measurement years
@@ -201,19 +204,41 @@ def calculate_model_observations(observations, actual_model_data):
                 out[var_key][year] = actual_model_data[int(year)][var_key]
 
         # here start the variables which need some calculation
-        elif var_key == 'dh:m':
+        elif var_key == 'dmdtda:kg m-2 yr-1':
             for period in out[var_key].keys():
                 y1, y2 = [int(yr) for yr in period.split('-')]
-                out[var_key][period] = \
+                out[var_key][period] = (
+                    # mass change
                     (actual_model_data[y2]['volume:m3'] -
-                     actual_model_data[y1]['volume:m3']) / \
-                    ((actual_model_data[y2]['area:m2'] +
-                      actual_model_data[y1]['area:m2']) /
-                     torch.tensor(2.,
-                                  dtype=actual_model_data[y1]['area:m2'].dtype,
-                                  device=actual_model_data[y1]['area:m2'].device,
-                                  requires_grad=False)
-                     )
+                     actual_model_data[y1]['volume:m3']) *
+                    torch.tensor(cfg.PARAMS['ice_density'],
+                                 dtype=actual_model_data[y1]['area:m2'].dtype,
+                                 device=actual_model_data[y1]['area:m2'].device,
+                                 requires_grad=False)
+                    # divided by mean area
+                    / ((actual_model_data[y2]['area:m2'] +
+                        actual_model_data[y1]['area:m2']) /
+                       torch.tensor(2.,
+                                    dtype=actual_model_data[y1]['area:m2'].dtype,
+                                    device=actual_model_data[y1]['area:m2'].device,
+                                    requires_grad=False))
+                    # divided by length of period
+                    / (y2 - y1)
+                )
+        elif var_key == 'dmdtda:kg yr-1':
+            for period in out[var_key].keys():
+                y1, y2 = [int(yr) for yr in period.split('-')]
+                out[var_key][period] = (
+                    # mass change
+                    (actual_model_data[y2]['volume:m3'] -
+                     actual_model_data[y1]['volume:m3']) *
+                    torch.tensor(cfg.PARAMS['ice_density'],
+                                 dtype=actual_model_data[y1]['area:m2'].dtype,
+                                 device=actual_model_data[y1]['area:m2'].device,
+                                 requires_grad=False)
+                    # divided by length of period
+                    / (y2 - y1)
+                )
         else:
             raise NotImplementedError(f'{var_key}')
 
