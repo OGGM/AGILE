@@ -458,7 +458,7 @@ def combine_inversion(gdir, inversion_input_filesuffix='_combine',
 
             # move the file to the output_folder if it differs from gdir.dir
             if output_filepath is not None:
-                shutil.move(gdir.get_filepath('model_diagnostics',
+                shutil.copy(gdir.get_filepath('model_diagnostics',
                                               filesuffix=data_logger.filename),
                             data_logger.output_filepath)
         else:
