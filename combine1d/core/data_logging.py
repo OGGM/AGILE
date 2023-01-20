@@ -228,6 +228,8 @@ class DataLogger(object):
         ds.attrs['obs_reg_parameters'] = self.obs_reg_parameters
         ds.attrs['regularisation_terms'] = self.regularisation_terms
         ds.attrs['control_vars'] = self.control_vars
+        ds.attrs['observations'] = self.observations
+        ds.attrs['observations_for_scaling'] = self.observations_for_scaling
         ds.attrs['mb_models_settings'] = self.mb_models_settings
         ds.attrs['min_w0_m'] = self.min_w0_m
         ds.attrs['min_ice_thickness'] = self.min_ice_thickness

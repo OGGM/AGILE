@@ -661,12 +661,14 @@ def define_reg_parameters(data_logger):
                     ref_uncertainty = (3 * 0.039 *
                                        (observations[obs_val][year]) ** 1.7)  # km2
                 elif obs_val == 'dmdtda:kg m-2 yr-1':
+                    # this uncertainties are estimated from the hugonnet dataset
+                    # utils.get_geodetic_mb_dataframe().loc[rgi_id][['err_dmdtda', 'period']]
                     ref_uncertainty = {
-                        'RGI60-14.06794': 1.1,
-                        'RGI60-11.00897': 1.7,
-                        'RGI60-11.01450': 1.2,
-                        'RGI60-16.02444': 2.3,
-                        'RGI60-16.02207': 1.8,
+                        'RGI60-14.06794': 70,
+                        'RGI60-11.00897': 170,
+                        'RGI60-11.01450': 130,
+                        'RGI60-16.02444': 150,
+                        'RGI60-16.02207': 140,
                     }[data_logger.gdir.rgi_id]
                 elif obs_val == 'us:myr-1':
                     ref_uncertainty = 10  # m yr-1

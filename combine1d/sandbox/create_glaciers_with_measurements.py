@@ -9,7 +9,7 @@ from oggm import cfg, workflow, tasks, entity_task, utils
 from oggm.core.flowline import MixedBedFlowline, SemiImplicitModel
 from oggm.core.massbalance import ConstantMassBalance, MultipleFlowlineMassBalance, \
     PastMassBalance, RandomMassBalance
-from oggm.shop import bedtopo
+from oggm.shop import bedtopo, gcm_climate
 
 from combine1d.sandbox.glaciers_for_idealized_experiments import experiment_glaciers
 
@@ -420,6 +420,32 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_start_run,
                         }
     gdir.write_pickle(all_measurements, 'inversion_input',
                       filesuffix='_combine_measurements')
+
+    # conduct one future simulation for comparison
+    # arbitrarily selected single GCM
+    ssp = 'ssp370'
+    GCM = 'BCC-CSM2-MR'
+    # download locations for precipitation and temperature
+    bp = 'https://cluster.klima.uni-bremen.de/~oggm/cmip6/GCM/{}/{}_{}_r1i1p1f1_pr.nc'
+    bt = 'https://cluster.klima.uni-bremen.de/~oggm/cmip6/GCM/{}/{}_{}_r1i1p1f1_tas.nc'
+    # 'Download' the files
+    ft = utils.file_downloader(bt.format(GCM, GCM, ssp))
+    fp = utils.file_downloader(bp.format(GCM, GCM, ssp))
+    # bias correct them
+    workflow.execute_entity_task(gcm_climate.process_cmip_data, [gdir],
+                                 filesuffix='_{}_{}'.format(GCM, ssp),
+                                 # recognize the climate file for later
+                                 fpath_temp=ft,  # temperature projections
+                                 fpath_precip=fp,  # precip projections
+                                 )
+    # actual projection runs
+    rid = '_{}_{}'.format(GCM, ssp)
+    workflow.execute_entity_task(tasks.run_from_climate_data, [gdir],
+                                 climate_filename='gcm_data',
+                                 climate_input_filesuffix=rid,
+                                 init_model_fls=model.fls,
+                                 output_filesuffix='_combine_true_future',
+                                 )
 
 
 @entity_task(log, writes=['model_flowlines'])
