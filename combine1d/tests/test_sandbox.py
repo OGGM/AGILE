@@ -37,6 +37,7 @@ class TestSandbox:
                          ]
 
         cfg.PARAMS['use_multiprocessing'] = False
+        cfg.PARAMS['cfl_number'] = 0.5
         gdirs = create_idealized_experiments(glacier_names,
                                              prepro_border=prepro_border,
                                              from_prepro_level=from_prepro_level,

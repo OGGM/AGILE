@@ -445,6 +445,7 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_start_run,
                                  climate_input_filesuffix=rid,
                                  init_model_fls=model.fls,
                                  output_filesuffix='_combine_true_future',
+                                 evolution_model=SemiImplicitModel,
                                  )
 
 

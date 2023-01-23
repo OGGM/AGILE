@@ -11,6 +11,7 @@ from combine1d.core.inversion import prepare_for_combine_inversion, \
     combine_inversion
 from oggm import cfg, utils, workflow, tasks
 from oggm import entity_task
+from oggm.core.flowline import SemiImplicitModel
 
 # Module logger
 log = logging.getLogger(__name__)
@@ -85,6 +86,7 @@ def add_future_projection_run(gdir, data_logger):
                                  init_model_fls=fls_init,
                                  output_filesuffix=data_logger.filename +
                                                    '_future',
+                                 evolution_model=SemiImplicitModel,
                                  )
 
 
