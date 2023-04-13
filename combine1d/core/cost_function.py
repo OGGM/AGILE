@@ -7,7 +7,7 @@ import time
 from combine1d.core.dynamics import run_model_and_get_temporal_model_data
 from combine1d.core.massbalance import ConstantMassBalanceTorch
 from combine1d.core.flowline import MixedBedFlowline, FluxBasedModel
-from combine1d.core.flowline import OggmMixedBedFlowline as OggmFlowline
+from oggm.core.flowline import MixedBedFlowline as OggmFlowline
 
 log = logging.getLogger(__name__)
 

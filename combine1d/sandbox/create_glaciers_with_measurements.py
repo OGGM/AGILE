@@ -4,13 +4,15 @@ import pandas as pd
 import numpy as np
 from oggm.cfg import SEC_IN_YEAR
 from scipy.optimize import brentq
+from itertools import tee
 
 from oggm import cfg, workflow, tasks, entity_task, utils
 from oggm.core.flowline import MixedBedFlowline, SemiImplicitModel
 from oggm.core.massbalance import ConstantMassBalance, MultipleFlowlineMassBalance, \
-    PastMassBalance, RandomMassBalance
+    PastMassBalance, RandomMassBalance, MassBalanceModel
 from oggm.shop import bedtopo, gcm_climate
 
+from combine1d.sandbox.calcualte_statistics import calculate_default_oggm_statistics
 from combine1d.sandbox.glaciers_for_idealized_experiments import experiment_glaciers
 
 # Module logger
@@ -140,6 +142,10 @@ def create_idealized_experiments(all_glaciers,
 
     # now OGGM inversion from idealized glacier surface for first guess
     workflow.execute_entity_task(oggm_inversion_for_first_guess, gdirs)
+
+    # finally use oggm default initialisation for comparisons
+    workflow.execute_entity_task(oggm_default_initialisation, gdirs,
+                                 ys=yr_spinup, ye=yr_end_run)
 
     # change back to default
     cfg.PARAMS['cfl_number'] = 0.02
@@ -367,7 +373,14 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_start_run,
                       filesuffix='_combine_true_init')
     rgi_date_area_km2 = model.area_km2
     rgi_date_volume_km3 = model.volume_km3
-    rgi_date_us_myr = model.u_stag[0] * model._surf_vel_fac * SEC_IN_YEAR
+    rgi_date_fl_surface_h = model.fls[0].surface_h
+    rgi_date_fl_widths = model.fls[0].widths_m
+
+    # need to convert stag velocity to nonstaggerd grid points
+    var = model.u_stag[0]
+    val = (var[1:model.fls[0].nx + 1] + var[:model.fls[0].nx]) / 2 * \
+          model._surf_vel_fac
+    rgi_date_us_myr = val * cfg.SEC_IN_YEAR
 
     # now run to the end for dmdtda
     model.run_until_and_store(
@@ -415,8 +428,15 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_start_run,
     all_measurements = {'dmdtda:kg m-2 yr-1': {f'{yr_start_run}-{yr_end_run}':
                                                dmdtda},
                         'area:km2': {str(yr_rgi): rgi_date_area_km2},
+                        'area:m2': {str(yr_rgi): rgi_date_area_km2 * 1e-6},
                         'volume:km3': {str(yr_rgi): rgi_date_volume_km3},
+                        'volume:m3': {str(yr_rgi): rgi_date_volume_km3 * 1e-9},
                         'us:myr-1': {str(yr_rgi): rgi_date_us_myr},
+                        'fl_surface_h:m': {str(yr_rgi): rgi_date_fl_surface_h},
+                        'fl_widths:m': {str(yr_rgi): rgi_date_fl_widths},
+                        'fl_total_area:m2': {str(yr_rgi):
+                                             rgi_date_area_km2 * 1e-6},
+                        'fl_total_area:km2': {str(yr_rgi): rgi_date_area_km2},
                         }
     gdir.write_pickle(all_measurements, 'inversion_input',
                       filesuffix='_combine_measurements')
@@ -444,6 +464,7 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_start_run,
                                  climate_filename='gcm_data',
                                  climate_input_filesuffix=rid,
                                  init_model_fls=model.fls,
+                                 ys=yr_end_run,
                                  output_filesuffix='_combine_true_future',
                                  evolution_model=SemiImplicitModel,
                                  )
@@ -514,3 +535,118 @@ def oggm_inversion_for_first_guess(gdir):
                                        gdir=gdir)
     gdir.write_pickle([fls_first_guess], 'model_flowlines',
                       filesuffix='_combine_first_guess')
+
+
+def pairwise(iterable):
+    """ In Python 3.10 this is available in itertools.pairwise"""
+    # pairwise('ABCDEFG') --> AB BC CD DE EF FG
+    a, b = tee(iterable)
+    next(b, None)
+    return zip(a, b)
+
+
+class StackedMassBalance(MassBalanceModel):
+    """Define different MassBalanceModels for different time periods.
+    """
+
+    def __init__(self, gdir, mb_model_settings, filename='climate_historical',
+                 input_filesuffix=''):
+
+        super(StackedMassBalance, self).__init__()
+
+        self.hemisphere = gdir.hemisphere
+
+        # set periods of different mb_models
+        all_periods = []
+        for key_mb in mb_model_settings:
+            all_periods.append(mb_model_settings[key_mb]['years'])
+        self._periods = np.sort(np.unique(np.concatenate(all_periods)))
+
+        # set mb_model for all specific sorted periods
+        mb_models = {}
+        for p_nr, (p_start, p_end) in enumerate(pairwise(self._periods)):
+            # check if their is a mb_model defined for the current period
+            found_mb_model = False
+            for key_mb in mb_model_settings:
+                if np.all([p_start, p_end] ==
+                          mb_model_settings[key_mb]['years']):
+                    if mb_model_settings[key_mb]['type'] == 'constant':
+                        halfsize_run = (p_end - p_start) / 2
+                        mb_models[p_nr] = ConstantMassBalance(
+                            gdir, y0=p_start + halfsize_run,
+                            halfsize=halfsize_run, filename=filename,
+                            input_filesuffix=input_filesuffix)
+                        found_mb_model = True
+                        break
+                    else:
+                        raise NotImplementedError('')
+
+            if not found_mb_model:
+                raise ValueError(f'No mb model defined for period {p_start} '
+                                 f'to {p_end}!')
+
+        self._mb_models = mb_models
+
+    def get_period_nr(self, year):
+        current_period = np.searchsorted(self._periods, year, side='right')
+
+        # the given year is smaller than minimum defined in periods
+        if current_period == 0:
+            raise ValueError(f'No mb model defined for year {year}')
+
+        if current_period >= len(self._periods):
+            if year == self._periods[-1]:
+                # ok at the upper limit we use again the last mb_model
+                current_period -= 1
+            else:
+                # the given year is larger than the maximum defined in periods
+                raise ValueError(f'No mb model defined for year {year}')
+
+        return current_period - 1  # because mb_model index starts with 0
+
+    def get_monthly_mb(self, heights, year=None, fl_id=None, fls=None):
+        return self._mb_models[self.get_period_nr(year)].get_monthly_mb(
+            heights=heights, year=year, fl_id=fl_id, fls=fls)
+
+    def get_annual_mb(self, heights, year=None, fl_id=None, fls=None):
+        return self._mb_models[self.get_period_nr(year)].get_annual_mb(
+            heights=heights, year=year, fl_id=fl_id, fls=fls)
+
+
+def get_experiment_mb_model(gdir):
+    """Getting the experiment mb_model defined earlier """
+    mb_model_settings = gdir.read_pickle('inversion_input',
+                                         filesuffix='_combine_mb_models')
+
+    return StackedMassBalance(gdir=gdir, mb_model_settings=mb_model_settings)
+
+
+def oggm_default_initialisation(gdir, ys, ye):
+    """ Use oggm default initialisation method and do a projection
+    """
+    mb_model = get_experiment_mb_model(gdir)
+
+    # do dynamic initialisation
+    dynamic_spinup_model = tasks.run_dynamic_spinup(
+        gdir, spinup_start_yr=ys, ye=ye, evolution_model=SemiImplicitModel,
+        model_flowline_filesuffix='_combine_first_guess',
+        mb_model_historical=mb_model, precision_absolute=0.1,
+        output_filesuffix='_oggm_default_past', store_model_geometry=True,
+        store_fl_diagnostics=True, store_model_evolution=True,
+        ignore_errors=False, add_fixed_geometry_spinup=True)
+
+    # conduct projection run
+    ssp = 'ssp370'
+    GCM = 'BCC-CSM2-MR'
+    rid = '_{}_{}'.format(GCM, ssp)
+    workflow.execute_entity_task(tasks.run_from_climate_data, [gdir],
+                                 climate_filename='gcm_data',
+                                 climate_input_filesuffix=rid,
+                                 init_model_fls=dynamic_spinup_model.fls,
+                                 ys=ye,
+                                 output_filesuffix='_oggm_default_future',
+                                 evolution_model=SemiImplicitModel,
+                                 )
+
+    # calculate statistics
+    calculate_default_oggm_statistics(gdir)
