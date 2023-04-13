@@ -8,6 +8,7 @@ import pickle
 from combine1d.core.inversion import get_default_inversion_settings
 from combine1d.sandbox.create_glaciers_with_measurements import create_idealized_experiments
 from combine1d.sandbox.define_idealized_experiment import idealized_experiment
+from combine1d.sandbox.create_glaciers_with_measurements import StackedMassBalance
 
 from oggm import cfg
 
@@ -43,24 +44,71 @@ class TestSandbox:
                                              from_prepro_level=from_prepro_level,
                                              base_url=base_url, )
 
-        # test that resulting dataset contain the complete experiment period
-        for gdir in gdirs:
+        def resulting_run_test(filesuffix, ys, ye):
+            assert gdir.has_file('model_diagnostics',
+                                 filesuffix=filesuffix)
             fp = gdir.get_filepath('model_diagnostics',
-                                   filesuffix='_combine_total_run')
+                                   filesuffix=filesuffix)
             with xr.open_dataset(fp) as ds_diag:
                 ds_diag = ds_diag.load()
 
-            assert ds_diag.time[0] == 1980
-            assert ds_diag.time[-1] == 2019
+            assert ds_diag.time[0] == ys
+            assert ds_diag.time[-1] == ye
             assert np.all(np.isfinite(ds_diag.volume_m3))
             assert np.all(np.isfinite(ds_diag.area_m2))
             assert np.all(np.isfinite(ds_diag.length_m))
 
+        # test that resulting true run dataset contain the complete period
+        for gdir in gdirs:
+            resulting_run_test(filesuffix='_combine_total_run',
+                               ys=1980,
+                               ye=2019)
+
         # test that the resulting gdirs contain the future climate file
         for gdir in gdirs:
             assert gdir.has_file('gcm_data', filesuffix='_BCC-CSM2-MR_ssp370')
-            assert gdir.has_file('model_diagnostics',
-                                 filesuffix='_combine_true_future')
+            resulting_run_test(filesuffix='_combine_true_future',
+                               ys=2019,
+                               ye=2101)
+
+        # test that the resulting gdirs contain the oggm default run files
+        for gdir in gdirs:
+            resulting_run_test(filesuffix='_oggm_default_past',
+                               ys=1980,
+                               ye=2019)
+            assert gdir.has_file('fl_diagnostics',
+                                 filesuffix='_oggm_default_past')
+            resulting_run_test(filesuffix='_oggm_default_future',
+                               ys=2019,
+                               ye=2101)
+
+        # test that the resulting gdirs contain the oggm default statistics
+        def all_stats_finite(ds, use_year):
+            for var in ds.keys():
+                for year in ds[var].keys():
+                    if use_year:
+                        for stat in ds[var][year].keys():
+                            assert np.all(np.isfinite(ds[var][year][stat]))
+                    else:
+                        # here year actually is used as stat (e.g. 'rmsd')
+                        assert np.all(np.isfinite(ds[var][year]))
+
+        for gdir in gdirs:
+            fp = os.path.join(gdir.dir,
+                              'default_oggm_statistics.pkl')
+            with open(fp, 'rb') as handle:
+                ds_default_stats = pickle.load(handle)
+
+            for stat_key in ds_default_stats.keys():
+                if stat_key in ['observations_stats', 'controls_stats',
+                                'past_evol_stats', 'today_state_stats',
+                                'future_evol_stats']:
+                    use_year = False
+                    if stat_key in ['observations_stats']:
+                        use_year = True
+                    all_stats_finite(ds_default_stats[stat_key], use_year)
+                else:
+                    raise NotImplementedError(f'{stat_key}')
 
         if do_plot:
             for gdir in gdirs:
@@ -70,14 +118,14 @@ class TestSandbox:
                 fl_spinup = gdir.read_pickle('model_flowlines',
                                              filesuffix='_spinup')[0]
                 fl_combine_init = \
-                gdir.read_pickle('model_flowlines',
-                                 filesuffix='_combine_true_init')[0]
+                    gdir.read_pickle('model_flowlines',
+                                     filesuffix='_combine_true_init')[0]
                 fl_combine_end = \
-                gdir.read_pickle('model_flowlines',
-                                 filesuffix='_combine_true_end')[0]
+                    gdir.read_pickle('model_flowlines',
+                                     filesuffix='_combine_true_end')[0]
                 fl_combine_first_guess = \
-                gdir.read_pickle('model_flowlines',
-                                 filesuffix='_combine_first_guess')[0]
+                    gdir.read_pickle('model_flowlines',
+                                     filesuffix='_combine_first_guess')[0]
 
                 def get_fl_diagnostics(filesuffix):
                     f = gdir.get_filepath('fl_diagnostics',
@@ -169,12 +217,12 @@ class TestSandbox:
         # add all possible control variables
         inversion_settings['control_vars'] = control_vars
 
-        idealized_experiment(use_experiment_glaciers=experiment_glacier,
-                             inversion_settings_all=[inversion_settings],
-                             working_dir=test_dir,
-                             output_folder=test_dir,
-                             override_params={'border': 160,
-                                              'cfl_number': 0.5})
+        gdirs = idealized_experiment(use_experiment_glaciers=experiment_glacier,
+                                     inversion_settings_all=[inversion_settings],
+                                     working_dir=test_dir,
+                                     output_folder=test_dir,
+                                     override_params={'border': 160,
+                                                      'cfl_number': 0.5})
 
         # open final dataset
         fp = os.path.join(test_dir,
@@ -182,9 +230,16 @@ class TestSandbox:
         with open(fp, 'rb') as handle:
             ds = pickle.load(handle)
 
+        # open default oggm statistics
+        fp = os.path.join(gdirs[0].dir,
+                          'default_oggm_statistics.pkl')
+        with open(fp, 'rb') as handle:
+            ds_default_stats = pickle.load(handle)
+
         # test for observation statistics
         ds_key = 'observations_stats'
         assert ds_key in ds.attrs.keys()
+        assert ds_key in ds_default_stats.keys()
         for obs_key in ds.attrs[ds_key].keys():
             obs_key_name = obs_key.split(':')[0]
             for year_key in ds.attrs[ds_key][obs_key].keys():
@@ -196,56 +251,157 @@ class TestSandbox:
                     raise NotImplementedError()
                 for metric in test_metrics:
                     assert metric in ds.attrs[ds_key][obs_key][year_key].keys()
+                    assert metric in ds_default_stats[ds_key][obs_key][year_key].keys()
                     assert isinstance(ds.attrs[ds_key][obs_key][year_key][metric],
+                                      float)
+                    assert isinstance(ds_default_stats[ds_key][obs_key][year_key][metric],
                                       float)
 
         # test for control statistics
         ds_key = 'controls_stats'
         assert ds_key in ds.attrs.keys()
+        assert ds_key in ds_default_stats.keys()
         for control_key in ds.attrs[ds_key].keys():
             if control_key in ['bed_h', 'area_bed_h', 'lambdas', 'w0_m']:
                 test_metrics = ['rmsd', 'mean_ad', 'max_ad']
+                test_default = True
             elif control_key in ['height_shift_spinup']:
                 test_metrics = ['diff', 'abs_diff']
+                test_default = False
             else:
                 raise NotImplementedError()
             for metric in test_metrics:
                 assert metric in ds.attrs[ds_key][control_key].keys()
                 assert isinstance(ds.attrs[ds_key][control_key][metric],
                                   float)
+                if test_default:
+                    assert metric in ds_default_stats[ds_key][control_key].keys()
+                    assert isinstance(ds_default_stats[ds_key][control_key][metric],
+                                      float)
 
         # test the past evolution statistics
         ds_key = 'past_evol_stats'
         assert ds_key in ds.attrs.keys()
+        assert ds_key in ds_default_stats.keys()
         for var in ['volume_m3', 'area_m2']:
             test_metrics = ['rmsd', 'mean_ad', 'max_ad']
             for metric in test_metrics:
                 assert metric in ds.attrs[ds_key][var].keys()
+                assert metric in ds_default_stats[ds_key][var].keys()
                 assert isinstance(ds.attrs[ds_key][var][metric],
+                                  float)
+                assert isinstance(ds_default_stats[ds_key][var][metric],
                                   float)
 
         # test todays glacier state statistics
         ds_key = 'today_state_stats'
         assert ds_key in ds.attrs.keys()
+        assert ds_key in ds_default_stats.keys()
         for var in ['thick', 'area_m2', 'volume_m3']:
             test_metrics = ['rmsd', 'mean_ad', 'max_ad', 'diff']
             for metric in test_metrics:
                 if metric == 'diff':
                     if var != 'thick':
                         assert metric in ds.attrs[ds_key][var].keys()
+                        assert metric in ds_default_stats[ds_key][var].keys()
                         assert isinstance(ds.attrs[ds_key][var][metric],
+                                          np.ndarray)
+                        assert isinstance(ds_default_stats[ds_key][var][metric],
                                           np.ndarray)
                 else:
                     assert metric in ds.attrs[ds_key][var].keys()
+                    assert metric in ds_default_stats[ds_key][var].keys()
                     assert isinstance(ds.attrs[ds_key][var][metric],
+                                      float)
+                    assert isinstance(ds_default_stats[ds_key][var][metric],
                                       float)
 
         # test the future evolution statistics
         ds_key = 'future_evol_stats'
         assert ds_key in ds.attrs.keys()
+        assert ds_key in ds_default_stats.keys()
         for var in ['volume_m3', 'area_m2']:
             test_metrics = ['rmsd', 'mean_ad', 'max_ad']
             for metric in test_metrics:
                 assert metric in ds.attrs[ds_key][var].keys()
+                assert metric in ds_default_stats[ds_key][var].keys()
                 assert isinstance(ds.attrs[ds_key][var][metric],
                                   float)
+                assert isinstance(ds_default_stats[ds_key][var][metric],
+                                  float)
+
+    def test_StackedMassBalance(self, test_dir):
+        cfg.initialize(logging_level='WARNING')
+        cfg.PATHS['working_dir'] = test_dir
+        cfg.PARAMS['use_multiprocessing'] = False
+
+        # Size of the map around the glacier.
+        prepro_border = 160
+        # Degree of processing level.
+        from_prepro_level = 2
+        # URL of the preprocessed gdirs
+        # we use elevation bands flowlines here
+        base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/' \
+                   'L1-L2_files/elev_bands/'
+
+        glacier_names = ['Hintereisferner']
+
+        cfg.PARAMS['use_multiprocessing'] = False
+        cfg.PARAMS['cfl_number'] = 0.5
+        gdirs = create_idealized_experiments(glacier_names,
+                                             prepro_border=prepro_border,
+                                             from_prepro_level=from_prepro_level,
+                                             base_url=base_url, )
+
+        gdir = gdirs[0]
+
+        mb_settings = {'MB1': {'type': 'constant',
+                               'years': np.array([1980, 2000])},
+                       'MB2': {'type': 'constant',
+                               'years': np.array([2000, 2019])}}
+
+        mb_model = StackedMassBalance(gdir=gdir, mb_model_settings=mb_settings)
+
+        assert np.all(np.isin(np.array([1980, 2000]),
+                              mb_model._mb_models[0].years))
+        assert np.all(np.isin(np.array([2000, 2019]),
+                              mb_model._mb_models[1].years))
+
+        test_heights = [3100, 3000, 2500]
+        # get_annual
+        assert np.all(np.not_equal(
+            mb_model.get_annual_mb(test_heights, year=1990),
+            mb_model.get_annual_mb(test_heights, year=2010)))
+        assert np.all(np.not_equal(
+            mb_model.get_annual_mb(test_heights, year=1980),
+            mb_model.get_annual_mb(test_heights, year=2000)))
+        assert np.all(np.equal(
+            mb_model.get_annual_mb(test_heights, year=1980),
+            mb_model.get_annual_mb(test_heights, year=1999)))
+        assert np.all(np.equal(
+            mb_model.get_annual_mb(test_heights, year=2000),
+            mb_model.get_annual_mb(test_heights, year=2019)))
+        for false_year in [1979, 2020]:
+            with pytest.raises(ValueError,
+                               match=f'No mb model defined for year '
+                                     f'{false_year}'):
+                mb_model.get_annual_mb(test_heights, year=false_year)
+
+        # get monthly
+        assert np.all(np.not_equal(
+            mb_model.get_monthly_mb(test_heights, year=1990),
+            mb_model.get_monthly_mb(test_heights, year=2010)))
+        assert np.all(np.not_equal(
+            mb_model.get_monthly_mb(test_heights, year=1980),
+            mb_model.get_monthly_mb(test_heights, year=2000)))
+        assert np.all(np.equal(
+            mb_model.get_monthly_mb(test_heights, year=1980),
+            mb_model.get_monthly_mb(test_heights, year=1999)))
+        assert np.all(np.equal(
+            mb_model.get_monthly_mb(test_heights, year=2000),
+            mb_model.get_monthly_mb(test_heights, year=2019)))
+        for false_year in [1979, 2020]:
+            with pytest.raises(ValueError,
+                               match=f'No mb model defined for year '
+                                     f'{false_year}'):
+                mb_model.get_monthly_mb(test_heights, year=false_year)
