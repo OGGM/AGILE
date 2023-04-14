@@ -26,7 +26,9 @@ def create_idealized_experiments(all_glaciers,
                                  yr_spinup=1980,
                                  yr_start_run=2000,
                                  yr_end_run=2019,
-                                 used_mb_models='constant'):
+                                 used_mb_models='constant',
+                                 gcm='BCC-CSM2-MR',
+                                 ssp='ssp370'):
     '''
     Create idealized experiment (with geometry and measurements) and return
     glacier directory from which combine run can be started and true glacier
@@ -145,7 +147,7 @@ def create_idealized_experiments(all_glaciers,
 
     # finally use oggm default initialisation for comparisons
     workflow.execute_entity_task(oggm_default_initialisation, gdirs,
-                                 ys=yr_spinup, ye=yr_end_run)
+                                 ys=yr_spinup, ye=yr_end_run, gcm=gcm, ssp=ssp)
 
     # change back to default
     cfg.PARAMS['cfl_number'] = 0.02
@@ -298,7 +300,8 @@ def create_spinup_glacier(gdir, rgi_id_to_name, yr_start_run, yr_end_run,
 
 @entity_task(log, writes=['model_flowlines', 'inversion_input'])
 def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_start_run,
-                                           yr_spinup, yr_end_run):
+                                           yr_spinup, yr_end_run,
+                                           gcm='BCC-CSM2-MR', ssp='ssp370'):
     """TODO
     """
     fls_spinup = gdir.read_pickle('model_flowlines', filesuffix='_spinup')
@@ -442,24 +445,21 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_start_run,
                       filesuffix='_combine_measurements')
 
     # conduct one future simulation for comparison
-    # arbitrarily selected single GCM
-    ssp = 'ssp370'
-    GCM = 'BCC-CSM2-MR'
     # download locations for precipitation and temperature
     bp = 'https://cluster.klima.uni-bremen.de/~oggm/cmip6/GCM/{}/{}_{}_r1i1p1f1_pr.nc'
     bt = 'https://cluster.klima.uni-bremen.de/~oggm/cmip6/GCM/{}/{}_{}_r1i1p1f1_tas.nc'
     # 'Download' the files
-    ft = utils.file_downloader(bt.format(GCM, GCM, ssp))
-    fp = utils.file_downloader(bp.format(GCM, GCM, ssp))
+    ft = utils.file_downloader(bt.format(gcm, gcm, ssp))
+    fp = utils.file_downloader(bp.format(gcm, gcm, ssp))
     # bias correct them
     workflow.execute_entity_task(gcm_climate.process_cmip_data, [gdir],
-                                 filesuffix='_{}_{}'.format(GCM, ssp),
+                                 filesuffix='_{}_{}'.format(gcm, ssp),
                                  # recognize the climate file for later
                                  fpath_temp=ft,  # temperature projections
                                  fpath_precip=fp,  # precip projections
                                  )
     # actual projection runs
-    rid = '_{}_{}'.format(GCM, ssp)
+    rid = '_{}_{}'.format(gcm, ssp)
     workflow.execute_entity_task(tasks.run_from_climate_data, [gdir],
                                  climate_filename='gcm_data',
                                  climate_input_filesuffix=rid,
@@ -621,7 +621,7 @@ def get_experiment_mb_model(gdir):
     return StackedMassBalance(gdir=gdir, mb_model_settings=mb_model_settings)
 
 
-def oggm_default_initialisation(gdir, ys, ye):
+def oggm_default_initialisation(gdir, ys, ye, gcm='BCC-CSM2-MR', ssp='ssp370'):
     """ Use oggm default initialisation method and do a projection
     """
     mb_model = get_experiment_mb_model(gdir)
@@ -636,9 +636,7 @@ def oggm_default_initialisation(gdir, ys, ye):
         ignore_errors=False, add_fixed_geometry_spinup=True)
 
     # conduct projection run
-    ssp = 'ssp370'
-    GCM = 'BCC-CSM2-MR'
-    rid = '_{}_{}'.format(GCM, ssp)
+    rid = '_{}_{}'.format(gcm, ssp)
     workflow.execute_entity_task(tasks.run_from_climate_data, [gdir],
                                  climate_filename='gcm_data',
                                  climate_input_filesuffix=rid,
