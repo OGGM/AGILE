@@ -12,7 +12,7 @@ from oggm.core.massbalance import ConstantMassBalance, MultipleFlowlineMassBalan
     PastMassBalance, RandomMassBalance, MassBalanceModel
 from oggm.shop import bedtopo, gcm_climate
 
-from combine1d.sandbox.calcualte_statistics import calculate_default_oggm_statistics
+from combine1d.sandbox.calculate_statistics import calculate_default_oggm_statistics
 from combine1d.sandbox.glaciers_for_idealized_experiments import experiment_glaciers
 
 # Module logger
