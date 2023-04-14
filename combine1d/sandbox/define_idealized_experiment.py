@@ -20,7 +20,9 @@ def idealized_experiment(use_experiment_glaciers,
                          inversion_settings_all,
                          working_dir, output_folder,
                          params_file=None, override_params=None,
-                         logging_level='WORKFLOW'):
+                         logging_level='WORKFLOW',
+                         gcm='BCC-CSM2-MR',
+                         ssp='ssp370'):
     # Local paths
     if override_params is None:
         override_params = {}
@@ -50,7 +52,8 @@ def idealized_experiment(use_experiment_glaciers,
     gdirs = create_idealized_experiments(use_experiment_glaciers,
                                          prepro_border=cfg.PARAMS['border'],
                                          from_prepro_level=from_prepro_level,
-                                         base_url=base_url, )
+                                         base_url=base_url,
+                                         gcm=gcm, ssp=ssp)
 
     print('Finished creation of directories.')
 
@@ -63,13 +66,15 @@ def idealized_experiment(use_experiment_glaciers,
                                                output_folder=output_folder)
                                     ))
 
-    workflow.execute_entity_task(conduct_sandbox_inversion, all_experiments)
+    workflow.execute_entity_task(conduct_sandbox_inversion, all_experiments,
+                                 gcm=gcm, ssp=ssp)
 
     print('Experiments finished!')
     return gdirs
 
 
-def add_future_projection_run(gdir, data_logger):
+def add_future_projection_run(gdir, data_logger, gcm='BCC-CSM2-MR',
+                              ssp='ssp370'):
     """add a future projection to analyse the influence of inverison result on
     the future"""
 
@@ -79,9 +84,7 @@ def add_future_projection_run(gdir, data_logger):
     with xr.open_dataset(fp) as ds_diag:
         past_evol_mdl = ds_diag.load()
 
-    ssp = 'ssp370'
-    GCM = 'BCC-CSM2-MR'
-    rid = '_{}_{}'.format(GCM, ssp)
+    rid = '_{}_{}'.format(gcm, ssp)
 
     workflow.execute_entity_task(tasks.run_from_climate_data, [gdir],
                                  climate_filename='gcm_data',
@@ -89,7 +92,7 @@ def add_future_projection_run(gdir, data_logger):
                                  init_model_fls=fls_init,
                                  ys=past_evol_mdl.time[-1].values,
                                  output_filesuffix=data_logger.filename +
-                                                   '_future',
+                                 '_future',
                                  evolution_model=SemiImplicitModel,
                                  )
 
@@ -97,7 +100,9 @@ def add_future_projection_run(gdir, data_logger):
 @entity_task(log, writes=['inversion_input', 'model_flowlines'])
 def conduct_sandbox_inversion(gdir, inversion_settings=None,
                               output_folder=None,
-                              init_model_fls='_combine_first_guess'):
+                              init_model_fls='_combine_first_guess',
+                              gcm='BCC-CSM2-MR',
+                              ssp='ssp370'):
     """TODO"""
 
     # check if mb_model_settings should be loaded from gdir
@@ -138,7 +143,7 @@ def conduct_sandbox_inversion(gdir, inversion_settings=None,
                                     save_dataset=True,
                                     give_data_logger_back=True)
 
-    add_future_projection_run(gdir, data_logger=data_logger)
+    add_future_projection_run(gdir, data_logger=data_logger, gcm=gcm, ssp=ssp)
 
     calculate_result_statistics(gdir,
                                 data_logger=data_logger)
