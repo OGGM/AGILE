@@ -3,7 +3,7 @@ import logging
 import warnings
 import xarray as xr
 
-from combine1d.sandbox.calcualte_statistics import calculate_result_statistics
+from combine1d.sandbox.calculate_statistics import calculate_result_statistics
 from combine1d.sandbox.create_glaciers_with_measurements import \
     create_idealized_experiments
 from combine1d.core.inversion import prepare_for_combine_inversion, \
