@@ -815,16 +815,13 @@ class FlowlineModelTorch(FlowlineModelOGGM):
                             store_monthly_step=None,
                             stop_criterion=None,
                             fixed_geometry_spinup_yr=None,
-                            dynamic_spinup_min_ice_thick=None,
-                            make_compatible=False
-                            ):
+                            dynamic_spinup_min_ice_thick=None):
         ds = FlowlineModelOGGM.run_until_and_store(
             self, y1=y1, diag_path=None, fl_diag_path=fl_diag_path,
             geom_path=geom_path, store_monthly_step=store_monthly_step,
             stop_criterion=stop_criterion,
             fixed_geometry_spinup_yr=fixed_geometry_spinup_yr,
-            dynamic_spinup_min_ice_thick=dynamic_spinup_min_ice_thick,
-            make_compatible=make_compatible)
+            dynamic_spinup_min_ice_thick=dynamic_spinup_min_ice_thick)
 
         # convert some values to numpy
         ds.attrs['glen_a'] = ds.attrs['glen_a'].detach().to('cpu').numpy()
@@ -1162,7 +1159,11 @@ class SemiImplicitModel(FlowlineModelTorch):
         if len(self.fls) > 1:
             raise ValueError('Implicit model does not work with tributaries.')
 
-        if ~np.all(self.fls[0].is_trapezoid.cpu().numpy().astype(bool)):
+        # check that whole flowline is trapezoidal or rectangular
+        if ~np.all(
+                np.logical_or(
+                    self.fls[0].is_trapezoid.cpu().numpy().astype(bool),
+                    self.fls[0].is_rectangular.cpu().numpy().astype(bool))):
             raise ValueError('Implicit model only works with a pure '
                              'trapezoidal flowline!')
 
