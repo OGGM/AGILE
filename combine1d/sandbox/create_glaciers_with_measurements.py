@@ -9,7 +9,7 @@ from itertools import tee
 from oggm import cfg, workflow, tasks, entity_task, utils
 from oggm.core.flowline import MixedBedFlowline, SemiImplicitModel
 from oggm.core.massbalance import ConstantMassBalance, MultipleFlowlineMassBalance, \
-    PastMassBalance, RandomMassBalance, MassBalanceModel
+    MonthlyTIModel, RandomMassBalance, MassBalanceModel
 from oggm.shop import bedtopo, gcm_climate
 
 from combine1d.sandbox.calculate_statistics import calculate_default_oggm_statistics
@@ -66,10 +66,9 @@ def create_idealized_experiments(all_glaciers,
 
     # climate
     workflow.execute_entity_task(tasks.process_climate_data, gdirs)
-    if cfg.PARAMS['climate_qc_months'] > 0:
-        workflow.execute_entity_task(tasks.historical_climate_qc, gdirs)
     utils.get_geodetic_mb_dataframe()  # Small optim to avoid concurrency
-    workflow.execute_entity_task(tasks.mu_star_calibration_from_geodetic_mb, gdirs)
+    workflow.execute_entity_task(tasks.mb_calibration_from_geodetic_mb, gdirs,
+                                 informed_threestep=True)
     workflow.execute_entity_task(tasks.apparent_mb_from_any_mb, gdirs)
 
     # inversion, for each glacier separated to always use the same total volume
@@ -215,7 +214,7 @@ def create_spinup_glacier(gdir, rgi_id_to_name, yr_start_run, yr_end_run,
 
     mb_past = MultipleFlowlineMassBalance(gdir,
                                             fls=fls_spinup,
-                                            mb_model_class=PastMassBalance,
+                                            mb_model_class=MonthlyTIModel,
                                             filename='climate_historical')
 
     halfsize_const_1 = (yr_start_run - yr_spinup) / 2
@@ -506,12 +505,26 @@ def oggm_inversion_for_first_guess(gdir):
 
     # Here initilise the new flowline after inversion (combine first guess)
     inv = gdir.read_pickle('inversion_output')[0]
-    bed_h_inv = inv['hgt'] - inv['thick']
+    # calculate max thickness and section to force trapezoidal everywhere
+    max_thick_for_trap = ((inv['width'] -
+                           cfg.PARAMS['trapezoid_min_bottom_width']) /
+                          cfg.PARAMS['trapezoid_lambdas'])
+    max_section_for_trap = (cfg.PARAMS['trapezoid_min_bottom_width'] +
+                            cfg.PARAMS['trapezoid_lambdas'] *
+                            max_thick_for_trap / 2) * max_thick_for_trap
+    bed_h_inv = inv['hgt'] - np.where(inv['is_rectangular'],
+                                      max_thick_for_trap,
+                                      inv['thick'])
     bed_h_new = copy.deepcopy(fls_experiment.bed_h)
     bed_h_new[ice_mask] = bed_h_inv
-    section_inv = inv['volume'] / (fls_experiment.dx * fls_experiment.map_dx)
+
+    section_inv = np.where(inv['is_rectangular'],
+                           max_section_for_trap,
+                           inv['volume'] / (fls_experiment.dx *
+                                            fls_experiment.map_dx))
     section_new = np.zeros(fls_experiment.nx)
     section_new[ice_mask] = section_inv
+
     surface_h_new = fls_experiment.surface_h
     surface_h_new[~ice_mask] = bed_h_new[~ice_mask]
     widths_m_new = fls_experiment.widths_m
@@ -533,6 +546,8 @@ def oggm_inversion_for_first_guess(gdir):
                                        widths_m=widths_m_new,
                                        rgi_id=fls_experiment.rgi_id,
                                        gdir=gdir)
+
+    assert np.allclose(fls_first_guess.widths_m, fls_experiment.widths_m)
     gdir.write_pickle([fls_first_guess], 'model_flowlines',
                       filesuffix='_combine_first_guess')
 

@@ -176,8 +176,8 @@ class ConstantMassBalanceTorch(ConstantMassBalance):
     This class is adapted from OGGMs ConstantMassBalance for the use of PyTorch
     """
 
-    def __init__(self, gdir, mu_star=None, bias=None,
-                 y0=None, halfsize=15, height_shift=0.,
+    def __init__(self, gdir, melt_f=None, temp_bias=None, prcp_fac=None,
+                 bias=0, y0=None, halfsize=15, height_shift=0.,
                  filename='climate_historical', input_filesuffix='',
                  torch_type=torch.double, device='cpu', **kwargs):
         """Initialize
@@ -185,9 +185,16 @@ class ConstantMassBalanceTorch(ConstantMassBalance):
         ----------
         gdir : GlacierDirectory
             the glacier directory
-        mu_star : float, optional
-            set to the alternative value of mu* you want to use
-            (the default is to use the calibrated value)
+        melt_f : float, optional
+            set to the value of the melt factor you want to use,
+            here the unit is kg m-2 day-1 K-1
+            (the default is to use the calibrated value).
+        temp_bias : float, optional
+            set to the value of the temperature bias you want to use
+            (the default is to use the calibrated value).
+        prcp_fac : float, optional
+            set to the value of the precipitation factor you want to use
+            (the default is to use the calibrated value).
         bias : float, optional
             set to the alternative value of the annual bias [mm we yr-1]
             you want to use (the default is to use the calibrated value)
@@ -206,7 +213,9 @@ class ConstantMassBalanceTorch(ConstantMassBalance):
             the file suffix of the input climate file
         """
 
-        super(ConstantMassBalanceTorch, self).__init__(gdir, mu_star=mu_star,
+        super(ConstantMassBalanceTorch, self).__init__(gdir, melt_f=melt_f,
+                                                       temp_bias=temp_bias,
+                                                       prcp_fac=prcp_fac,
                                                        bias=bias, y0=y0,
                                                        halfsize=halfsize,
                                                        filename=filename,
