@@ -58,28 +58,33 @@ class TestSandbox:
             assert np.all(np.isfinite(ds_diag.area_m2))
             assert np.all(np.isfinite(ds_diag.length_m))
 
+        # test that the file of the creation spinup exist
+        for gdir in gdirs:
+            gdir.has_file('model_diagnostics',
+                          filesuffix='_combine_creation_spinup')
+
         # test that resulting true run dataset contain the complete period
         for gdir in gdirs:
-            resulting_run_test(filesuffix='_combine_total_run',
+            resulting_run_test(filesuffix='_combine_true_total_run',
                                ys=1980,
-                               ye=2019)
+                               ye=2020)
 
         # test that the resulting gdirs contain the future climate file
         for gdir in gdirs:
             assert gdir.has_file('gcm_data', filesuffix='_BCC-CSM2-MR_ssp370')
             resulting_run_test(filesuffix='_combine_true_future',
-                               ys=2019,
+                               ys=2020,
                                ye=2101)
 
         # test that the resulting gdirs contain the oggm default run files
         for gdir in gdirs:
             resulting_run_test(filesuffix='_oggm_default_past',
                                ys=1980,
-                               ye=2019)
+                               ye=2020)
             assert gdir.has_file('fl_diagnostics',
                                  filesuffix='_oggm_default_past')
             resulting_run_test(filesuffix='_oggm_default_future',
-                               ys=2019,
+                               ys=2020,
                                ye=2101)
 
         # test that the resulting gdirs contain the oggm default statistics
@@ -116,7 +121,7 @@ class TestSandbox:
                 fl_consensus = gdir.read_pickle('model_flowlines',
                                                 filesuffix='_consensus')[0]
                 fl_spinup = gdir.read_pickle('model_flowlines',
-                                             filesuffix='_spinup')[0]
+                                             filesuffix='_creation_spinup')[0]
                 fl_combine_init = \
                     gdir.read_pickle('model_flowlines',
                                      filesuffix='_combine_true_init')[0]
@@ -134,9 +139,9 @@ class TestSandbox:
                         ds = ds.load()
                     return ds
 
-                fl_diag_init = get_fl_diagnostics('_combine_spinup')
+                fl_diag_init = get_fl_diagnostics('_combine_true_dmdt_start')
                 fl_diag_start = get_fl_diagnostics('_combine_true_init')
-                fl_diag_end = get_fl_diagnostics('_combine_end')
+                fl_diag_end = get_fl_diagnostics('_combine_true_end')
 
                 fig = plt.figure(figsize=(15, 10))
                 (ax, ax2, ax3, ax4, ax5, ax6) = fig.subplots(6, 1)

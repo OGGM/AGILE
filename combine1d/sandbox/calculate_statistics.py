@@ -107,7 +107,7 @@ def calculate_result_statistics(gdir, data_logger):
     with xr.open_dataset(fp) as ds_diag:
         past_evol_mdl = ds_diag.load()
     fp = gdir.get_filepath('model_diagnostics',
-                           filesuffix='_combine_total_run')
+                           filesuffix='_combine_true_total_run')
     with xr.open_dataset(fp) as ds_diag:
         past_evol_true = ds_diag.load()
 
@@ -313,7 +313,7 @@ def calculate_default_oggm_statistics(gdir):
     # how well do we match the past glacier evolution -------------------------
     past_evol_mdl = diag_past
     fp = gdir.get_filepath('model_diagnostics',
-                           filesuffix='_combine_total_run')
+                           filesuffix='_combine_true_total_run')
     with xr.open_dataset(fp) as ds_diag:
         past_evol_true = ds_diag.load()
 

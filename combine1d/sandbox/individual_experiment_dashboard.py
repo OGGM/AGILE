@@ -376,7 +376,7 @@ def individual_experiment_dashboard(working_dir, input_folder,
                 fl_ref_rgi = gdir.read_pickle('model_flowlines',
                                               filesuffix='_combine_true_init')[0]
                 fl_ref_start = gdir.read_pickle('model_flowlines',
-                                                filesuffix='_spinup')[0]
+                                                filesuffix='_creation_spinup')[0]
                 fl_ref_end = gdir.read_pickle('model_flowlines',
                                               filesuffix='_combine_true_end')[0]
 
