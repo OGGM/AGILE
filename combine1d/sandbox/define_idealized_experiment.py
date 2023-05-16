@@ -35,6 +35,9 @@ def idealized_experiment(use_experiment_glaciers,
     cfg.initialize(file=params_file, params=override_params,
                    logging_level=logging_level, future=True)
 
+    # store model geometry for hydro output
+    cfg.PARAMS['store_model_geometry'] = True
+
     print('Create glacier directories with idealized glaciers:')
     # Size of the map around the glacier.
     if cfg.PARAMS['border'] != 160:
@@ -86,7 +89,8 @@ def add_future_projection_run(gdir, data_logger, gcm='BCC-CSM2-MR',
 
     rid = '_{}_{}'.format(gcm, ssp)
 
-    workflow.execute_entity_task(tasks.run_from_climate_data, [gdir],
+    workflow.execute_entity_task(tasks.run_with_hydro, [gdir],
+                                 run_task=tasks.run_from_climate_data,
                                  climate_filename='gcm_data',
                                  climate_input_filesuffix=rid,
                                  init_model_fls=fls_init,
