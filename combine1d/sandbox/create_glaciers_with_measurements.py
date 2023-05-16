@@ -42,6 +42,9 @@ def create_idealized_experiments(all_glaciers,
 
     '''
 
+    # store model geometry for hydro output
+    cfg.PARAMS['store_model_geometry'] = True
+
     # check if glaciers are already defined
     for glacier in all_glaciers:
         if glacier not in experiment_glaciers.keys():
@@ -108,6 +111,10 @@ def create_idealized_experiments(all_glaciers,
     # add consensus flowline
     workflow.execute_entity_task(initialise_consensus_flowline, gdirs)
 
+    # change rgi_date for all to 2000
+    for gdir in gdirs:
+        gdir.rgi_date = 2000
+
     # create spinup glacier starting from consensus flowline
     workflow.execute_entity_task(create_spinup_glacier, gdirs,
                                  yr_run_start=yr_run_start)
@@ -117,7 +124,9 @@ def create_idealized_experiments(all_glaciers,
                                  used_mb_models=used_mb_models,
                                  yr_dmdt_start=yr_dmdt_start,
                                  yr_run_start=yr_run_start,
-                                 yr_run_end=yr_run_end)
+                                 yr_run_end=yr_run_end,
+                                 gcm=gcm,
+                                 ssp=ssp)
 
     # now OGGM inversion from idealized glacier surface for first guess
     workflow.execute_entity_task(oggm_inversion_for_first_guess, gdirs)
@@ -244,7 +253,7 @@ def create_spinup_glacier(gdir, yr_run_start):
     mb_random = MultipleFlowlineMassBalance(gdir,
                                             fls=fls_spinup,
                                             mb_model_class=RandomMassBalance,
-                                            seed=0,
+                                            seed=2,
                                             filename='climate_historical',
                                             y0=1950,
                                             halfsize=30)
@@ -430,13 +439,15 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_dmdt_start,
                                  )
     # actual projection runs
     rid = '_{}_{}'.format(gcm, ssp)
-    workflow.execute_entity_task(tasks.run_from_climate_data, [gdir],
+    workflow.execute_entity_task(tasks.run_with_hydro, [gdir],
+                                 run_task=tasks.run_from_climate_data,
                                  climate_filename='gcm_data',
                                  climate_input_filesuffix=rid,
                                  init_model_fls=model.fls,
                                  ys=yr_run_end,
                                  output_filesuffix='_combine_true_future',
                                  evolution_model=SemiImplicitModel,
+                                 store_fl_diagnostics=True
                                  )
 
 
@@ -458,7 +469,8 @@ def oggm_inversion_for_first_guess(gdir):
     ice_mask = np.where(fls_experiment.thick > 0.01, True, False)
     ice_mask_index_diff = np.diff(np.where(fls_experiment.thick > 0.01)[0])
     # if their is an ice-free gap raise an assertion
-    assert np.all(ice_mask_index_diff == 1), 'Their is a ice-free gap, check!'
+    assert np.all(ice_mask_index_diff == 1), (f'Their is a ice-free gap, check!'
+                                              f' (rgi_id: {gdir.rgi_id})')
 
     # now use ice mask to create new inversion_flowlines
     fls_inversion.nx = int(sum(ice_mask))
@@ -616,23 +628,47 @@ def get_experiment_mb_model(gdir):
 def oggm_default_initialisation(gdir, ys, ye, gcm='BCC-CSM2-MR', ssp='ssp370'):
     """ Use oggm default initialisation method and do a projection
     """
+
     # do dynamic initialisation
-    dynamic_spinup_model = tasks.run_dynamic_spinup(
+    spinup_model = tasks.run_dynamic_spinup(
         gdir, spinup_start_yr=ys, ye=ye, evolution_model=SemiImplicitModel,
         model_flowline_filesuffix='_combine_first_guess',
         precision_absolute=0.1,
-        output_filesuffix='_oggm_default_past', store_model_geometry=True,
+        output_filesuffix='_oggm_dynamic_past', store_model_geometry=True,
         store_fl_diagnostics=True, store_model_evolution=True,
         ignore_errors=False, add_fixed_geometry_spinup=True)
 
-    # conduct projection run
+    # do static initialisation
+    fls_init = gdir.read_pickle('model_flowlines',
+                                filesuffix='_combine_first_guess')
+    static_model = tasks.run_from_climate_data(
+        gdir, ye=ye,
+        fixed_geometry_spinup_yr=ys,
+        init_model_fls=fls_init,
+        output_filesuffix='_oggm_static_past',
+        store_model_geometry=True, store_fl_diagnostics=True)
+
+    # conduct projection run for dynamic initialisation
     rid = '_{}_{}'.format(gcm, ssp)
-    workflow.execute_entity_task(tasks.run_from_climate_data, [gdir],
+    workflow.execute_entity_task(tasks.run_with_hydro, [gdir],
+                                 run_task=tasks.run_from_climate_data,
                                  climate_filename='gcm_data',
                                  climate_input_filesuffix=rid,
-                                 init_model_fls=dynamic_spinup_model.fls,
+                                 init_model_fls=spinup_model.fls,
                                  ys=ye,
-                                 output_filesuffix='_oggm_default_future',
+                                 output_filesuffix='_oggm_dynamic_future',
+                                 evolution_model=SemiImplicitModel,
+                                 )
+
+    # conduct projection run for static initialisation
+    rid = '_{}_{}'.format(gcm, ssp)
+    workflow.execute_entity_task(tasks.run_with_hydro, [gdir],
+                                 run_task=tasks.run_from_climate_data,
+                                 climate_filename='gcm_data',
+                                 climate_input_filesuffix=rid,
+                                 init_model_fls=static_model.fls,
+                                 ys=ye,
+                                 output_filesuffix='_oggm_static_future',
                                  evolution_model=SemiImplicitModel,
                                  )
 
