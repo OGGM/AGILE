@@ -129,7 +129,6 @@ def run_model_and_get_model_values(flowline, dynamic_model, mb_models,
         dyn_model = dynamic_model(flowline,
                                   mb_model=mb_models[mb_key]['mb_model'],
                                   y0=mb_models[mb_key]['years'][0],
-                                  fs=0.,
                                   mb_elev_feedback='annual')
 
         # years with observations using the same mass balance model
