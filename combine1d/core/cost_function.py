@@ -3,11 +3,13 @@ import logging
 import numpy as np
 import torch
 import time
+from functools import partial
 
 from combine1d.core.dynamics import run_model_and_get_temporal_model_data
 from combine1d.core.massbalance import ConstantMassBalanceTorch
 from combine1d.core.flowline import MixedBedFlowline, FluxBasedModel
 from oggm.core.flowline import MixedBedFlowline as OggmFlowline
+from oggm import cfg
 
 log = logging.getLogger(__name__)
 
@@ -142,6 +144,13 @@ def cost_fct(unknown_parameters, data_logger):
                                                     data_logger)
 
     dynamic_model = data_logger.dynamic_model
+
+    if cfg.PARAMS['use_inversion_params_for_run']:
+        diag = data_logger.gdir.get_diagnostics()
+        fs = diag.get('inversion_fs', cfg.PARAMS['fs'])
+        glen_a = diag.get('inversion_glen_a', cfg.PARAMS['glen_a'])
+        dynamic_model = partial(dynamic_model,
+                                fs=fs, glen_a=glen_a)
 
     mb_models, mb_control_vars = initialise_mb_models(unknown_parameters,
                                                       data_logger)
