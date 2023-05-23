@@ -7,24 +7,20 @@ from oggm import utils, cfg
 
 # define which statistic we want to compute for different types of data
 def add_1d_stats(x, y):
+    diff = x - y
     rms_deviation = utils.rmsd(x, y)
     mean_absolute_deviation = utils.mad(x, y)
     max_absolute_deviation = np.max(np.abs(x - y))
 
     return {'rmsd': float(rms_deviation),
             'mean_ad': float(mean_absolute_deviation),
-            'max_ad': float(max_absolute_deviation)}
+            'max_ad': float(max_absolute_deviation),
+            'diff': diff}
 
 
 def add_0d_stats(x, y):
     return {'diff': float(x - y),
             'abs_diff': float(np.abs(x - y))}
-
-
-def add_2d_stats(x, y):
-    return_dict = add_1d_stats(x, y)
-    return_dict['diff'] = x - y
-    return return_dict
 
 
 def calculate_result_statistics(gdir, data_logger):
@@ -127,19 +123,19 @@ def calculate_result_statistics(gdir, data_logger):
     today_state_stats = {}
     for var in ['thick', 'area_m2', 'volume_m3']:
         if var in ['thick']:
-            today_state_stats[var] = add_2d_stats(
+            today_state_stats[var] = add_1d_stats(
                 getattr(fls_end_mdl, var),
                 getattr(fls_end_true, var))
         elif var == 'area_m2':
             def get_area(fl):
                 return np.where(fl.thick > 0, fl.widths_m, 0) * fl.dx_meter
-            today_state_stats[var] = add_2d_stats(
+            today_state_stats[var] = add_1d_stats(
                 get_area(fls_end_mdl),
                 get_area(fls_end_true))
         elif var == 'volume_m3':
             def get_volume(fl):
                 return fl.section * fl.dx_meter
-            today_state_stats[var] = add_2d_stats(
+            today_state_stats[var] = add_1d_stats(
                 get_volume(fls_end_mdl),
                 get_volume(fls_end_true))
         else:
@@ -334,21 +330,21 @@ def calculate_default_oggm_statistics(gdir):
         today_state_stats = {}
         for var in ['thick', 'area_m2', 'volume_m3']:
             if var in ['thick']:
-                today_state_stats[var] = add_2d_stats(
+                today_state_stats[var] = add_1d_stats(
                     getattr(fls_end_mdl, 'thickness_m').values,
                     getattr(fls_end_true, var))
             elif var == 'area_m2':
                 def get_area(fl):
                     return np.where(fl.thick > 0, fl.widths_m, 0) * fl.dx_meter
 
-                today_state_stats[var] = add_2d_stats(
+                today_state_stats[var] = add_1d_stats(
                     getattr(fls_end_mdl, 'area_m2').values,
                     get_area(fls_end_true))
             elif var == 'volume_m3':
                 def get_volume(fl):
                     return fl.section * fl.dx_meter
 
-                today_state_stats[var] = add_2d_stats(
+                today_state_stats[var] = add_1d_stats(
                     getattr(fls_end_mdl, 'volume_m3').values,
                     get_volume(fls_end_true))
             else:

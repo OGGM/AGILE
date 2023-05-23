@@ -401,6 +401,13 @@ def initialise_mb_models(unknown_parameters,
         if mb_models_settings[mb_mdl_set]['type'] == 'constant':
             y_start = mb_models_settings[mb_mdl_set]['years'][0]
             y_end = mb_models_settings[mb_mdl_set]['years'][1]
+
+            # for a constant mass balance we currently only can define an end
+            # year of 2019, the model can still run until 2020 as it do not
+            # need the mass balance from 2020 for this
+            if y_end == 2020:
+                y_end = 2019
+
             # -1 because period defined as [y0 - halfsize, y0 + halfsize + 1]
             y0 = (y_start + y_end - 1) / 2
             halfsize = (y_end - y_start - 1) / 2

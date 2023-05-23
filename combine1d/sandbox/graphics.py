@@ -162,8 +162,8 @@ def plot_heading_text(gdir, fig, ax, parameters_text_height=0.5, linespacing=1):
         "\n"
         fr"$d_f$ = {gdir.read_json('mb_calib')['melt_f']:.1f} "
         r"kg m$^{-2}$ K$^{-1}$ day$^{-1}$, "
-        f"prcp_factor = {gdir.read_json('mb_calib')['prcp_fac']:.1f}, "
-        f"temp_bias = {gdir.read_json('mb_calib')['temp_bias']:.1f} °C",
+        fr"$p_f$ = {gdir.read_json('mb_calib')['prcp_fac']:.1f}, "
+        fr"$t_b$ = {gdir.read_json('mb_calib')['temp_bias']:.1f} °C",
         horizontalalignment='center',
         verticalalignment='top',
         transform=ax.transAxes,
