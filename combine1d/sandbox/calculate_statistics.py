@@ -97,6 +97,38 @@ def calculate_result_statistics(gdir, data_logger):
 
     ds.attrs['controls_stats'] = controls_stats
 
+    # how well do we match the past glacier state -----------------------------
+    fls_start_mdl = data_logger.flowlines[-1]
+    sfc_h_start = data_logger.sfc_h_start[-1]
+    fls_start_mdl.surface_h = sfc_h_start
+    fls_start_true = gdir.read_pickle('model_flowlines',
+                                      filesuffix='_creation_spinup')[0]
+
+    past_state_stats = {}
+    for var in ['thick', 'area_m2', 'volume_m3']:
+        if var in ['thick']:
+            past_state_stats[var] = add_1d_stats(
+                getattr(fls_start_mdl, var),
+                getattr(fls_start_true, var))
+        elif var == 'area_m2':
+            def get_area(fl):
+                return np.where(fl.thick > 0, fl.widths_m, 0) * fl.dx_meter
+
+            past_state_stats[var] = add_1d_stats(
+                get_area(fls_start_mdl),
+                get_area(fls_start_true))
+        elif var == 'volume_m3':
+            def get_volume(fl):
+                return fl.section * fl.dx_meter
+
+            past_state_stats[var] = add_1d_stats(
+                get_volume(fls_start_mdl),
+                get_volume(fls_start_true))
+        else:
+            raise NotImplementedError(f'{var}')
+
+    ds.attrs['past_state_stats'] = past_state_stats
+
     # how well do we match the past glacier evolution -------------------------
     fp = gdir.get_filepath('model_diagnostics',
                            filesuffix=data_logger.filename)
@@ -306,6 +338,36 @@ def calculate_default_oggm_statistics(gdir):
                 raise NotImplementedError(f'{control_var}')
 
         default_oggm_statistics[f'controls_stats_{reali}'] = controls_stats
+
+        # how well do we match the past glacier state -----------------------------
+        fls_start_mdl = fl_diag_past.sel(time=fl_diag_past.time[0])
+        fls_start_true = gdir.read_pickle('model_flowlines',
+                                          filesuffix='_creation_spinup')[0]
+
+        past_state_stats = {}
+        for var in ['thick', 'area_m2', 'volume_m3']:
+            if var in ['thick']:
+                past_state_stats[var] = add_1d_stats(
+                    getattr(fls_start_mdl, 'thickness_m').values,
+                    getattr(fls_start_true, var))
+            elif var == 'area_m2':
+                def get_area(fl):
+                    return np.where(fl.thick > 0, fl.widths_m, 0) * fl.dx_meter
+
+                past_state_stats[var] = add_1d_stats(
+                    getattr(fls_start_mdl, 'area_m2').values,
+                    get_area(fls_start_true))
+            elif var == 'volume_m3':
+                def get_volume(fl):
+                    return fl.section * fl.dx_meter
+
+                past_state_stats[var] = add_1d_stats(
+                    getattr(fls_start_mdl, 'volume_m3').values,
+                    get_volume(fls_start_true))
+            else:
+                raise NotImplementedError(f'{var}')
+
+        default_oggm_statistics[f'past_state_stats_{reali}'] = past_state_stats
 
         # how well do we match the past glacier evolution ---------------------
         past_evol_mdl = diag_past

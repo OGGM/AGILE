@@ -122,7 +122,7 @@ class TestSandbox:
                 pure_key = stat_key.removesuffix('_' + stat_suffixes)
                 if pure_key in ['observations_stats', 'controls_stats',
                                 'past_evol_stats', 'today_state_stats',
-                                'future_evol_stats']:
+                                'future_evol_stats', 'past_state_stats']:
                     use_year = False
                     if pure_key in ['observations_stats']:
                         use_year = True
@@ -302,6 +302,31 @@ class TestSandbox:
                     if test_default:
                         assert metric in ds_default_stats[ds_key_oggm][control_key].keys()
                         assert isinstance(ds_default_stats[ds_key_oggm][control_key][metric],
+                                          float)
+
+            # test the past glacier state statistics
+            ds_key = 'past_state_stats'
+            ds_key_oggm = ds_key + oggm_run_suffix
+            assert ds_key in ds.attrs.keys()
+            assert ds_key_oggm in ds_default_stats.keys()
+            for var in ['thick', 'area_m2', 'volume_m3']:
+                test_metrics = ['rmsd', 'mean_ad', 'max_ad', 'diff']
+                for metric in test_metrics:
+                    if metric == 'diff':
+                        if var != 'thick':
+                            assert metric in ds.attrs[ds_key][var].keys()
+                            assert metric in ds_default_stats[ds_key_oggm][var].keys()
+                            assert isinstance(ds.attrs[ds_key][var][metric],
+                                              np.ndarray)
+                            assert isinstance(
+                                ds_default_stats[ds_key_oggm][var][metric],
+                                np.ndarray)
+                    else:
+                        assert metric in ds.attrs[ds_key][var].keys()
+                        assert metric in ds_default_stats[ds_key_oggm][var].keys()
+                        assert isinstance(ds.attrs[ds_key][var][metric],
+                                          float)
+                        assert isinstance(ds_default_stats[ds_key_oggm][var][metric],
                                           float)
 
             # test the past evolution statistics
