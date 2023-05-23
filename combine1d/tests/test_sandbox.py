@@ -31,10 +31,9 @@ class TestSandbox:
                    'L1-L2_files/elev_bands/'
 
         glacier_names = ['Baltoro',
-                         'Hintereisferner',
                          'Aletsch',
                          'Artesonraju',
-                         'Shallap'
+                         'Peyto'
                          ]
 
         cfg.PARAMS['use_multiprocessing'] = False
@@ -78,19 +77,33 @@ class TestSandbox:
 
         # test that the resulting gdirs contain the oggm default run files
         for gdir in gdirs:
-            resulting_run_test(filesuffix='_oggm_default_past',
+            resulting_run_test(filesuffix='_oggm_dynamic_past',
                                ys=1980,
                                ye=2020)
             assert gdir.has_file('fl_diagnostics',
-                                 filesuffix='_oggm_default_past')
-            resulting_run_test(filesuffix='_oggm_default_future',
+                                 filesuffix='_oggm_dynamic_past')
+            resulting_run_test(filesuffix='_oggm_dynamic_future',
+                               ys=2020,
+                               ye=2101)
+
+            resulting_run_test(filesuffix='_oggm_static_past',
+                               ys=1980,
+                               ye=2020)
+            assert gdir.has_file('fl_diagnostics',
+                                 filesuffix='_oggm_static_past')
+            resulting_run_test(filesuffix='_oggm_static_future',
                                ys=2020,
                                ye=2101)
 
         # test that the resulting gdirs contain the oggm default statistics
-        def all_stats_finite(ds, use_year):
+        def all_stats_finite(ds, use_year, is_static=False):
             for var in ds.keys():
                 for year in ds[var].keys():
+                    if is_static:
+                        # in static case no velocity is available at rgi date
+                        if var == 'us:myr-1':
+                            if year == '2000':
+                                continue
                     if use_year:
                         for stat in ds[var][year].keys():
                             assert np.all(np.isfinite(ds[var][year][stat]))
@@ -105,13 +118,16 @@ class TestSandbox:
                 ds_default_stats = pickle.load(handle)
 
             for stat_key in ds_default_stats.keys():
-                if stat_key in ['observations_stats', 'controls_stats',
+                stat_suffixes = stat_key.split('_')[-1]
+                pure_key = stat_key.removesuffix('_' + stat_suffixes)
+                if pure_key in ['observations_stats', 'controls_stats',
                                 'past_evol_stats', 'today_state_stats',
                                 'future_evol_stats']:
                     use_year = False
-                    if stat_key in ['observations_stats']:
+                    if pure_key in ['observations_stats']:
                         use_year = True
-                    all_stats_finite(ds_default_stats[stat_key], use_year)
+                    all_stats_finite(ds_default_stats[stat_key], use_year,
+                                     stat_suffixes=='static')
                 else:
                     raise NotImplementedError(f'{stat_key}')
 
@@ -205,7 +221,7 @@ class TestSandbox:
                              ids=['area_bed_h', 'bed_h'])
     def test_run_idealized_experiment(self, test_dir, control_vars):
 
-        experiment_glacier = ['Hintereisferner']
+        experiment_glacier = ['Aletsch']
 
         inversion_settings = get_default_inversion_settings()
         inversion_settings['minimize_options']['maxiter'] = 3
@@ -231,7 +247,7 @@ class TestSandbox:
 
         # open final dataset
         fp = os.path.join(test_dir,
-                          'Hintereisferner_COMBINE_inversion_results.pkl')
+                          'Aletsch_COMBINE_inversion_results.pkl')
         with open(fp, 'rb') as handle:
             ds = pickle.load(handle)
 
@@ -241,99 +257,106 @@ class TestSandbox:
         with open(fp, 'rb') as handle:
             ds_default_stats = pickle.load(handle)
 
-        # test for observation statistics
-        ds_key = 'observations_stats'
-        assert ds_key in ds.attrs.keys()
-        assert ds_key in ds_default_stats.keys()
-        for obs_key in ds.attrs[ds_key].keys():
-            obs_key_name = obs_key.split(':')[0]
-            for year_key in ds.attrs[ds_key][obs_key].keys():
-                if obs_key_name in ['fl_surface_h', 'fl_widths']:
+        # filesuffixes of two different oggm experiments
+        for oggm_run_suffix in ['_dynamic', '_static']:
+            # test for observation statistics
+            ds_key = 'observations_stats'
+            ds_key_oggm = ds_key + oggm_run_suffix
+            assert ds_key in ds.attrs.keys()
+            assert ds_key_oggm in ds_default_stats.keys()
+            for obs_key in ds.attrs[ds_key].keys():
+                obs_key_name = obs_key.split(':')[0]
+                for year_key in ds.attrs[ds_key][obs_key].keys():
+                    if obs_key_name in ['fl_surface_h', 'fl_widths']:
+                        test_metrics = ['rmsd', 'mean_ad', 'max_ad']
+                    elif obs_key_name in ['fl_total_area', 'area', 'dmdtda']:
+                        test_metrics = ['diff', 'abs_diff']
+                    else:
+                        raise NotImplementedError()
+                    for metric in test_metrics:
+                        assert metric in ds.attrs[ds_key][obs_key][year_key].keys()
+                        assert metric in ds_default_stats[ds_key_oggm][obs_key][year_key].keys()
+                        assert isinstance(ds.attrs[ds_key][obs_key][year_key][metric],
+                                          float)
+                        assert isinstance(ds_default_stats[ds_key_oggm][obs_key][year_key][metric],
+                                          float)
+
+            # test for control statistics
+            ds_key = 'controls_stats'
+            ds_key_oggm = ds_key + oggm_run_suffix
+            assert ds_key in ds.attrs.keys()
+            assert ds_key_oggm in ds_default_stats.keys()
+            for control_key in ds.attrs[ds_key].keys():
+                if control_key in ['bed_h', 'area_bed_h', 'lambdas', 'w0_m']:
                     test_metrics = ['rmsd', 'mean_ad', 'max_ad']
-                elif obs_key_name in ['fl_total_area', 'area', 'dmdtda']:
+                    test_default = True
+                elif control_key in ['height_shift_spinup']:
                     test_metrics = ['diff', 'abs_diff']
+                    test_default = False
                 else:
                     raise NotImplementedError()
                 for metric in test_metrics:
-                    assert metric in ds.attrs[ds_key][obs_key][year_key].keys()
-                    assert metric in ds_default_stats[ds_key][obs_key][year_key].keys()
-                    assert isinstance(ds.attrs[ds_key][obs_key][year_key][metric],
+                    assert metric in ds.attrs[ds_key][control_key].keys()
+                    assert isinstance(ds.attrs[ds_key][control_key][metric],
                                       float)
-                    assert isinstance(ds_default_stats[ds_key][obs_key][year_key][metric],
-                                      float)
+                    if test_default:
+                        assert metric in ds_default_stats[ds_key_oggm][control_key].keys()
+                        assert isinstance(ds_default_stats[ds_key_oggm][control_key][metric],
+                                          float)
 
-        # test for control statistics
-        ds_key = 'controls_stats'
-        assert ds_key in ds.attrs.keys()
-        assert ds_key in ds_default_stats.keys()
-        for control_key in ds.attrs[ds_key].keys():
-            if control_key in ['bed_h', 'area_bed_h', 'lambdas', 'w0_m']:
+            # test the past evolution statistics
+            ds_key = 'past_evol_stats'
+            ds_key_oggm = ds_key + oggm_run_suffix
+            assert ds_key in ds.attrs.keys()
+            assert ds_key_oggm in ds_default_stats.keys()
+            for var in ['volume_m3', 'area_m2']:
                 test_metrics = ['rmsd', 'mean_ad', 'max_ad']
-                test_default = True
-            elif control_key in ['height_shift_spinup']:
-                test_metrics = ['diff', 'abs_diff']
-                test_default = False
-            else:
-                raise NotImplementedError()
-            for metric in test_metrics:
-                assert metric in ds.attrs[ds_key][control_key].keys()
-                assert isinstance(ds.attrs[ds_key][control_key][metric],
-                                  float)
-                if test_default:
-                    assert metric in ds_default_stats[ds_key][control_key].keys()
-                    assert isinstance(ds_default_stats[ds_key][control_key][metric],
-                                      float)
-
-        # test the past evolution statistics
-        ds_key = 'past_evol_stats'
-        assert ds_key in ds.attrs.keys()
-        assert ds_key in ds_default_stats.keys()
-        for var in ['volume_m3', 'area_m2']:
-            test_metrics = ['rmsd', 'mean_ad', 'max_ad']
-            for metric in test_metrics:
-                assert metric in ds.attrs[ds_key][var].keys()
-                assert metric in ds_default_stats[ds_key][var].keys()
-                assert isinstance(ds.attrs[ds_key][var][metric],
-                                  float)
-                assert isinstance(ds_default_stats[ds_key][var][metric],
-                                  float)
-
-        # test todays glacier state statistics
-        ds_key = 'today_state_stats'
-        assert ds_key in ds.attrs.keys()
-        assert ds_key in ds_default_stats.keys()
-        for var in ['thick', 'area_m2', 'volume_m3']:
-            test_metrics = ['rmsd', 'mean_ad', 'max_ad', 'diff']
-            for metric in test_metrics:
-                if metric == 'diff':
-                    if var != 'thick':
-                        assert metric in ds.attrs[ds_key][var].keys()
-                        assert metric in ds_default_stats[ds_key][var].keys()
-                        assert isinstance(ds.attrs[ds_key][var][metric],
-                                          np.ndarray)
-                        assert isinstance(ds_default_stats[ds_key][var][metric],
-                                          np.ndarray)
-                else:
+                for metric in test_metrics:
                     assert metric in ds.attrs[ds_key][var].keys()
-                    assert metric in ds_default_stats[ds_key][var].keys()
+                    assert metric in ds_default_stats[ds_key_oggm][var].keys()
                     assert isinstance(ds.attrs[ds_key][var][metric],
                                       float)
-                    assert isinstance(ds_default_stats[ds_key][var][metric],
+                    assert isinstance(ds_default_stats[ds_key_oggm][var][metric],
                                       float)
 
-        # test the future evolution statistics
-        ds_key = 'future_evol_stats'
-        assert ds_key in ds.attrs.keys()
-        assert ds_key in ds_default_stats.keys()
-        for var in ['volume_m3', 'area_m2']:
-            test_metrics = ['rmsd', 'mean_ad', 'max_ad']
-            for metric in test_metrics:
-                assert metric in ds.attrs[ds_key][var].keys()
-                assert metric in ds_default_stats[ds_key][var].keys()
-                assert isinstance(ds.attrs[ds_key][var][metric],
-                                  float)
-                assert isinstance(ds_default_stats[ds_key][var][metric],
-                                  float)
+            # test todays glacier state statistics
+            ds_key = 'today_state_stats'
+            ds_key_oggm = ds_key + oggm_run_suffix
+            assert ds_key in ds.attrs.keys()
+            assert ds_key_oggm in ds_default_stats.keys()
+            for var in ['thick', 'area_m2', 'volume_m3']:
+                test_metrics = ['rmsd', 'mean_ad', 'max_ad', 'diff']
+                for metric in test_metrics:
+                    if metric == 'diff':
+                        if var != 'thick':
+                            assert metric in ds.attrs[ds_key][var].keys()
+                            assert metric in ds_default_stats[ds_key_oggm][var].keys()
+                            assert isinstance(ds.attrs[ds_key][var][metric],
+                                              np.ndarray)
+                            assert isinstance(ds_default_stats[ds_key_oggm][var][metric],
+                                              np.ndarray)
+                    else:
+                        assert metric in ds.attrs[ds_key][var].keys()
+                        assert metric in ds_default_stats[ds_key_oggm][var].keys()
+                        assert isinstance(ds.attrs[ds_key][var][metric],
+                                          float)
+                        assert isinstance(ds_default_stats[ds_key_oggm][var][metric],
+                                          float)
+
+            # test the future evolution statistics
+            ds_key = 'future_evol_stats'
+            ds_key_oggm = ds_key + oggm_run_suffix
+            assert ds_key in ds.attrs.keys()
+            assert ds_key_oggm in ds_default_stats.keys()
+            for var in ['volume_m3', 'area_m2']:
+                test_metrics = ['rmsd', 'mean_ad', 'max_ad']
+                for metric in test_metrics:
+                    assert metric in ds.attrs[ds_key][var].keys()
+                    assert metric in ds_default_stats[ds_key_oggm][var].keys()
+                    assert isinstance(ds.attrs[ds_key][var][metric],
+                                      float)
+                    assert isinstance(ds_default_stats[ds_key_oggm][var][metric],
+                                      float)
 
     def test_StackedMassBalance(self, test_dir):
         cfg.initialize(logging_level='WARNING')
@@ -349,7 +372,7 @@ class TestSandbox:
         base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/' \
                    'L1-L2_files/elev_bands/'
 
-        glacier_names = ['Hintereisferner']
+        glacier_names = ['Aletsch']
 
         cfg.PARAMS['use_multiprocessing'] = False
         cfg.PARAMS['cfl_number'] = 0.5

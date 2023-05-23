@@ -47,9 +47,9 @@ def get_default_inversion_settings(get_doc=False):
            "numpy array). Caution first MassBalanceModel must start at least " \
            "one year before first given observation year!" \
            "Default: {'MB1': {'type': 'constant', 'years': np.array([1980, 2000])}," \
-           "'MB2': {'type': 'constant', 'years': np.array([2000, 2019])}}"
+           "'MB2': {'type': 'constant', 'years': np.array([2000, 2020])}}"
     _default = {'MB1': {'type': 'constant', 'years': np.array([1980, 2000])},
-                'MB2': {'type': 'constant', 'years': np.array([2000, 2019])}}
+                'MB2': {'type': 'constant', 'years': np.array([2000, 2020])}}
     add_setting()
 
     _key = "dynamic_model"

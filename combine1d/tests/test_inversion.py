@@ -157,7 +157,7 @@ class TestInversion:
 
         # include some test that all the years are there
         assert ds.time[0] == 1980
-        assert ds.time[-1] == 2019
+        assert ds.time[-1] == 2020
         assert np.all(np.isfinite(ds.volume_m3))
         assert np.all(np.isfinite(ds.area_m2))
         assert np.all(np.isfinite(ds.length_m))
