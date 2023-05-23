@@ -15,6 +15,7 @@ from combine1d.core.torch_interp1d import Interp1d
 # other stuff
 from functools import partial
 import numpy as np
+from itertools import tee
 
 
 class MassBalanceModel(object, metaclass=SuperclassMeta):
@@ -292,3 +293,79 @@ class ConstantMassBalanceTorch(ConstantMassBalance):
         yr, m = floatyear_to_date(year)
         return torch.squeeze(self._get_monthly_mb[m - 1](heights -
                                                          self.height_shift))
+
+
+def pairwise(iterable):
+    """ In Python 3.10 this is available in itertools.pairwise"""
+    # pairwise('ABCDEFG') --> AB BC CD DE EF FG
+    a, b = tee(iterable)
+    next(b, None)
+    return zip(a, b)
+
+
+class StackedMassBalance(MassBalanceModel):
+    """Define different MassBalanceModels for different time periods.
+    """
+
+    def __init__(self, gdir, mb_model_settings, filename='climate_historical',
+                 input_filesuffix=''):
+
+        super(StackedMassBalance, self).__init__()
+
+        self.hemisphere = gdir.hemisphere
+
+        # set periods of different mb_models
+        all_periods = []
+        for key_mb in mb_model_settings:
+            all_periods.append(mb_model_settings[key_mb]['years'])
+        self._periods = np.sort(np.unique(np.concatenate(all_periods)))
+
+        # set mb_model for all specific sorted periods
+        mb_models = {}
+        for p_nr, (p_start, p_end) in enumerate(pairwise(self._periods)):
+            # check if their is a mb_model defined for the current period
+            found_mb_model = False
+            for key_mb in mb_model_settings:
+                if np.all([p_start, p_end] ==
+                          mb_model_settings[key_mb]['years']):
+                    if mb_model_settings[key_mb]['type'] == 'constant':
+                        halfsize_run = (p_end - p_start) / 2
+                        mb_models[p_nr] = ConstantMassBalance(
+                            gdir, y0=p_start + halfsize_run,
+                            halfsize=halfsize_run, filename=filename,
+                            input_filesuffix=input_filesuffix)
+                        found_mb_model = True
+                        break
+                    else:
+                        raise NotImplementedError('')
+
+            if not found_mb_model:
+                raise ValueError(f'No mb model defined for period {p_start} '
+                                 f'to {p_end}!')
+
+        self._mb_models = mb_models
+
+    def get_period_nr(self, year):
+        current_period = np.searchsorted(self._periods, year, side='right')
+
+        # the given year is smaller than minimum defined in periods
+        if current_period == 0:
+            raise ValueError(f'No mb model defined for year {year}')
+
+        if current_period >= len(self._periods):
+            if year == self._periods[-1]:
+                # ok at the upper limit we use again the last mb_model
+                current_period -= 1
+            else:
+                # the given year is larger than the maximum defined in periods
+                raise ValueError(f'No mb model defined for year {year}')
+
+        return current_period - 1  # because mb_model index starts with 0
+
+    def get_monthly_mb(self, heights, year=None, fl_id=None, fls=None):
+        return self._mb_models[self.get_period_nr(year)].get_monthly_mb(
+            heights=heights, year=year, fl_id=fl_id, fls=fls)
+
+    def get_annual_mb(self, heights, year=None, fl_id=None, fls=None):
+        return self._mb_models[self.get_period_nr(year)].get_annual_mb(
+            heights=heights, year=year, fl_id=fl_id, fls=fls)
