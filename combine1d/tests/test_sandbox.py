@@ -6,9 +6,9 @@ import os
 import pickle
 
 from combine1d.core.inversion import get_default_inversion_settings
+from combine1d.core.massbalance import StackedMassBalance
 from combine1d.sandbox.create_glaciers_with_measurements import create_idealized_experiments
 from combine1d.sandbox.define_idealized_experiment import idealized_experiment
-from combine1d.sandbox.create_glaciers_with_measurements import StackedMassBalance
 
 from oggm import cfg
 
