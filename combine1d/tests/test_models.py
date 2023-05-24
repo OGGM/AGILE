@@ -1,9 +1,11 @@
 import pytest
 import numpy as np
 import xarray as xr
+from functools import partial
 import torch
-from combine1d.core.massbalance import ConstantMassBalanceTorch
-from oggm.core.massbalance import ConstantMassBalance
+from torch.autograd import gradcheck
+from combine1d.core.massbalance import ConstantMassBalanceTorch, MBModelTorchWrapper
+from oggm.core.massbalance import ConstantMassBalance, MonthlyTIModel
 from combine1d.core.flowline import MixedBedFlowline
 from combine1d.core.flowline import FluxBasedModel as combine_flux_model
 from combine1d.core.flowline import SemiImplicitModel as combine_impl_model
@@ -40,33 +42,116 @@ class TestModels:
         heights_torch_shift = heights_torch + torch.tensor(test_height_shift,
                                                            dtype=torch.double)
 
-        # test annual
-        oggm_annual_mbs = oggm_mb_model.get_annual_mb(heights)
-        combine_annual_mbs = combine_mb_model.get_annual_mb(heights_torch)
+        # test annual, multiplication with 1e7 to compare 'large' numbers
+        oggm_annual_mbs = oggm_mb_model.get_annual_mb(heights) * 1e7
+        combine_annual_mbs = combine_mb_model.get_annual_mb(heights_torch) * 1e7
         combine_annual_mbs_shift = \
-            combine_mb_model_shift.get_annual_mb(heights_torch_shift)
+            combine_mb_model_shift.get_annual_mb(heights_torch_shift) * 1e7
 
         assert np.allclose(oggm_annual_mbs, combine_annual_mbs)
-        assert type(combine_annual_mbs) == torch.Tensor
+        assert isinstance(combine_annual_mbs, torch.Tensor)
         assert combine_annual_mbs.shape == heights_torch.shape
         assert np.allclose(combine_annual_mbs, combine_annual_mbs_shift)
-        assert type(combine_annual_mbs_shift) == torch.Tensor
+        assert isinstance(combine_annual_mbs_shift, torch.Tensor)
         assert combine_annual_mbs_shift.shape == heights_torch_shift.shape
 
-        # test monthly
+        # test monthly, multiplication with 1e7 to compare 'large' numbers
         for month in np.arange(12) + 1:
             yr = date_to_floatyear(0, month)
-            oggm_monthly_mbs = oggm_mb_model.get_monthly_mb(heights, year=yr)
-            combine_monthly_mbs = combine_mb_model.get_monthly_mb(heights_torch, year=yr)
+            oggm_monthly_mbs = oggm_mb_model.get_monthly_mb(heights, year=yr) * 1e7
+            combine_monthly_mbs = combine_mb_model.get_monthly_mb(heights_torch, year=yr) * 1e7
             combine_monthly_mbs_shift = \
-                combine_mb_model_shift.get_monthly_mb(heights_torch_shift, year=yr)
+                combine_mb_model_shift.get_monthly_mb(heights_torch_shift, year=yr) * 1e7
 
             assert np.allclose(oggm_monthly_mbs, combine_monthly_mbs)
-            assert type(combine_monthly_mbs) == torch.Tensor
+            assert isinstance(combine_monthly_mbs, torch.Tensor)
             assert combine_monthly_mbs.shape == heights_torch.shape
             assert np.allclose(combine_monthly_mbs, combine_monthly_mbs_shift)
-            assert type(combine_monthly_mbs_shift) == torch.Tensor
+            assert isinstance(combine_monthly_mbs_shift, torch.Tensor)
             assert combine_monthly_mbs_shift.shape == heights_torch_shift.shape
+
+    def test_mb_model_wrapper(self, hef_gdir):
+        # compare wrapper with constant mass balance implementation
+        y0 = 2000
+        halfsize = 15
+        combine_mb_model = ConstantMassBalanceTorch(hef_gdir, y0=y0, halfsize=halfsize)
+        oggm_mb_model = ConstantMassBalance(hef_gdir, y0=y0, halfsize=halfsize)
+        combine_mb_model_wrapper = MBModelTorchWrapper(hef_gdir, mb_model=oggm_mb_model)
+
+        fls = hef_gdir.read_pickle('model_flowlines',
+                                   filesuffix='_parabola')
+        h = []
+        for fl in fls:
+            h = np.append(h, fl.bed_h)
+            h = np.append(h, fl.surface_h)
+        zminmax = np.round([np.min(h), np.max(h)])
+        heights = np.linspace(zminmax[0], zminmax[1], num=20)
+        heights_torch = torch.tensor(heights, dtype=torch.double, requires_grad=True)
+
+        # test annual, multiplication with 1e7 to compare 'large' numbers
+        combine_annual_mbs = combine_mb_model.get_annual_mb(heights_torch) * 1e7
+        wrapper_annual_mbs = combine_mb_model_wrapper.get_annual_mb(heights_torch) * 1e7
+
+        np.testing.assert_allclose(wrapper_annual_mbs.detach().numpy(),
+                                   combine_annual_mbs.detach().numpy(),
+                                   rtol=3e-4)
+        assert isinstance(combine_annual_mbs, torch.Tensor)
+        assert isinstance(wrapper_annual_mbs, torch.Tensor)
+        assert combine_annual_mbs.shape == heights_torch.shape
+        assert wrapper_annual_mbs.shape == heights_torch.shape
+        assert gradcheck(combine_mb_model.get_annual_mb, heights_torch)
+        assert gradcheck(combine_mb_model_wrapper.get_annual_mb, heights_torch)
+
+        # test monthly, multiplication with 1e7 to compare 'large' numbers
+        for month in np.arange(12) + 1:
+            yr = date_to_floatyear(0, month)
+            combine_monthly_mbs = \
+                combine_mb_model.get_monthly_mb(heights_torch, year=yr) * 1e7
+            wrapper_monthly_mbs = \
+                combine_mb_model_wrapper.get_monthly_mb(heights_torch, year=yr) * 1e7
+
+            np.testing.assert_allclose(wrapper_monthly_mbs.detach().numpy(),
+                                       combine_monthly_mbs.detach().numpy(),
+                                       rtol=6e-3)
+            assert isinstance(combine_monthly_mbs, torch.Tensor)
+            assert combine_monthly_mbs.shape == heights_torch.shape
+            assert gradcheck(combine_mb_model.get_monthly_mb, (heights_torch, yr))
+            assert gradcheck(combine_mb_model_wrapper.get_monthly_mb, (heights_torch, yr))
+
+        # test wrapper with MonthlyTIModel
+        oggm_mb_model = MonthlyTIModel(hef_gdir)
+        combine_mb_model = MBModelTorchWrapper(hef_gdir, mb_model=oggm_mb_model)
+
+        # test annual, multiplication with 1e7 to compare 'large' numbers
+        year = 2010
+        oggm_annual_mbs = oggm_mb_model.get_annual_mb(heights, year=year) * 1e7
+        combine_annual_mbs = \
+            combine_mb_model.get_annual_mb(heights_torch, year=year) * 1e7
+
+        np.testing.assert_allclose(oggm_annual_mbs,
+                                   combine_annual_mbs.detach().numpy(),
+                                   rtol=8e-4)
+        assert isinstance(combine_annual_mbs, torch.Tensor)
+        assert combine_annual_mbs.shape == heights_torch.shape
+        assert gradcheck(partial(combine_mb_model.get_annual_mb,
+                                 year=year),
+                         heights_torch)
+
+        # test monthly, multiplication with 1e7 to compare 'large' numbers
+        for month in np.arange(12) + 1:
+            yr = date_to_floatyear(year, month)
+            oggm_monthly_mbs = oggm_mb_model.get_monthly_mb(heights, year=yr) * 1e7
+            combine_monthly_mbs = \
+                combine_mb_model.get_monthly_mb(heights_torch, year=yr) * 1e7
+
+            np.testing.assert_allclose(oggm_monthly_mbs,
+                                       combine_monthly_mbs.detach().numpy(),
+                                       rtol=2e-2)
+            assert isinstance(combine_monthly_mbs, torch.Tensor)
+            assert combine_monthly_mbs.shape == heights_torch.shape
+            assert gradcheck(partial(combine_mb_model.get_monthly_mb,
+                                     year=yr),
+                             heights_torch)
 
     @pytest.mark.parametrize('model_to_use', [('_parabola', combine_flux_model,
                                                oggm_flux_model),

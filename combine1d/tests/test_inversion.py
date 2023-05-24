@@ -75,7 +75,8 @@ class TestInversion:
                                                  {'type': 'constant',
                                                   'years': np.array(
                                                       [1980, 2000]),
-                                                  'fg_height_shift': -100}
+                                                  'fg_height_shift': -100},
+                                             'spinup_length_yrs': 20
                                              }
                             }
                            ],

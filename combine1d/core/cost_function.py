@@ -6,9 +6,10 @@ import time
 from functools import partial
 
 from combine1d.core.dynamics import run_model_and_get_temporal_model_data
-from combine1d.core.massbalance import ConstantMassBalanceTorch
+from combine1d.core.massbalance import ConstantMassBalanceTorch, MBModelTorchWrapper
 from combine1d.core.flowline import MixedBedFlowline, FluxBasedModel
 from oggm.core.flowline import MixedBedFlowline as OggmFlowline
+from oggm.core.massbalance import MonthlyTIModel, ConstantMassBalance
 from oggm import cfg
 
 log = logging.getLogger(__name__)
@@ -426,6 +427,14 @@ def initialise_mb_models(unknown_parameters,
                                          torch_type=torch_type, device=device),
                                      'years':
                                      mb_models_settings[mb_mdl_set]['years']}
+        elif mb_models_settings[mb_mdl_set]['type'] == 'TIModel':
+            mb_models[mb_mdl_set] = {'mb_model':
+                                     MBModelTorchWrapper(
+                                         gdir=gdir,
+                                         mb_model=MonthlyTIModel(gdir)),
+                                     'years':
+                                     mb_models_settings[mb_mdl_set]['years']
+                                     }
         else:
             raise NotImplementedError("The MassBalance type "
                                       f"{mb_models_settings[mb_mdl_set]['type']} "
@@ -439,6 +448,7 @@ def initialise_mb_models(unknown_parameters,
 def do_height_shift_spinup(flowline, unknown_parameters, data_logger):
     """TODO"""
     mb_models_settings = data_logger.spinup_options['height_shift']['mb_model']
+    yrs_to_run = data_logger.spinup_options['height_shift']['spinup_length_yrs']
     torch_type = data_logger.torch_type
     device = data_logger.device
     gdir = data_logger.gdir
@@ -471,8 +481,8 @@ def do_height_shift_spinup(flowline, unknown_parameters, data_logger):
 
     model = dynamic_model(flowline,
                           mb_spinup,
-                          y0=y_start)
-    model.run_until(y_end)
+                          y0=0)
+    model.run_until(yrs_to_run)
 
     return model.fls[0], spinup_control_vars
 

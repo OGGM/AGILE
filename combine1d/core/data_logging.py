@@ -141,9 +141,9 @@ class DataLogger(object):
         raise NotImplementedError('Not added yet!')
 
     def save_data_in_datalogger(self, var, data):
-        if type(data) == torch.Tensor:
+        if isinstance(data, torch.Tensor):
             data = data.detach().to('cpu').numpy().astype(np.float64)
-        elif type(data) != np.ndarray:
+        elif not isinstance(data, np.ndarray):
             data = np.array(data)
 
         current_var = getattr(self, var)
