@@ -2,6 +2,7 @@ import collections
 import pytest
 import numpy as np
 import torch
+import xarray as xr
 
 from combine1d.core.dynamics import (run_model_and_get_temporal_model_data,
                                      calculate_model_observations,
@@ -80,7 +81,7 @@ class TestDynamicRunWithModelObservations:
         for year in needed_model_data.keys():
             for var in needed_model_data[year]:
                 assert actual_model_data[year][var] != []
-                assert type(actual_model_data[year][var]) == torch.Tensor
+                assert isinstance(actual_model_data[year][var], torch.Tensor)
 
         # test saving
         filesuffix = '_test_saving'
@@ -92,6 +93,14 @@ class TestDynamicRunWithModelObservations:
                                        gdir=hef_gdir,
                                        output_filesuffix=filesuffix)
         assert hef_gdir.has_file('model_diagnostics', filesuffix=filesuffix)
+        with xr.open_dataset(hef_gdir.get_filepath(
+                'model_diagnostics', filesuffix=filesuffix)) as ds:
+            ds_test_save = ds.load()
+
+        assert ds_test_save.time[0] == 1980
+        assert ds_test_save.time[-1] == 2020
+        assert np.all(np.isfinite(ds_test_save.volume_m3))
+        assert np.all(np.isfinite(ds_test_save.area_m2))
 
         with pytest.raises(ValueError,
                            match='You are about to delete an old file! To do '
@@ -121,7 +130,8 @@ class TestDynamicRunWithModelObservations:
         for var in observations.keys():
             for year in observations[var].keys():
                 assert calculated_model_observations[var][year] != []
-                assert type(calculated_model_observations[var][year]) == torch.Tensor
+                assert isinstance(calculated_model_observations[var][year],
+                                  torch.Tensor)
 
     def test_run_model_and_get_temporal_model_data(self, flowline,
                                                    dynamic_model, mb_models,
@@ -135,4 +145,5 @@ class TestDynamicRunWithModelObservations:
         for var in observations.keys():
             for year in observations[var].keys():
                 assert calculated_model_observations[var][year] != []
-                assert type(calculated_model_observations[var][year]) == torch.Tensor
+                assert isinstance(calculated_model_observations[var][year],
+                                  torch.Tensor)

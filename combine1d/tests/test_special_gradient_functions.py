@@ -36,6 +36,10 @@ def test_Interp1d_gradient_calculation():
     input_parameters = (x, y, x_new)
     assert gradcheck(Interp1d(), input_parameters)
 
+    # check if it also works at the given points
+    input_parameters = (x, y, x)
+    assert gradcheck(Interp1d(), input_parameters)
+
 
 def test_SolveBandedPyTorch(data_dir):
     # just creating some dummy data for testing

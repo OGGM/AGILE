@@ -43,13 +43,16 @@ def get_default_inversion_settings(get_doc=False):
     _key = "mb_models_settings"
     _doc = "Defines the used MassBalanceModels in a dictionary. The key is the " \
            "name, the value is again a dictionary with keys 'type' (options: " \
-           "'constant') and 'years' (the interval the model is valid in an " \
-           "numpy array). Caution first MassBalanceModel must start at least " \
+           "'constant' or 'TIModel') and 'years' (the interval the model is valid in an " \
+           "numpy array, if empty MB is valid for whole period). This interval " \
+           "defines also the period of the model run. Caution first " \
+           "MassBalanceModel must start at least " \
            "one year before first given observation year!" \
-           "Default: {'MB1': {'type': 'constant', 'years': np.array([1980, 2000])}," \
-           "'MB2': {'type': 'constant', 'years': np.array([2000, 2020])}}"
-    _default = {'MB1': {'type': 'constant', 'years': np.array([1980, 2000])},
-                'MB2': {'type': 'constant', 'years': np.array([2000, 2020])}}
+           "Default: {'MB': {'type': 'TIModel'," \
+           "                 'years': np.array([1980, 2020])}}"
+    _default = {'MB': {'type': 'TIModel',
+                       'years': np.array([1980, 2020])}}
+
     add_setting()
 
     _key = "dynamic_model"
@@ -191,12 +194,17 @@ def get_default_inversion_settings(get_doc=False):
            "height shift of the whole mb profile for an adaptive spinup " \
            "(e.g. {'height_shift': {'mb_model': " \
            "{'type': 'constant', 'years': np.array([1980, 2000]), " \
-           "'fg_height_shift': 100}}}). " \
-           "Default: {'height_shift': {'mb_model': {'type': 'constant'," \
-           "'years': np.array([1980, 2000]), 'fg_height_shift': -100}}}"
+           "'fg_height_shift': -100," \
+           "'spinup_length_yrs': 30}}}). " \
+           "Default: {'height_shift':" \
+           "    {'mb_model': {'type': 'constant'," \
+           "                  'years': np.array([1980, 2000]), " \
+           "                  'fg_height_shift': -100}," \
+           "     'spinup_length_yrs': 20}}"
     _default = {'height_shift': {'mb_model': {'type': 'constant',
                                               'years': np.array([1980, 2000]),
-                                              'fg_height_shift': -100}}}
+                                              'fg_height_shift': -100},
+                                 'spinup_length_yrs': 20}}
     add_setting()
 
     _key = "minimize_options"

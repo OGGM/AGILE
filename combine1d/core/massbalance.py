@@ -3,7 +3,7 @@
 import oggm.cfg as cfg
 from oggm.cfg import SEC_IN_YEAR
 from oggm.core.massbalance import ConstantMassBalance
-from oggm.utils import SuperclassMeta
+from oggm.utils import SuperclassMeta, ncDataset
 from oggm.utils._funcs import date_to_floatyear, floatyear_to_date
 
 # packages for COMBINE
@@ -293,6 +293,73 @@ class ConstantMassBalanceTorch(ConstantMassBalance):
         yr, m = floatyear_to_date(year)
         return torch.squeeze(self._get_monthly_mb[m - 1](heights -
                                                          self.height_shift))
+
+
+class MBModelTorchWrapper:
+
+    def __init__(self, gdir, mb_model,
+                 torch_type=torch.double, device='cpu'):
+
+        self.mbmod = mb_model
+        self.torch_type = torch_type
+        self.device = device
+
+        self.hemisphere = self.mbmod.hemisphere
+
+        # This is a quick'n dirty optimisation
+        try:
+            fls = gdir.read_pickle('model_flowlines')
+            h = []
+            for fl in fls:
+                # We use bed because of overdeepenings
+                h = np.append(h, fl.bed_h)
+                h = np.append(h, fl.surface_h)
+            zminmax = np.round([np.min(h) - 50, np.max(h) + 2000])
+        except FileNotFoundError:
+            # in case we don't have them
+            with ncDataset(gdir.get_filepath('gridded_data')) as nc:
+                if np.isfinite(nc.min_h_dem):
+                    # a bug sometimes led to non-finite
+                    zminmax = [nc.min_h_dem - 250, nc.max_h_dem + 1500]
+                else:
+                    zminmax = [nc.min_h_glacier - 1250, nc.max_h_glacier + 1500]
+
+        self.hbins = np.arange(*zminmax, step=20)
+        self.valid_bounds = self.hbins[[0, -1]]
+
+    def get_annual_mb(self, heights, year=None, fl_id=None, fls=None):
+        if isinstance(year, torch.Tensor):
+            year = year.detach().to('cpu').numpy().astype(np.float64)
+
+        annual_mb = self.mbmod.get_annual_mb(heights=self.hbins, year=year,
+                                             fl_id=fl_id, fls=fls)
+
+        return torch.squeeze(Interp1d()(torch.tensor(self.hbins,
+                                                     dtype=self.torch_type,
+                                                     device=self.device,
+                                                     requires_grad=False),
+                                        torch.tensor(annual_mb,
+                                                     dtype=self.torch_type,
+                                                     device=self.device,
+                                                     requires_grad=False),
+                                        heights))
+
+    def get_monthly_mb(self, heights, year=None, fl_id=None, fls=None):
+        if isinstance(year, torch.Tensor):
+            year = year.detach().to('cpu').numpy().astype(np.float64)
+
+        monthly_mb = self.mbmod.get_monthly_mb(heights=self.hbins, year=year,
+                                               fl_id=fl_id, fls=fls)
+
+        return torch.squeeze(Interp1d()(torch.tensor(self.hbins,
+                                                     dtype=self.torch_type,
+                                                     device=self.device,
+                                                     requires_grad=False),
+                                        torch.tensor(monthly_mb,
+                                                     dtype=self.torch_type,
+                                                     device=self.device,
+                                                     requires_grad=False),
+                                        heights))
 
 
 def pairwise(iterable):

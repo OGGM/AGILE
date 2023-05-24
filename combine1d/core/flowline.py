@@ -455,7 +455,7 @@ class MixedBedFlowline(Flowline):
             self._w0_m = w0_m
 
         assert len(bed_shape) == self.nx
-        if type(bed_shape) == torch.Tensor:
+        if isinstance(bed_shape, torch.Tensor):
             warnings.warn('Gradient calculation not possible for bed_shape!')
         self.bed_shape = torch.tensor(bed_shape,
                                       dtype=self.torch_type,
@@ -775,7 +775,7 @@ class FlowlineModelTorch(FlowlineModelOGGM):
             # among use cases (monthly or yearly output) and also to prevent
             # "too large" steps in the adaptive scheme.
             ts = utils.monthly_timeseries(self.yr.detach().to('cpu').numpy()
-                                          if type(self.yr) == torch.Tensor
+                                          if isinstance(self.yr, torch.Tensor)
                                           else self.yr, y1)
 
             # Add the last date to be sure we end on it
@@ -1378,7 +1378,7 @@ class SemiImplicitModel(FlowlineModelTorch):
                         'bin_id {} and max_D/w {:.3f} m2 yr-1. '
                         'To avoid memory overflow!'
                         ''.format(cfl_dt, self.min_dt, self.yr, 0,
-                                  np.argmax(np.abs(d_stag)),
+                                  np.argmax(np.abs(d_stag.detach())),
                                   divisor * cfg.SEC_IN_YEAR))
 
         # calculate diagonals of Amat

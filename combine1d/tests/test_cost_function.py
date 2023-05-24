@@ -175,7 +175,7 @@ class TestCostFct:
         for obs_var in observations.keys():
             for year in observations[obs_var].keys():
                 assert dobs[obs_var][year] != []
-                assert type(dobs[obs_var][year]) == torch.Tensor
+                assert isinstance(dobs[obs_var][year], torch.Tensor)
                 if obs_var in ['fl_total_area:m2', 'fl_total_area:km2',
                                'area:m2', 'area:km2', 'dmdtda:kg m-2 yr-1',
                                'dmdtda:kg yr-1', 'us:myr-1']:
@@ -223,7 +223,7 @@ class TestCostFct:
         for obs_var in observations.keys():
             for year in observations[obs_var].keys():
                 assert len(reg_parameters[obs_var][year]) == 1
-                assert type(reg_parameters[obs_var][year]) == torch.Tensor
+                assert isinstance(reg_parameters[obs_var][year], torch.Tensor)
 
     def test_get_cost_terms(self, data_logger, unknown_parameters,
                             observations):
@@ -238,7 +238,7 @@ class TestCostFct:
         assert len(c_terms) == 14
         for c_term in c_terms:
             assert c_term != []
-            assert type(c_term) == torch.Tensor
+            assert isinstance(c_term, torch.Tensor)
 
     def test_get_gradients(self, data_logger, unknown_parameters,
                            observations):
