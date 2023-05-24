@@ -33,6 +33,9 @@ def create_cost_fct(data_logger):
     parameter_indices = get_indices_for_unknown_parameters(data_logger)
     data_logger.parameter_indices = parameter_indices
 
+    # define regularisation terms
+    define_regularisation_terms(data_logger)
+
     def c_fun(unknown_parameters):
         return cost_fct(unknown_parameters,
                         data_logger)
@@ -116,6 +119,29 @@ def get_indices_for_unknown_parameters(data_logger):
     data_logger.len_unknown_parameter = current_start_ind
 
     return parameter_indices
+
+
+def define_regularisation_terms(data_logger):
+
+    for regularisation_term in data_logger.regularisation_terms.keys():
+        if regularisation_term == 'smoothed_bed':
+            fl = data_logger.flowline_init
+
+            # calculate an extra highest point here so the highest point of the
+            # flowline is not lowered due to the smoothness regularisation
+            data_logger.extra_bed_h = 2 * fl.bed_h[0] - fl.bed_h[1]
+
+            # calculate the bed smoothness of the first guess as a scale
+            b = np.concatenate(([data_logger.extra_bed_h],
+                                fl.bed_h), axis=0)
+            dx = fl.dx * fl.map_dx
+            db_dx = (b[1:] - b[:-1]) / dx
+            smoothing_scale = np.mean(np.power(db_dx, 2))
+
+            # the previously defined parameter acts as the lambda
+            data_logger.regularisation_terms['smoothed_bed'] /= smoothing_scale
+        else:
+            raise NotImplementedError(f'{regularisation_term}')
 
 
 def cost_fct(unknown_parameters, data_logger):
