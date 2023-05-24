@@ -164,7 +164,8 @@ def get_default_inversion_settings(get_doc=False):
 
     _key = "regularisation_terms"
     _doc = "Defines which additional regularisation terms should be used (with " \
-           "their reg parameter). " \
+           "their reg parameter). Value here acts as lambda, and scaling of " \
+           "regularisation terms is also included during the creation." \
            "Options: " \
            "'smoothed_bed' adds a term which prefer smoother beds. " \
            "(NOT GOOD) 'fl_surface_h_scale_1' scale fl_surface_h in cost function with 1/wk. " \
