@@ -1,8 +1,7 @@
 [run]
-source = combine
+source = combine1d
 omit =
-    */combine2d/*
-    */combine1d/tests/*
+    */tests/*
     */_version.py
     */__init__.py
 
@@ -10,8 +9,7 @@ concurrency = multiprocessing
 
 [report]
 omit =
-    */combine2d/*
-    */combine1d/tests/*
+    */tests/*
     */_version.py
     */__init__.py
     */pytest_plugin.py
