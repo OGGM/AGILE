@@ -177,7 +177,8 @@ setup(
     # executes the function `main` from this package when invoked:
     entry_points={
         'console_scripts': [
-            'run_idealized_experiment = combine1d.sandbox.run_idealized_experiment:main'
+            'run_idealized_experiment = combine1d.sandbox.run_idealized_experiment:main',
+            'pytest.combine1d = combine1d.tests.__main__:main'
         ],
     },
 
