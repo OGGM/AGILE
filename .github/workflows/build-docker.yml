@@ -1,0 +1,46 @@
+name: Build Docker-Image
+
+on:
+  push:
+    branches:
+      - master
+  repository_dispatch:
+    types: [build-docker-image]
+  workflow_dispatch: {}
+
+jobs:
+  build-docker-image:
+    runs-on: ubuntu-latest
+    name: Build Docker Image
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set Names
+      id: names
+      run: |
+        echo "name=ghcr.io/oggm/agile" >> $GITHUB_OUTPUT
+        echo "date=$(date +%Y%m%d)" >> $GITHUB_OUTPUT
+        echo "sha=$GITHUB_SHA" >> $GITHUB_OUTPUT
+    - name: Build image
+      id: build-image
+      uses: OGGM/docker-build-and-push-action@v2
+      with:
+        path: ./docker
+        name: ghcr.io/oggm/agile
+        force_pull: true
+        no_push: true
+        tmp_tag: |
+          ${{ steps.names.outputs.name }}:test
+    - name: Test image
+      run: docker run --rm ${{ steps.names.outputs.name }}:test /root/test.sh
+    - name: Push image
+      id: push-image
+      uses: OGGM/docker-build-and-push-action@v2
+      with:
+        only_on_repo: OGGM/COMBINE
+        user: ${{ github.actor }}
+        pass: ${{ github.token }}
+        registry: ghcr.io
+        path: ./docker
+        name: ghcr.io/oggm/agile
+        no_cache: false
+        date_tag: true
