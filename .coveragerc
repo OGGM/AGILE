@@ -1,0 +1,45 @@
+[run]
+source = oggm
+omit =
+    */tests/*
+    */sandbox/*
+    */mpi.py
+    */_version.py
+    */__init__.py
+
+concurrency = multiprocessing
+
+[report]
+omit =
+    */sandbox/*
+    */tests/*
+    */mpi.py
+    */_version.py
+    */__init__.py
+    */pytest_plugin.py
+
+# Regexes for lines to exclude from consideration
+exclude_lines =
+    pragma: no cover
+    coverage: no cover
+    Test decorator
+    if do_plot:
+
+    # Don't complain about missing debug-only code:
+    def __repr__
+    def __str__
+
+    # Don't complain if tests don't hit defensive assertion code:
+    raise AssertionError
+    raise NotImplementedError
+    raise ImportError
+
+    # Don't complain if non-runnable code isn't run:
+    except ImportError
+    if 0:
+    if __name__ == .__main__.:
+
+ignore_errors = True
+
+[html]
+directory = coverage_html_report
