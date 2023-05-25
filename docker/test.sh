@@ -1,3 +1,3 @@
 #!/bin/bash
 set -e
-exec pytest
+exec pytest.combine1d
