@@ -1,9 +1,8 @@
 [run]
-source = oggm
+source = combine
 omit =
-    */tests/*
-    */sandbox/*
-    */mpi.py
+    */combine2d/*
+    */combine1d/tests/*
     */_version.py
     */__init__.py
 
@@ -11,9 +10,8 @@ concurrency = multiprocessing
 
 [report]
 omit =
-    */sandbox/*
-    */tests/*
-    */mpi.py
+    */combine2d/*
+    */combine1d/tests/*
     */_version.py
     */__init__.py
     */pytest_plugin.py
