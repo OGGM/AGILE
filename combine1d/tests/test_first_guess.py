@@ -1,6 +1,10 @@
 import numpy as np
+import pytest
 
 from combine1d.core.first_guess import get_first_guess, get_first_guess_surface_h
+
+
+pytestmark= pytest.mark.test_env("first_guess")
 
 
 def test_get_first_guess(data_logger):

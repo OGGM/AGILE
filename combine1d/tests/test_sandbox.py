@@ -14,8 +14,9 @@ from oggm import cfg
 
 do_plot = False
 
-pytestmark = pytest.mark.filterwarnings("ignore:<class 'combine1d.core.torch_interp1d.Interp1d'> "
-                                        "should not be instantiated.:DeprecationWarning")
+pytestmark = [pytest.mark.filterwarnings("ignore:<class 'combine1d.core.torch_interp1d.Interp1d'> "
+                                        "should not be instantiated.:DeprecationWarning"),
+              pytest.mark.test_env("sandbox")]
 
 class TestSandbox:
     def test_create_idealized_experiments(self, test_dir):

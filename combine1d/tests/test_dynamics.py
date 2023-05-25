@@ -14,8 +14,9 @@ from combine1d.core.cost_function import (initialise_flowline,
 from combine1d.core.flowline import FluxBasedModel, SemiImplicitModel
 
 
-pytestmark = pytest.mark.filterwarnings("ignore:<class 'combine1d.core.torch_interp1d.Interp1d'> "
-                                        "should not be instantiated.:DeprecationWarning")
+pytestmark = [pytest.mark.filterwarnings("ignore:<class 'combine1d.core.torch_interp1d.Interp1d'> "
+                                        "should not be instantiated.:DeprecationWarning"),
+              pytest.mark.test_env("dynamics")]
 
 
 @pytest.fixture(scope='function')

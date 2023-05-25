@@ -15,8 +15,9 @@ from oggm.utils._funcs import date_to_floatyear
 from oggm import cfg
 
 
-pytestmark = pytest.mark.filterwarnings("ignore:<class 'combine1d.core.torch_interp1d.Interp1d'> "
-                                        "should not be instantiated.:DeprecationWarning")
+pytestmark = [pytest.mark.filterwarnings("ignore:<class 'combine1d.core.torch_interp1d.Interp1d'> "
+                                         "should not be instantiated.:DeprecationWarning"),
+              pytest.mark.test_env("models")]
 
 
 class TestModels:
