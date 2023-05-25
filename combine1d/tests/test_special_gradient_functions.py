@@ -26,6 +26,8 @@ def test_parabolic_functions():
     input_shape_section = (test_shape, test_section)
     assert gradcheck(para_thick_from_section.apply, input_shape_section)
 
+    assert False
+
 
 def test_Interp1d_gradient_calculation():
     x = torch.arange(0, 10, step=1, dtype=torch.double, requires_grad=True)
