@@ -167,8 +167,13 @@ def cost_fct(unknown_parameters, data_logger):
 
     """
     log.debug('Start cost function calculation')
-    flowline, fl_control_vars = initialise_flowline(unknown_parameters,
-                                                    data_logger)
+
+    # descale unknown_parameters using control variable min/max scaling and
+    # convert to torch tensor
+    unknown_parameters, unknown_parameters_descaled = \
+        descale_unknown_parameters(unknown_parameters, data_logger)
+
+    flowline = initialise_flowline(unknown_parameters_descaled, data_logger)
 
     dynamic_model = data_logger.dynamic_model
 
@@ -179,30 +184,26 @@ def cost_fct(unknown_parameters, data_logger):
         dynamic_model = partial(dynamic_model,
                                 fs=fs, glen_a=glen_a)
 
-    mb_models, mb_control_vars = initialise_mb_models(unknown_parameters,
-                                                      data_logger)
+    mb_models = initialise_mb_models(unknown_parameters_descaled, data_logger)
 
     if data_logger.spinup_type == 'height_shift_spinup':
         try:
             # Here a spinup run is conducted using the control variable
             # height_shift_spinup (vertically shift the whole mb profile)
-            flowline, spinup_control_vars = \
-                do_height_shift_spinup(flowline,
-                                       unknown_parameters,
-                                       data_logger)
+            flowline = do_height_shift_spinup(flowline,
+                                              unknown_parameters_descaled,
+                                              data_logger)
         except MemoryError:
             msg = 'MemoryError during spinup run (due to a too small ' \
                   'timestep) -> set Costfunction to Inf'
             print(msg)
             data_logger.memory_error = msg
-            cost = np.Inf
+            cost = np.array(np.Inf)
             grad = np.empty(len(unknown_parameters)) * np.nan
             return cost, grad
     elif data_logger.spinup_type not in [None, 'surface_h']:
         raise NotImplementedError(f'The spinup option {data_logger.spinup_type} '
                                   'is not implemented!')
-    else:
-        spinup_control_vars = {}
 
     # sfc_h saved to be able to save the past glacier evolution after the
     # minimisation and for the evaluation of idealized experiments
@@ -223,7 +224,7 @@ def cost_fct(unknown_parameters, data_logger):
               'timestep) -> set Costfunction to Inf'
         print(msg)
         data_logger.memory_error = msg
-        cost = np.Inf
+        cost = np.array(np.Inf)
         grad = np.empty(len(unknown_parameters)) * np.nan
         return cost, grad
 
@@ -243,11 +244,7 @@ def cost_fct(unknown_parameters, data_logger):
 
     log.debug('get gradients')
     # get gradient/s as numpy array
-    grad = get_gradients(fl_control_vars,
-                         mb_control_vars,
-                         spinup_control_vars,
-                         data_logger,
-                         length=len(unknown_parameters))
+    grad = unknown_parameters.grad.detach().to('cpu').numpy().astype(np.float64)
 
     # convert cost to numpy array and detach
     cost = c.detach().to('cpu').numpy().astype(np.float64)
@@ -269,6 +266,40 @@ def cost_fct(unknown_parameters, data_logger):
                                       data_logger.fct_calls[-1] + 1)
     log.debug('finished cost and gradient calculation')
     return cost, grad
+
+
+def descale_unknown_parameters(unknown_parameters, data_logger):
+    torch_type = data_logger.torch_type
+    device = data_logger.device
+
+    unknown_parameters = torch.tensor(unknown_parameters,
+                                      dtype=torch_type,
+                                      device=device,
+                                      requires_grad=True
+                                      )
+
+    min_bound, max_bound = list(zip(*data_logger.bounds))
+    min_bound = torch.tensor(min_bound,
+                             dtype=torch_type,
+                             device=device,
+                             requires_grad=False
+                             )
+    max_bound = torch.tensor(max_bound,
+                             dtype=torch_type,
+                             device=device,
+                             requires_grad=False
+                             )
+    scale = torch.tensor(data_logger.control_vars_characteristic_scale,
+                         dtype=torch_type,
+                         device=device,
+                         requires_grad=False
+                         )
+
+    # descale the given values in accordance to min/max scaling
+    unknown_parameters_descaled = \
+        unknown_parameters * (max_bound - min_bound) / scale + min_bound
+
+    return unknown_parameters, unknown_parameters_descaled
 
 
 def initialise_flowline(unknown_parameters, data_logger):
@@ -321,7 +352,6 @@ def initialise_flowline(unknown_parameters, data_logger):
     else:
         raise NotImplementedError('I have not expected to come to this point!')
     fl_vars_total = {}  # they are used for actual initialisation
-    fl_control_vars = {}  # are used for reading out the gradients later
     for var in all_potential_control_vars:
         if var == 'area_bed_h':
             fl_vars_total['bed_h'] = torch.empty(nx,
@@ -335,11 +365,6 @@ def initialise_flowline(unknown_parameters, data_logger):
                                              requires_grad=False)
 
         if var in parameter_indices.keys():
-            fl_control_vars[var] = torch.tensor(unknown_parameters[parameter_indices[var]],
-                                                dtype=torch_type,
-                                                device=device,
-                                                requires_grad=True)
-
             if var in ['bed_h', 'area_bed_h']:
                 var_index = ice_mask
             elif var in ['surface_h']:
@@ -356,13 +381,15 @@ def initialise_flowline(unknown_parameters, data_logger):
                     device=device,
                     requires_grad=False)
                 fl_vars_total['bed_h'][var_index] = (
-                        fl_control_vars[var] / scale_fct * scale_fct.mean()
+                        unknown_parameters[parameter_indices[var]] /
+                        scale_fct * scale_fct.mean()
                 )
                 fl_vars_total['bed_h'][~var_index] = torch.tensor(
                     known_parameters['bed_h'], dtype=torch_type, device=device,
                     requires_grad=False)
             else:
-                fl_vars_total[var][var_index] = fl_control_vars[var]
+                fl_vars_total[var][var_index] = \
+                    unknown_parameters[parameter_indices[var]]
                 fl_vars_total[var][~var_index] = torch.tensor(
                     known_parameters[var], dtype=torch_type, device=device,
                     requires_grad=False)
@@ -421,7 +448,7 @@ def initialise_flowline(unknown_parameters, data_logger):
                           torch_type=torch_type,
                           device=device)
 
-    return fl, fl_control_vars
+    return fl
 
 
 def initialise_mb_models(unknown_parameters,
@@ -466,9 +493,7 @@ def initialise_mb_models(unknown_parameters,
                                       f"{mb_models_settings[mb_mdl_set]['type']} "
                                       f"is not implemented!")
 
-    # only needed if in the future control variables are included in MB-Models
-    mb_control_var = {}
-    return mb_models, mb_control_var
+    return mb_models
 
 
 def do_height_shift_spinup(flowline, unknown_parameters, data_logger):
@@ -487,13 +512,7 @@ def do_height_shift_spinup(flowline, unknown_parameters, data_logger):
     y0 = (y_start + y_end - 1) / 2
     halfsize = (y_end - y_start - 1) / 2
 
-    height_shift = torch.tensor(
-        unknown_parameters[parameter_indices['height_shift_spinup']],
-        dtype=torch_type,
-        device=device,
-        requires_grad=True)
-
-    spinup_control_vars = {'height_shift_spinup': height_shift}
+    height_shift = unknown_parameters[parameter_indices['height_shift_spinup']]
 
     if mb_models_settings['type'] == 'constant':
         mb_spinup = ConstantMassBalanceTorch(gdir,
@@ -510,7 +529,7 @@ def do_height_shift_spinup(flowline, unknown_parameters, data_logger):
                           y0=0)
     model.run_until(yrs_to_run)
 
-    return model.fls[0], spinup_control_vars
+    return model.fls[0]
 
 
 def get_cost_terms(observations_mdl,
@@ -734,35 +753,6 @@ def define_reg_parameters(data_logger):
                     requires_grad=False)
 
         data_logger.obs_reg_parameters = reg_parameters
-
-
-def get_gradients(fl_control_vars, mb_control_vars, spinup_control_vars,
-                  data_logger, length):
-    parameter_indices = data_logger.parameter_indices
-    grad = np.zeros(length, dtype='float64')
-
-    for var in parameter_indices.keys():
-        if var in fl_control_vars.keys():
-            grad[parameter_indices[var]] = fl_control_vars[var].grad.detach(
-            ).to('cpu').numpy().astype(np.float64)
-            if ((var == 'bed_h') and
-                    'bed_h_grad_scale' in data_logger.regularisation_terms):
-                ice_mask = data_logger.ice_mask
-                grad[parameter_indices[var]] = grad[parameter_indices[var]] / \
-                                               data_logger.observations_for_scaling['fl_widths:m'][
-                                                   ice_mask] * \
-                                               np.mean(data_logger.observations_for_scaling[
-                                                           'fl_widths:m'][ice_mask])
-        elif var in mb_control_vars.keys():
-            grad[parameter_indices[var]] = mb_control_vars[var].grad.detach(
-            ).to('cpu').numpy().astype(np.float64)
-        elif var in spinup_control_vars.keys():
-            grad[parameter_indices[var]] = spinup_control_vars[var].grad.detach(
-            ).to('cpu').numpy().astype(np.float64)
-        else:
-            raise NotImplementedError('No gradient available for ' + var + '!')
-
-    return grad
 
 
 def detach_observations_mdl(observations_mdl_in):

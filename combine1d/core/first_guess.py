@@ -32,6 +32,13 @@ def get_first_guess(data_logger):
 
         first_guess[parameter_indices[ind]] = ind_first_guess
 
+    # scale first guess according to control var min/max scaling
+    min_bound, max_bound = list(zip(*data_logger.bounds))
+    min_bound = np.array(min_bound)
+    max_bound = np.array(max_bound)
+    scale = data_logger.control_vars_characteristic_scale
+    first_guess = (first_guess - min_bound) / (max_bound - min_bound) * scale
+
     return first_guess
 
 

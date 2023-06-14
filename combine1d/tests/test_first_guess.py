@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from combine1d.core.cost_function import descale_unknown_parameters
 from combine1d.core.first_guess import get_first_guess, get_first_guess_surface_h
 
 
@@ -9,6 +10,9 @@ pytestmark= pytest.mark.test_env("first_guess")
 
 def test_get_first_guess(data_logger):
     first_guess = get_first_guess(data_logger)
+    unknown_parameters, unknown_parameters_descaled = \
+        descale_unknown_parameters(first_guess, data_logger)
+    first_guess = unknown_parameters_descaled.detach().to('cpu').numpy().astype(np.float64)
 
     fl = data_logger.flowline_init
     for con_var in data_logger.control_vars:

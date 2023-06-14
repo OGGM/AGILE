@@ -10,10 +10,11 @@ from combine1d.core.cost_function import (get_indices_for_unknown_parameters,
                                           initialise_mb_models, get_cost_terms,
                                           cost_fct,
                                           calculate_difference_between_observation_and_model,
-                                          define_reg_parameters, get_gradients,
-                                          do_height_shift_spinup)
+                                          define_reg_parameters,
+                                          do_height_shift_spinup, descale_unknown_parameters)
 from combine1d.core.first_guess import get_first_guess
 from combine1d.core.dynamics import run_model_and_get_temporal_model_data
+from combine1d.core.flowline import MixedBedFlowline
 
 
 pytestmark = [pytest.mark.filterwarnings("ignore:<class 'combine1d.core.torch_interp1d.Interp1d'> "
@@ -74,24 +75,19 @@ class TestCreateCostFct:
 
 def get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
                                    observations):
-    flowline, fl_control_vars = initialise_flowline(unknown_parameters,
-                                                    data_logger)
-    mb_models, mb_control_vars = initialise_mb_models(unknown_parameters,
-                                                      data_logger)
+    flowline = initialise_flowline(unknown_parameters, data_logger)
+    mb_models = initialise_mb_models(unknown_parameters, data_logger)
     dynamic_model = data_logger.dynamic_model
 
     if data_logger.spinup_type == 'height_shift_spinup':
         # Here a spinup run is conducted using the control variable
         # height_shift_spinup (vertically shift the whole mb profile)
-        flowline, spinup_control_vars = \
-            do_height_shift_spinup(flowline=flowline,
-                                   unknown_parameters=unknown_parameters,
-                                   data_logger=data_logger)
+        flowline = do_height_shift_spinup(
+            flowline=flowline, unknown_parameters=unknown_parameters,
+            data_logger=data_logger)
     elif data_logger.spinup_type not in [None, 'surface_h']:
         raise NotImplementedError(f'The spinup type {data_logger.spinup_type} '
                                   'possibility is not integrated!')
-    else:
-        spinup_control_vars={}
 
     observations_mdl, final_fl = \
         run_model_and_get_temporal_model_data(flowline=flowline,
@@ -117,8 +113,7 @@ def get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
                                                 'fl_surface_h:m': 2.,
                                                 'fl_widths:m': 5.}}
 
-    return flowline, fl_control_vars, mb_models, mb_control_vars, \
-           spinup_control_vars, observations_mdl, final_fl, data_logger
+    return flowline, mb_models, observations_mdl, final_fl, data_logger
 
 
 class TestCostFct:
@@ -126,18 +121,16 @@ class TestCostFct:
     def unknown_parameters(self, data_logger):
         unknown_parameters = get_first_guess(data_logger)
 
-        return unknown_parameters
+        unknown_parameters, unknown_parameters_descaled = \
+            descale_unknown_parameters(unknown_parameters, data_logger)
+
+        return unknown_parameters_descaled
 
     def test_initialise_flowline(self, data_logger, unknown_parameters):
-        flowline, fl_control_vars = initialise_flowline(unknown_parameters,
-                                                        data_logger)
+        # just checking that their is a flowline coming out
+        flowline = initialise_flowline(unknown_parameters, data_logger)
 
-        potential_fl_control_vars = ['bed_h', 'surface_h', 'lambdas', 'w0_m',
-                                     'area_bed_h']
-        for key in fl_control_vars.keys():
-            assert key in data_logger.control_vars
-            assert key in potential_fl_control_vars
-            assert fl_control_vars[key].requires_grad
+        assert isinstance(flowline, MixedBedFlowline)
 
         # check if w0_m is correctly calculated if not control_var
         if 'w0_m' not in data_logger.control_vars:
@@ -147,11 +140,7 @@ class TestCostFct:
                 data_logger.flowline_init._w0_m, equal_nan=True)
 
     def test_initialise_mb_models(self, data_logger, unknown_parameters):
-        mb_models, mb_control_var = initialise_mb_models(unknown_parameters,
-                                                         data_logger)
-
-        # check that mb_control_var is empty (not supported now)
-        assert mb_control_var == {}
+        mb_models = initialise_mb_models(unknown_parameters, data_logger)
 
         # check that all needed mb_models are created
         for key in mb_models.keys():
@@ -160,9 +149,9 @@ class TestCostFct:
     def test_calculate_difference_between_observation_and_model(self, data_logger,
                                                                 unknown_parameters,
                                                                 observations):
-        flowline, fl_control_vars, mb_models, mb_control_vars, spinup_control_vars, \
-        observations_mdl, final_fl, data_logger = get_prepared_data_for_cost_fct(
-            unknown_parameters, data_logger, observations)
+        flowline, mb_models, observations_mdl, final_fl, data_logger = \
+            get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
+                                           observations)
         c_terms = get_cost_terms(observations_mdl,
                                  final_fl,
                                  data_logger)
@@ -228,9 +217,9 @@ class TestCostFct:
 
     def test_get_cost_terms(self, data_logger, unknown_parameters,
                             observations):
-        flowline, fl_control_vars, mb_models, mb_control_vars, spinup_control_vars, \
-        observations_mdl, final_fl, data_logger = get_prepared_data_for_cost_fct(
-            unknown_parameters, data_logger, observations)
+        flowline, mb_models, observations_mdl, final_fl, data_logger = \
+            get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
+                                           observations)
 
         c_terms = get_cost_terms(observations_mdl,
                                  final_fl,
@@ -241,36 +230,10 @@ class TestCostFct:
             assert c_term != []
             assert isinstance(c_term, torch.Tensor)
 
-    def test_get_gradients(self, data_logger, unknown_parameters,
-                           observations):
-        flowline, fl_control_vars, mb_models, mb_control_vars, spinup_control_vars, \
-        observations_mdl, final_fl, data_logger = get_prepared_data_for_cost_fct(
-            unknown_parameters, data_logger, observations)
-
-        c_terms = get_cost_terms(observations_mdl,
-                                 final_fl,
-                                 data_logger)
-
-        # sum up cost function terms
-        c = c_terms.sum()
-
-        # calculate the gradient for the optimisation parameter
-        c.backward()
-
-        # here try to get the gradients
-        grad = get_gradients(fl_control_vars,
-                             mb_control_vars,
-                             spinup_control_vars,
-                             data_logger,
-                             length=len(unknown_parameters))
-
-        assert len(grad) == len(unknown_parameters)
-        assert type(grad) == np.ndarray
-
     def test_cost_fct(self, data_logger, unknown_parameters, observations):
-        flowline, fl_control_vars, mb_models, mb_control_vars, spinup_control_vars, \
-        observations_mdl, final_fl, data_logger = get_prepared_data_for_cost_fct(
-            unknown_parameters, data_logger, observations)
+        flowline, mb_models, observations_mdl, final_fl, data_logger = \
+            get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
+                                           observations)
 
         cost, grad = cost_fct(unknown_parameters, data_logger)
 
