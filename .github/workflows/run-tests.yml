@@ -1,0 +1,58 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  test:
+    name: ${{ matrix.test-env }} on ${{ matrix.container }}
+    strategy:
+      fail-fast: false
+      matrix:
+        test-env:
+          - cost_function
+          - dynamics
+          - first_guess
+          - inversion
+          - models
+          - sandbox
+          - special_gradient_functions
+        container:
+          - ghcr.io/oggm/agile:20230525
+    runs-on: ubuntu-latest
+    container: ${{ matrix.container }}
+    continue-on-error: ${{ contains(matrix.container, 'py3') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Fix Git-Permissions
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Test
+        run: ./ci/run_tests.sh ${{ matrix.test-env }}
+      - name: Upload Coverage
+        if: ${{ !contains(matrix.container, 'py3') }}
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          COVERALLS_SERVICE_NAME: github
+          COVERALLS_PARALLEL: true
+        run: coveralls
+  finish-coveralls:
+    name: Coveralls Finished
+    needs: test
+    runs-on: ubuntu-latest
+    container: python:3.9-slim
+    continue-on-error: true
+    steps:
+    - name: Coveralls Finished
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        COVERALLS_SERVICE_NAME: github
+      run: |
+        pip3 install --upgrade coveralls &&
+        coveralls --finish

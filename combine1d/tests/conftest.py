@@ -16,6 +16,29 @@ from combine1d.core.cost_function import get_indices_for_unknown_parameters, get
 from distutils import dir_util
 
 
+def pytest_configure(config):
+    for marker in ["test_env"]:
+        config.addinivalue_line("markers", marker)
+
+
+def pytest_addoption(parser):
+    parser.addoption("--run-test-env", metavar="ENVNAME", default="",
+                     help="Run only specified test env")
+
+
+def pytest_collection_modifyitems(config, items):
+    run_test_env = config.getoption("--run-test-env")
+
+    test_env_marker = pytest.mark.skip(reason="only test_env=%s tests are run"
+                                              % run_test_env)
+
+    for item in items:
+        if run_test_env:
+            test_env = item.get_closest_marker("test_env")
+            if not test_env or test_env.args[0] != run_test_env:
+                item.add_marker(test_env_marker)
+
+
 @pytest.fixture(scope='session')
 def test_dir():
     tmp_test_dir = os.path.join(cfg.PATHS['test_dir'], 'combine')

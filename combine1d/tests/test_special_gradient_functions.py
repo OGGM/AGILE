@@ -9,8 +9,9 @@ from combine1d.core.special_gradient_functions import para_width_from_thick, \
     para_thick_from_section, SolveBandedPyTorch
 from combine1d.core.torch_interp1d import Interp1d
 
-pytestmark = pytest.mark.filterwarnings("ignore:<class 'combine1d.core.torch_interp1d.Interp1d'> "
-                                        "should not be instantiated.:DeprecationWarning")
+pytestmark = [pytest.mark.filterwarnings("ignore:<class 'combine1d.core.torch_interp1d.Interp1d'> "
+                                         "should not be instantiated.:DeprecationWarning"),
+              pytest.mark.test_env("special_gradient_functions")]
 
 
 def test_parabolic_functions():

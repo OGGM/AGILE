@@ -12,9 +12,10 @@ from combine1d.core.inversion import (prepare_for_combine_inversion,
 from combine1d.core.data_logging import initialise_DataLogger
 from combine1d.core.cost_function import create_cost_fct
 
-pytestmark = pytest.mark.filterwarnings("ignore:<class "
-                                        "'combine1d.core.torch_interp1d.Interp1d'> "
-                                        "should not be instantiated.:DeprecationWarning")
+pytestmark = [pytest.mark.filterwarnings("ignore:<class "
+                                         "'combine1d.core.torch_interp1d.Interp1d'> "
+                                         "should not be instantiated.:DeprecationWarning"),
+              pytest.mark.test_env("inversion")]
 
 
 class TestInversion:
