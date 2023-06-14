@@ -7,7 +7,7 @@ import time
 # External libs
 from combine1d.core.dynamics import run_model_and_get_model_values
 from combine1d.core.flowline import MixedBedFlowline
-from scipy.optimize import minimize
+from scipy.optimize import minimize, Bounds
 import numpy as np
 
 # Locals
@@ -38,6 +38,16 @@ def get_default_inversion_settings(get_doc=False):
            "Options: 'bed_h' (not good), 'lambdas', 'w0_m', 'area_bed_h'." \
            "Default: ['area_bed_h']"
     _default = ['area_bed_h']
+    add_setting()
+
+    _key = "control_vars_characteristic_scale"
+    _doc = "Defines the control variables characteristic scale. This means " \
+           "after the control variables are scaled the input to the " \
+           "minimisation algorithm will be between [0, characteristic_scale]. " \
+           "The idea is to avoid problems with the representation of small " \
+           "numbers. " \
+           "Default: 10."
+    _default = 10.
     add_setting()
 
     _key = "mb_models_settings"
@@ -327,6 +337,9 @@ def get_control_var_bounds(data_logger):
         else:
             raise NotImplementedError(f'{var}')
 
+    # need the bounds for min/max scaling of control variables
+    data_logger.bounds = bounds
+
     return bounds
 
 
@@ -399,7 +412,7 @@ def save_past_evolution_to_disk(gdir, data_logger):
                                    dynamic_model=data_logger.dynamic_model,
                                    mb_models=initialise_mb_models(
                                        unknown_parameters=None,
-                                       data_logger=data_logger)[0],
+                                       data_logger=data_logger),
                                    needed_model_data={}, save_run=True,
                                    gdir=gdir,
                                    output_filesuffix=data_logger.filename,
@@ -427,11 +440,11 @@ def combine_inversion(gdir, inversion_input_filesuffix='_combine',
     log.debug('initialise cost function')
     cost_fct = create_cost_fct(data_logger)
 
+    log.debug('initialise control var bounds')
+    get_control_var_bounds(data_logger)
+
     log.debug('initialise first guess')
     first_guess = get_first_guess(data_logger)
-
-    log.debug('initialise control var bounds')
-    bounds = get_control_var_bounds(data_logger)
 
     # continue here
     try:
@@ -439,7 +452,8 @@ def combine_inversion(gdir, inversion_input_filesuffix='_combine',
                        x0=first_guess,
                        method=data_logger.solver,
                        jac=True,
-                       bounds=bounds,
+                       bounds=Bounds(0,
+                                     data_logger.control_vars_characteristic_scale),
                        options=data_logger.minimize_options,
                        callback=data_logger.callback_fct)
         data_logger.minimize_message = res.message

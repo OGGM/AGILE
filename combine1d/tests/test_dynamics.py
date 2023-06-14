@@ -10,7 +10,8 @@ from combine1d.core.dynamics import (run_model_and_get_temporal_model_data,
                                      construct_needed_model_data)
 from combine1d.core.first_guess import get_first_guess
 from combine1d.core.cost_function import (initialise_flowline,
-                                          initialise_mb_models)
+                                          initialise_mb_models,
+                                          descale_unknown_parameters)
 from combine1d.core.flowline import FluxBasedModel, SemiImplicitModel
 
 
@@ -23,21 +24,22 @@ pytestmark = [pytest.mark.filterwarnings("ignore:<class 'combine1d.core.torch_in
 def unknown_parameters(data_logger):
     unknown_parameters = get_first_guess(data_logger)
 
-    return unknown_parameters
+    unknown_parameters, unknown_parameters_descaled = \
+        descale_unknown_parameters(unknown_parameters, data_logger)
+
+    return unknown_parameters_descaled
 
 
 @pytest.fixture(scope='function')
 def flowline(data_logger, unknown_parameters):
-    flowline, fl_control_vars = initialise_flowline(unknown_parameters,
-                                                    data_logger)
+    flowline = initialise_flowline(unknown_parameters, data_logger)
 
     return flowline
 
 
 @pytest.fixture(scope='function')
 def mb_models(data_logger, unknown_parameters):
-    mb_models, mb_control_var = initialise_mb_models(unknown_parameters,
-                                                     data_logger)
+    mb_models = initialise_mb_models(unknown_parameters, data_logger)
 
     return mb_models
 

@@ -41,6 +41,8 @@ class DataLogger(object):
         self.solver = inversion_input['solver']
         self.minimize_options = inversion_input['minimize_options']
         self.max_time_minimize = inversion_input['max_time_minimize']
+        self.control_vars_characteristic_scale = \
+            inversion_input['control_vars_characteristic_scale']
 
         if inversion_input['dynamic_model'] == 'flux_based':
             self.dynamic_model = FluxBasedModel

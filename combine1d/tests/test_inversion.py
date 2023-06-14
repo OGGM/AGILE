@@ -10,7 +10,7 @@ from combine1d.core.inversion import (prepare_for_combine_inversion,
                                       get_default_inversion_settings,
                                       combine_inversion)
 from combine1d.core.data_logging import initialise_DataLogger
-from combine1d.core.cost_function import create_cost_fct
+from combine1d.core.cost_function import create_cost_fct, descale_unknown_parameters
 
 pytestmark = [pytest.mark.filterwarnings("ignore:<class "
                                          "'combine1d.core.torch_interp1d.Interp1d'> "
@@ -35,7 +35,7 @@ class TestInversion:
                                                  sum(data_logger.is_rectangular) +
                                                  sum(data_logger.is_parabolic))
         cost_fct = create_cost_fct(data_logger)
-
+        get_control_var_bounds(data_logger)
         first_guess = get_first_guess(data_logger)
 
         cost, grad = cost_fct(first_guess)
@@ -46,23 +46,31 @@ class TestInversion:
     def test_get_control_var_bounds(self, data_logger):
         create_cost_fct(data_logger)
 
+        get_control_var_bounds(data_logger)
+
         first_guess = get_first_guess(data_logger)
+        unknown_parameters, unknown_parameters_descaled = \
+            descale_unknown_parameters(first_guess, data_logger)
+        first_guess = unknown_parameters_descaled
 
-        bounds = get_control_var_bounds(data_logger)
-
-        assert len(bounds) == data_logger.len_unknown_parameter
+        assert len(data_logger.bounds) == data_logger.len_unknown_parameter
         for i, val in enumerate(first_guess):
-            assert bounds[i] != 0
-            if bounds[i][0] is not None:
-                assert val >= bounds[i][0]
-            if bounds[i][1] is not None:
-                assert val <= bounds[i][1]
+            assert data_logger.bounds[i] != 0
+            if data_logger.bounds[i][0] is not None:
+                assert val >= data_logger.bounds[i][0]
+            if data_logger.bounds[i][1] is not None:
+                assert val <= data_logger.bounds[i][1]
 
-    @pytest.mark.parametrize('control_vars', [['bed_h'], ['bed_h', 'w0_m'],
+    @pytest.mark.parametrize('control_vars', [['bed_h'],
+                                              ['bed_h', 'w0_m'],
                                               ['area_bed_h'],
-                                              'all'],
-                             ids=['bed_h', 'bed_h & w0_m', 'area_bed_h',
-                                  'all'])
+                                              'all'
+    ],
+                             ids=['bed_h',
+                                  'bed_h & w0_m',
+                                  'area_bed_h',
+                                  'all'
+                                  ])
     @pytest.mark.parametrize(
         'spinup_options', [None,
                            {'surface_h': {'mb_model':
@@ -81,9 +89,13 @@ class TestInversion:
                                              }
                             }
                            ],
-        ids=['No_spinup', 'sfc_h_spinup', 'height_shift_spinup'])
-    @pytest.mark.parametrize('dynamic_model', ['flux_based', 'implicit'],
-                             ids=['flux_based', 'implicit'])
+        ids=['No_spinup',
+             'sfc_h_spinup',
+             'height_shift_spinup'])
+    @pytest.mark.parametrize('dynamic_model', ['flux_based',
+                                               'implicit'],
+                             ids=['flux_based',
+                                  'implicit'])
     def test_combine_inversion(self, hef_gdir, control_vars, spinup_options,
                                dynamic_model, all_supported_control_vars):
         # Final integration test that the inversion runs with no errors, also
