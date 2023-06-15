@@ -308,11 +308,9 @@ def get_control_var_bounds(data_logger):
                 additional_ice_thickness=data_logger.additional_ice_thickness,
                 max_thickness=data_logger.max_ice_thickness,
                 w0_min=data_logger.min_w0_m)
-            scale = np.mean(fl.widths_m[ice_mask])
-            bounds[var_indices] = [((sfc_h - upper_limit) *
-                                    width_m / scale,
+            bounds[var_indices] = [((sfc_h - upper_limit) * width_m,
                                     (sfc_h - data_logger.min_ice_thickness) *
-                                    width_m / scale)
+                                    width_m)
                                    for sfc_h, width_m, upper_limit in
                                    zip(fl.surface_h[ice_mask],
                                        fl.widths_m[ice_mask],

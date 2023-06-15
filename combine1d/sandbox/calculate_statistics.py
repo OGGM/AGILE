@@ -72,8 +72,7 @@ def calculate_result_statistics(gdir, data_logger):
             else:
                 scaling_fct = np.array([1])
             controls_true[control_var] = \
-                fls_true.bed_h[ds.ice_mask.values] / scaling_fct * \
-                np.mean(scaling_fct)
+                fls_true.bed_h[ds.ice_mask.values] / scaling_fct
         elif control_var in ['lambdas', 'w0_m']:
             controls_true[control_var] = \
                 getattr(fls_true, f'_{control_var}')[ds.ice_mask.values]
@@ -316,9 +315,9 @@ def calculate_default_oggm_statistics(gdir):
                 else:
                     scaling_fct = np.array([1])
                 controls_mdl[control_var] = \
-                    fls_mdl.bed_h / scaling_fct * np.mean(scaling_fct)
+                    fls_mdl.bed_h / scaling_fct
                 controls_true[control_var] = \
-                    fls_true.bed_h / scaling_fct * np.mean(scaling_fct)
+                    fls_true.bed_h / scaling_fct
 
             elif control_var in ['lambdas', 'w0_m']:
                 controls_mdl[control_var] = getattr(fls_mdl, f'_{control_var}')
