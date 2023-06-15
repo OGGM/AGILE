@@ -382,7 +382,7 @@ def initialise_flowline(unknown_parameters, data_logger):
                     requires_grad=False)
                 fl_vars_total['bed_h'][var_index] = (
                         unknown_parameters[parameter_indices[var]] /
-                        scale_fct * scale_fct.mean()
+                        scale_fct
                 )
                 fl_vars_total['bed_h'][~var_index] = torch.tensor(
                     known_parameters['bed_h'], dtype=torch_type, device=device,
