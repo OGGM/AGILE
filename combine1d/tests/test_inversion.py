@@ -160,24 +160,26 @@ class TestInversion:
         assert ds_saved.costs[0] > ds_saved.costs[-1]
 
         # tests for individual cost term calculation here
-        individual_cost_terms = []
-        individual_reg_terms = []
         for i in ds_saved.iteration:
-            for var in ds_saved.c_terms_desription[i].keys():
+            individual_cost_terms = []
+            individual_reg_terms = []
+            c_terms_desription_dict = ds_saved.c_terms_description[i].data.item()
+            for var in c_terms_desription_dict.keys():
                 if var in ['dmdtda:kg m-2 yr-1', 'fl_surface_h:m']:
-                    individual_cost_terms.append(
-                        ds_saved.c_terms_desription[i][var])
+                    for year in c_terms_desription_dict[var].keys():
+                        individual_cost_terms.append(
+                            c_terms_desription_dict[var][year])
                 elif var in ['smoothed_bed']:
                     individual_reg_terms.append(
-                        ds_saved.c_terms_desription[i][var]
+                        c_terms_desription_dict[var]
                     )
                 elif var in ['J_obs', 'J_reg']:
                     pass
                 else:
                     raise NotImplementedError(f'{var}')
 
-            J_obs_mdl = ds_saved.c_terms_desription[i]['J_obs']
-            J_reg_mdl = ds_saved.c_terms_desription[i]['J_reg']
+            J_obs_mdl = c_terms_desription_dict['J_obs']
+            J_reg_mdl = c_terms_desription_dict['J_reg']
             cost_mdl = ds_saved.costs[i]
 
             assert J_obs_mdl == np.mean(individual_cost_terms)

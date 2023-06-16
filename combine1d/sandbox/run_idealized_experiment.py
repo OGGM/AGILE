@@ -31,6 +31,10 @@ def parse_args(args):
     parser.add_argument('--experiment_file', type=str,
                         help='path to the experiment file, containing the '
                              'different experiments with their settings')
+    parser.add_argument('--print_statistics', nargs='?', const=True,
+                        default=False,
+                        help='If the idealized statistics should be printed '
+                             'out after each run.')
 
     args = parser.parse_args(args)
 
@@ -67,6 +71,7 @@ def parse_args(args):
                 logging_level=args.logging_level,
                 inversion_settings_all=foo.inversion_settings_all,
                 use_experiment_glaciers=use_experiment_glaciers,
+                print_statistic=args.print_statistic
                 )
 
 
