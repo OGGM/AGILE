@@ -153,11 +153,11 @@ def get_default_inversion_settings(get_doc=False):
                 'dmdtda:kg m-2 yr-1': {}}
     add_setting()
 
-    _key = "obs_reg_parameters"
+    _key = "obs_scaling_parameters"
     _doc = "Defines the relative contribution of the observations to the " \
            "total cost value. There are two options 'uncertainty' and 'scale'." \
            " If 'uncertainty' is given the reg parameter of an observations " \
-           "equals '1 / uncertainty² * number_given_in_dict'. The uncertainty " \
+           "equals '1 / uncertainty²'. The uncertainty " \
            "is prescribed in cost_function define_reg_parameters. Or (NOT " \
            "RECOMMENDED) one can use a dict with key 'scale' (e.g. " \
            "{'scale': {'fl_surface_h': 10., 'fl_widths_m': 1.}}), this option " \
@@ -168,13 +168,13 @@ def get_default_inversion_settings(get_doc=False):
            "weighted as a 10% mismatch at 'fl_widths_m'). " \
            "Default: {'uncertainty': {'fl_surface_h:m': 1.," \
            "'dmdtda:kg m-2 yr-1': 1.}}"
-    _default = {'uncertainty': {'fl_surface_h:m': 1.,
-                                'dmdtda:kg m-2 yr-1': 1.}}
+    _default = {'uncertainty': {'fl_surface_h:m': 10.,
+                                'dmdtda:kg m-2 yr-1': 100.}}
     add_setting()
 
     _key = "regularisation_terms"
     _doc = "Defines which additional regularisation terms should be used (with " \
-           "their reg parameter). Value here acts as lambda, and scaling of " \
+           "their reg parameter). Scaling of " \
            "regularisation terms is also included during the creation." \
            "Options: " \
            "'smoothed_bed' adds a term which prefer smoother beds. " \
@@ -184,6 +184,13 @@ def get_default_inversion_settings(get_doc=False):
            "'bed_h_grad_scale' scales the bed_h gradient with width." \
            "Default: {'smoothed_bed': 1}"
     _default = {'smoothed_bed': 1.}
+    add_setting()
+
+    _key = "cost_lambda"
+    _doc = "Defines tha labmda of the cost function" \
+           "(cost = Jobs + lambda * Jreg)" \
+           "Default: 1"
+    _default = 1.
     add_setting()
 
     _key = "experiment_description"

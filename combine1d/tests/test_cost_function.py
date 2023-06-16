@@ -10,12 +10,11 @@ from combine1d.core.cost_function import (get_indices_for_unknown_parameters,
                                           initialise_mb_models, get_cost_terms,
                                           cost_fct,
                                           calculate_difference_between_observation_and_model,
-                                          define_reg_parameters,
+                                          define_scaling_terms,
                                           do_height_shift_spinup, descale_unknown_parameters)
 from combine1d.core.first_guess import get_first_guess
 from combine1d.core.dynamics import run_model_and_get_temporal_model_data
 from combine1d.core.flowline import MixedBedFlowline
-
 
 pytestmark = [pytest.mark.filterwarnings("ignore:<class 'combine1d.core.torch_interp1d.Interp1d'> "
                                          "should not be instantiated.:DeprecationWarning"),
@@ -100,18 +99,20 @@ def get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
         for year in observations[obs_var].keys():
             observations[obs_var][year] = \
                 observations_mdl[obs_var][year].detach().to('cpu').numpy(
-                    ).astype(np.float64) + 10.
+                ).astype(np.float64) + 10.
 
     data_logger.observations = observations
-    data_logger.obs_reg_parameters = {'scale': {'fl_total_area:m2': 1.,
-                                                'fl_total_area:km2': 10.,
-                                                'area:m2': 1.,
-                                                'area:km2': 10.,
-                                                'dmdtda:kg m-2 yr-1': 1.,
-                                                'dmdtda:kg yr-1': 1.,
-                                                'us:myr-1': 1.,
-                                                'fl_surface_h:m': 2.,
-                                                'fl_widths:m': 5.}}
+    data_logger.obs_scaling_parameters = {'scale': {'fl_total_area:m2': 1.,
+                                                    'fl_total_area:km2': 10.,
+                                                    'area:m2': 1.,
+                                                    'area:km2': 10.,
+                                                    'dmdtda:kg m-2 yr-1': 1.,
+                                                    'dmdtda:kg yr-1': 1.,
+                                                    'us:myr-1': 1.,
+                                                    'fl_surface_h:m': 2.,
+                                                    'fl_widths:m': 5.}}
+
+    define_scaling_terms(data_logger)
 
     return flowline, mb_models, observations_mdl, final_fl, data_logger
 
@@ -152,9 +153,9 @@ class TestCostFct:
         flowline, mb_models, observations_mdl, final_fl, data_logger = \
             get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
                                            observations)
-        c_terms = get_cost_terms(observations_mdl,
-                                 final_fl,
-                                 data_logger)
+        c_terms, reg_terms = get_cost_terms(observations_mdl,
+                                            final_fl,
+                                            data_logger)
 
         dobs, nobs = calculate_difference_between_observation_and_model(
             data_logger,
@@ -171,10 +172,10 @@ class TestCostFct:
                                'dmdtda:kg yr-1', 'us:myr-1']:
                     assert np.isclose(
                         dobs[obs_var][year].detach().to('cpu').numpy().astype(
-                        np.float64), 100.)  # 100 because of 10^2
+                            np.float64), 100.)  # 100 because of 10^2
         assert nobs == 13
 
-    def test_define_reg_parameters(self, data_logger, observations):
+    def test_define_scaling_terms(self, data_logger, observations):
         # fill observations with some values
         single_value = 10.
         for obs_var in observations.keys():
@@ -195,25 +196,25 @@ class TestCostFct:
                     raise NotImplementedError(f'{obs_var}')
 
         data_logger.observations = observations
-        data_logger.obs_reg_parameters = {'scale': {'fl_total_area:m2': 1.,
-                                                    'fl_total_area:km2': 10.,
-                                                    'area:m2': 1.,
-                                                    'area:km2': 10.,
-                                                    'dmdtda:kg m-2 yr-1': 1.,
-                                                    'dmdtda:kg yr-1': 1.,
-                                                    'us:myr-1': 1.,
-                                                    'fl_surface_h:m': 2.,
-                                                    'fl_widths:m': 5.}}
+        data_logger.obs_scaling_parameters = {'scale': {'fl_total_area:m2': 1.,
+                                                        'fl_total_area:km2': 10.,
+                                                        'area:m2': 1.,
+                                                        'area:km2': 10.,
+                                                        'dmdtda:kg m-2 yr-1': 1.,
+                                                        'dmdtda:kg yr-1': 1.,
+                                                        'us:myr-1': 1.,
+                                                        'fl_surface_h:m': 2.,
+                                                        'fl_widths:m': 5.}}
 
-        define_reg_parameters(data_logger)
+        define_scaling_terms(data_logger)
 
-        assert 'scale' not in data_logger.obs_reg_parameters.keys()
+        assert 'scale' not in data_logger.obs_scaling_parameters.keys()
 
-        reg_parameters = data_logger.obs_reg_parameters
+        reg_parameters = data_logger.obs_scaling_parameters
         for obs_var in observations.keys():
             for year in observations[obs_var].keys():
-                assert len(reg_parameters[obs_var][year]) == 1
-                assert isinstance(reg_parameters[obs_var][year], torch.Tensor)
+                assert reg_parameters[obs_var][year].size == 1
+                assert isinstance(reg_parameters[obs_var][year], np.float64)
 
     def test_get_cost_terms(self, data_logger, unknown_parameters,
                             observations):
@@ -221,14 +222,19 @@ class TestCostFct:
             get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
                                            observations)
 
-        c_terms = get_cost_terms(observations_mdl,
-                                 final_fl,
-                                 data_logger)
+        c_terms, reg_terms = get_cost_terms(observations_mdl,
+                                            final_fl,
+                                            data_logger)
 
-        assert len(c_terms) == 14
+        assert len(c_terms) == 13
         for c_term in c_terms:
             assert c_term != []
             assert isinstance(c_term, torch.Tensor)
+
+        assert len(reg_terms) == 1
+        for reg_term in reg_terms:
+            assert reg_term != []
+            assert isinstance(reg_term, torch.Tensor)
 
     def test_cost_fct(self, data_logger, unknown_parameters, observations):
         flowline, mb_models, observations_mdl, final_fl, data_logger = \

@@ -25,8 +25,9 @@ class DataLogger(object):
         self.gdir = gdir
         # first extract all needed data (is also a check that everything is there before starting)
         self.inversion_input = inversion_input
-        self.obs_reg_parameters = inversion_input['obs_reg_parameters']
+        self.obs_scaling_parameters = inversion_input['obs_scaling_parameters']
         self.regularisation_terms = inversion_input['regularisation_terms']
+        self.cost_lambda = inversion_input['cost_lambda']
         self.observations = inversion_input['observations']
         self.observations_for_scaling = inversion_input['observations_for_scaling']
         self.mb_models_settings = inversion_input['mb_models_settings']
@@ -108,6 +109,7 @@ class DataLogger(object):
         # define variables which are filled during the minimisation run
         self.costs = None
         self.c_terms = None
+        self.reg_terms = None
         self.c_terms_description = None
         self.time_needed = None
         self.grads = None
@@ -192,6 +194,7 @@ class DataLogger(object):
         index = self.step_indices
         self.costs = self.squeeze_generic(self.costs[index])
         self.c_terms = self.c_terms[index]
+        self.reg_terms = self.reg_terms[index]
         self.time_needed = self.squeeze_generic(self.time_needed[index])
         self.flowlines = self.squeeze_generic(self.flowlines[index])
         self.sfc_h_start = self.squeeze_generic(self.sfc_h_start[index])
@@ -207,6 +210,7 @@ class DataLogger(object):
         ds.coords['x'] = np.arange(len(self.ice_mask))
         ds.coords['iteration'] = np.arange(len(self.step_indices))
         ds.coords['nr_cost_terms'] = np.arange(len(self.c_terms[-1]))
+        ds.coords['nr_reg_terms'] = np.arange(len(self.reg_terms[-1]))
         ds.coords['nr_unknown_parameters'] = np.arange(len(self.unknown_parameters[-1]))
 
         ds['ice_mask'] = (['x'], self.ice_mask)
@@ -216,6 +220,7 @@ class DataLogger(object):
         ds['sfc_h_start'] = (['iteration', 'x'], self.sfc_h_start)
         ds['observations_mdl'] = (['iteration'], self.observations_mdl)
         ds['c_terms'] = (['iteration', 'nr_cost_terms'], self.c_terms)
+        ds['reg_terms'] = (['iteration', 'nr_reg_terms'], self.reg_terms)
         ds['c_terms_description'] = (['iteration'], self.c_terms_description)
         ds['time_needed'] = (['iteration'], self.time_needed)
         ds['fct_calls'] = (['iteration'], self.fct_calls)
@@ -227,8 +232,9 @@ class DataLogger(object):
                                         self.climate_filesuffix)
         ds.attrs['output_filesuffix'] = self.output_filesuffix
         ds.attrs['flowline_init'] = self.flowline_init
-        ds.attrs['obs_reg_parameters'] = self.obs_reg_parameters
+        ds.attrs['obs_scaling_parameters'] = self.obs_scaling_parameters
         ds.attrs['regularisation_terms'] = self.regularisation_terms
+        ds.attrs['cost_lambda'] = self.cost_lambda
         ds.attrs['control_vars'] = self.control_vars
         ds.attrs['observations'] = self.observations
         ds.attrs['observations_for_scaling'] = self.observations_for_scaling

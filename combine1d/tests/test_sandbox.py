@@ -231,12 +231,12 @@ class TestSandbox:
 
         # add all possible observations to test everything
         inversion_settings['observations']['fl_widths:m'] = {}
-        inversion_settings['obs_reg_parameters']['uncertainty']['fl_widths:m'] = 1.
+        inversion_settings['obs_scalingparameters']['uncertainty']['fl_widths:m'] = 1.
         inversion_settings['observations']['fl_total_area:m2'] = {}
-        inversion_settings['obs_reg_parameters']['uncertainty']['fl_total_area:m2'] = 1.
+        inversion_settings['obs_scaling_parameters']['uncertainty']['fl_total_area:m2'] = 1.
         # extracted from experiment creation
         inversion_settings['observations']['area:km2'] = {}
-        inversion_settings['obs_reg_parameters']['uncertainty']['area:km2'] = 1.
+        inversion_settings['obs_scaling_parameters']['uncertainty']['area:km2'] = 1.
 
         # add all possible control variables
         inversion_settings['control_vars'] = control_vars
