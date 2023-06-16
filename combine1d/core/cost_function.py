@@ -34,7 +34,7 @@ def create_cost_fct(data_logger):
     data_logger.parameter_indices = parameter_indices
 
     # define regularisation terms
-    define_regularisation_terms(data_logger)
+    define_scaling_terms(data_logger)
 
     def c_fun(unknown_parameters):
         return cost_fct(unknown_parameters,
@@ -121,8 +121,47 @@ def get_indices_for_unknown_parameters(data_logger):
     return parameter_indices
 
 
-def define_regularisation_terms(data_logger):
+def define_scaling_terms(data_logger):
 
+    # define scaling terms for observation stuff
+    if 'scale' in data_logger.obs_scaling_parameters.keys():
+        observations = data_logger.observations
+        scales = data_logger.obs_scaling_parameters['scale']
+        torch_type = data_logger.torch_type
+        device = data_logger.device
+
+        reg_parameters = copy.deepcopy(observations)
+
+        # reference Magnitude to scale to, arbitrary
+        ref_magnitude = 100.
+
+        # loop through Obs and choose reg_parameters to scale to the absolute value
+        # of Observation, the calculated reg_parameters are squared because the
+        # differences (obs-mdl) are also squared in cost calculation
+        for obs_val in observations.keys():
+            for year in observations[obs_val].keys():
+                # sum is needed for observations along the flowline
+                tmp_obs = np.sum(observations[obs_val][year])
+                reg_parameters[obs_val][year] = \
+                    np.power(ref_magnitude / tmp_obs * scales[obs_val], 2)
+
+        data_logger.obs_scaling_parameters = reg_parameters
+    elif 'uncertainty' in data_logger.obs_scaling_parameters.keys():
+        observations = data_logger.observations
+        scales = data_logger.obs_scaling_parameters['uncertainty']
+        torch_type = data_logger.torch_type
+        device = data_logger.device
+
+        reg_parameters = copy.deepcopy(observations)
+
+        for obs_val in observations.keys():
+            for year in observations[obs_val].keys():
+                reg_parameters[obs_val][year] = 1 / scales[obs_val]**2
+
+        data_logger.obs_scaling_parameters = reg_parameters
+
+    # define scaling terms for regularisation stuff
+    data_logger.reg_scaling_terms = {}
     for regularisation_term in data_logger.regularisation_terms.keys():
         if regularisation_term == 'smoothed_bed':
             fl = data_logger.flowline_init
@@ -136,10 +175,12 @@ def define_regularisation_terms(data_logger):
                                 fl.bed_h), axis=0)
             dx = fl.dx * fl.map_dx
             db_dx = (b[1:] - b[:-1]) / dx
-            smoothing_scale = np.mean(np.power(db_dx, 2))
+            smoothing_scale = np.sum(np.power(db_dx, 2))
 
             # the previously defined parameter acts as the lambda
-            data_logger.regularisation_terms['smoothed_bed'] /= smoothing_scale
+            data_logger.reg_scaling_terms['smoothed_bed'] = \
+                data_logger.regularisation_terms['smoothed_bed'] / \
+                smoothing_scale
         else:
             raise NotImplementedError(f'{regularisation_term}')
 
@@ -230,13 +271,18 @@ def cost_fct(unknown_parameters, data_logger):
 
     log.debug('get cost terms')
     # calculate terms of cost function
-    c_terms = get_cost_terms(observations_mdl,
-                             final_fl,  # for regularisation term 'smoothed_bed'
-                             data_logger  # for reg_parameters and observations
-                             )
+    c_terms, reg_terms = get_cost_terms(
+        observations_mdl,
+        final_fl,  # for regularisation term 'smoothed_bed'
+        data_logger  # for reg_parameters and observations
+        )
 
-    # sum up cost function terms
-    c = c_terms.sum()
+    # sum up cost function terms using cost lambda
+    cost_lambda = torch.tensor(data_logger.cost_lambda,
+                               dtype=data_logger.torch_type,
+                               device=data_logger.device,
+                               requires_grad=False)
+    c = c_terms.mean() + cost_lambda * reg_terms.mean()
 
     log.debug('gradient calculation')
     # calculate the gradient for the control variables
@@ -257,6 +303,7 @@ def cost_fct(unknown_parameters, data_logger):
     data_logger.save_data_in_datalogger('costs', cost)
     data_logger.save_data_in_datalogger('grads', grad)
     data_logger.save_data_in_datalogger('c_terms', c_terms)
+    data_logger.save_data_in_datalogger('reg_terms', reg_terms)
     data_logger.save_data_in_datalogger('unknown_parameters',
                                         unknown_parameters)
     data_logger.save_data_in_datalogger('time_needed',
@@ -556,40 +603,48 @@ def get_cost_terms(observations_mdl,
                                                                     observations,
                                                                     observations_mdl)
 
-    # see if reg parameters need to be specified otherwise this function does nothing
-    define_reg_parameters(data_logger)
+    assert 'scale' not in data_logger.obs_scaling_parameters.keys()
+    obs_scaling_parameters = data_logger.obs_scaling_parameters
 
-    assert 'scale' not in data_logger.obs_reg_parameters.keys()
-    reg_parameters = data_logger.obs_reg_parameters
-
-    # define number of cost terms
-    if data_logger.regularisation_terms is not None:
-        n_costs = nObs + len(data_logger.regularisation_terms.keys())
-    else:
-        n_costs = nObs
-
-    cost_terms = torch.zeros(n_costs,
+    # define number of cost terms and regularisation terms
+    cost_terms = torch.zeros(nObs,
                              dtype=data_logger.torch_type,
                              device=data_logger.device,
                              requires_grad=False)
+
+    reg_terms = torch.zeros(len(data_logger.regularisation_terms.keys()),
+                            dtype=data_logger.torch_type,
+                            device=data_logger.device,
+                            requires_grad=False
+                            )
 
     cost_terms_description = copy.deepcopy(data_logger.observations)
 
     # to keep track of current calculated cost term
     i_costs = 0
 
-    # calculate cost terms
+    # calculate individual cost terms
+    individual_c_terms = []
     for obs_var in dObs.keys():
         for year in dObs[obs_var].keys():
-            cost_terms[i_costs] = reg_parameters[obs_var][year] * \
-                                  dObs[obs_var][year]
+            obs_scale = torch.tensor(obs_scaling_parameters[obs_var][year],
+                                     dtype=data_logger.torch_type,
+                                     device=data_logger.device,
+                                     requires_grad=False)
+            cost_terms[i_costs] = obs_scale * dObs[obs_var][year]
 
-            cost_terms_description[obs_var][year] = \
-                cost_terms[i_costs].detach().to('cpu').numpy()
+            cost_term_np = cost_terms[i_costs].detach().to('cpu').numpy()
+            cost_terms_description[obs_var][year] = cost_term_np
+            individual_c_terms.append(cost_term_np)
 
             i_costs += 1
 
+    # save total mean J_obs
+    cost_terms_description['J_obs'] = np.mean(individual_c_terms)
+
     # calculate regularisation terms
+    i_costs = 0
+    individual_reg_terms = []
     for reg_term in data_logger.regularisation_terms.keys():
         if reg_term == 'smoothed_bed':
             b_fl = flowline.bed_h
@@ -600,14 +655,16 @@ def get_cost_terms(observations_mdl,
             b = torch.cat((b_extra, b_fl), dim=0)
             dx = flowline.dx * flowline.map_dx
             db_dx = (b[1:] - b[:-1]) / dx
-            reg_par = torch.tensor(data_logger.regularisation_terms[reg_term],
-                                   dtype=data_logger.torch_type,
-                                   device=data_logger.device,
-                                   requires_grad=False)
-            cost_terms[i_costs] = reg_par * db_dx.pow(2).mean()
+            reg_scale = torch.tensor(data_logger.reg_scaling_terms[reg_term],
+                                     dtype=data_logger.torch_type,
+                                     device=data_logger.device,
+                                     requires_grad=False)
+            reg_terms[i_costs] = reg_scale * db_dx.pow(2).sum()
 
-            cost_terms_description[reg_term] = \
-                cost_terms[i_costs].detach().to('cpu').numpy()
+            reg_term_np = reg_terms[i_costs].detach().to('cpu').numpy()
+            cost_terms_description[reg_term] = reg_term_np
+            individual_reg_terms.append(reg_term_np)
+
         elif reg_term in ['fl_surface_h_scale_1', 'fl_surface_h_scale_2',
                           'bed_h_grad_scale']:
             # this regularisation terms are handled elsewhere
@@ -616,12 +673,13 @@ def get_cost_terms(observations_mdl,
             raise NotImplementedError(f'{reg_term}')
         i_costs += 1
 
-    assert i_costs == n_costs
+    # save total mean J_reg
+    cost_terms_description['J_reg'] = np.mean(individual_reg_terms)
 
     data_logger.save_data_in_datalogger('c_terms_description',
                                         cost_terms_description)
 
-    return cost_terms
+    return cost_terms, reg_terms
 
 
 def calculate_difference_between_observation_and_model(data_logger,
@@ -677,82 +735,6 @@ def calculate_difference_between_observation_and_model(data_logger,
                                   observations_mdl[ob][year]).pow(2).mean()
 
     return dobs, nobs
-
-
-def define_reg_parameters(data_logger):
-    if 'scale' in data_logger.obs_reg_parameters.keys():
-        observations = data_logger.observations
-        scales = data_logger.obs_reg_parameters['scale']
-        torch_type = data_logger.torch_type
-        device = data_logger.device
-
-        reg_parameters = copy.deepcopy(observations)
-
-        # reference Magnitude to scale to, arbitrary
-        ref_magnitude = torch.tensor([100.],
-                                     dtype=torch_type,
-                                     device=device,
-                                     requires_grad=False)
-
-        # loop through Obs and choose reg_parameters to scale to the absolute value
-        # of Observation, the calculated reg_parameters are squared because the
-        # differences (obs-mdl) are also squared in cost calculation
-        for obs_val in observations.keys():
-            for year in observations[obs_val].keys():
-                # sum is needed for observations along the flowline
-                tmp_obs = torch.tensor(observations[obs_val][year],
-                                       dtype=torch_type,
-                                       device=device,
-                                       requires_grad=False).sum()
-                reg_parameters[obs_val][year] = (ref_magnitude / tmp_obs *
-                                                 torch.tensor(scales[obs_val],
-                                                              dtype=torch_type,
-                                                              device=device,
-                                                              requires_grad=False)
-                                                 ).pow(2)
-
-        data_logger.obs_reg_parameters = reg_parameters
-    elif 'uncertainty' in data_logger.obs_reg_parameters.keys():
-        observations = data_logger.observations
-        scales = data_logger.obs_reg_parameters['uncertainty']
-        torch_type = data_logger.torch_type
-        device = data_logger.device
-
-        reg_parameters = copy.deepcopy(observations)
-
-        for obs_val in observations.keys():
-            for year in observations[obs_val].keys():
-                if obs_val in ['fl_surface_h:m', 'fl_widths:m']:
-                    ref_uncertainty = 10.  # m
-                elif obs_val in ['fl_total_area:m2', 'area:m2']:
-                    # convert to km2 and back to m2 with 1e-6 resp. 1e6
-                    ref_uncertainty = (3 * 0.039 * 1e6 *
-                                       (observations[obs_val][year] * 1e-6) ** 1.7)  # m2
-                elif obs_val in ['fl_total_area:km2', 'area:km2']:
-                    ref_uncertainty = (3 * 0.039 *
-                                       (observations[obs_val][year]) ** 1.7)  # km2
-                elif obs_val == 'dmdtda:kg m-2 yr-1':
-                    # this uncertainties are estimated from the hugonnet dataset
-                    # utils.get_geodetic_mb_dataframe().loc[rgi_id][['err_dmdtda', 'period']]
-                    ref_uncertainty = {
-                        'RGI60-14.06794': 70,
-                        'RGI60-11.00897': 170,
-                        'RGI60-11.01450': 130,
-                        'RGI60-16.02444': 150,
-                        'RGI60-16.02207': 140,
-                    }[data_logger.gdir.rgi_id]
-                elif obs_val == 'us:myr-1':
-                    ref_uncertainty = 10  # m yr-1
-                else:
-                    raise NotImplementedError(f'No uncertainty defined for {obs_val}!')
-
-                reg_parameters[obs_val][year] = torch.tensor(
-                    scales[obs_val] * 1 / ref_uncertainty**2,
-                    dtype=torch_type,
-                    device=device,
-                    requires_grad=False)
-
-        data_logger.obs_reg_parameters = reg_parameters
 
 
 def detach_observations_mdl(observations_mdl_in):

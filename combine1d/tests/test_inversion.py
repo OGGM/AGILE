@@ -108,6 +108,7 @@ class TestInversion:
                                                   'maxcor': 50,
                                                   'maxls': 50,
                                                   'maxfun': 10}
+        inversion_settings['cost_lambda'] = 10.
         if control_vars == 'all':
             control_vars = all_supported_control_vars
         inversion_settings['control_vars'] = control_vars
@@ -130,6 +131,7 @@ class TestInversion:
         assert data_logger.minimize_status is not None
         assert data_logger.costs is not None
         assert data_logger.c_terms is not None
+        assert data_logger.reg_terms is not None
         assert data_logger.c_terms_description is not None
         assert data_logger.time_needed is not None
         assert data_logger.grads is not None
@@ -156,6 +158,32 @@ class TestInversion:
             ds_saved = pickle.load(handle)
         assert type(ds_saved) == xr.core.dataset.Dataset
         assert ds_saved.costs[0] > ds_saved.costs[-1]
+
+        # tests for individual cost term calculation here
+        individual_cost_terms = []
+        individual_reg_terms = []
+        for i in ds_saved.iteration:
+            for var in ds_saved.c_terms_desription[i].keys():
+                if var in ['dmdtda:kg m-2 yr-1', 'fl_surface_h:m']:
+                    individual_cost_terms.append(
+                        ds_saved.c_terms_desription[i][var])
+                elif var in ['smoothed_bed']:
+                    individual_reg_terms.append(
+                        ds_saved.c_terms_desription[i][var]
+                    )
+                elif var in ['J_obs', 'J_reg']:
+                    pass
+                else:
+                    raise NotImplementedError(f'{var}')
+
+            J_obs_mdl = ds_saved.c_terms_desription[i]['J_obs']
+            J_reg_mdl = ds_saved.c_terms_desription[i]['J_reg']
+            cost_mdl = ds_saved.costs[i]
+
+            assert J_obs_mdl == np.mean(individual_cost_terms)
+            assert J_reg_mdl == np.mean(individual_reg_terms)
+            assert cost_mdl == J_obs_mdl + ds_saved.attrs['cost_lambda'] * \
+                   J_reg_mdl
 
         # test past evolution
         assert hef_gdir.has_file(

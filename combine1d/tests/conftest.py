@@ -13,7 +13,7 @@ from combine1d.core.inversion import prepare_for_combine_inversion, get_default_
     get_control_var_bounds
 from combine1d.core.data_logging import initialise_DataLogger
 from combine1d.core.cost_function import get_indices_for_unknown_parameters, get_known_parameters, \
-    define_regularisation_terms
+    define_scaling_terms
 from distutils import dir_util
 
 
@@ -155,7 +155,7 @@ def data_logger(data_logger_init):
     parameter_indices = get_indices_for_unknown_parameters(data_logger)
     data_logger.parameter_indices = parameter_indices
 
-    define_regularisation_terms(data_logger)
+    define_scaling_terms(data_logger)
 
     get_control_var_bounds(data_logger)
 

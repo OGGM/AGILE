@@ -21,7 +21,7 @@ experiment_options = \
         'observations': {'obs1': ['fl_surface_h:m'],
                          #'obs2': ['fl_surface_h:m', 'dmdtda:kg m-2 yr-1'],
                          },
-        'obs_reg_parameters': {
+        'obs_scaling_parameters': {
             'obsreg1': {'uncertainty': {
                 'fl_surface_h:m': 1.,
                 'dmdtda:kg m-2 yr-1': 1.}},
@@ -77,9 +77,9 @@ default_inversion_settings_options = \
         # Options: fl_surface_h:m, fl_widths:m, fl_total_area:m2, fl_total_area:km2,
         # area:m2, area:km2, dmdtda:kg m-2 yr-1
         'observations': ['fl_surface_h:m', 'fl_total_area:km2', 'dmdtda:kg m-2 yr-1'],
-        'obs_reg_parameters': {'scale': {'fl_surface_h:m': 1.,
-                                         'fl_total_area:km2': 1.,
-                                         'dmdtda:kg m-2 yr-1': 1.}},
+        'obs_scaling_parameters': {'scale': {'fl_surface_h:m': 1.,
+                                             'fl_total_area:km2': 1.,
+                                             'dmdtda:kg m-2 yr-1': 1.}},
 
         # Options: 'smoothed_bed'
         'regularisation_terms': {'smoothed_bed': 1.},
