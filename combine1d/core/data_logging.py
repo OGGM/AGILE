@@ -138,7 +138,9 @@ class DataLogger(object):
     Iteration: {iteration:d}
     Total Function calls: {fct_call:d}
     Needed Time: {time_needed:.1f} s
-    Cost: {cost:.3f}
+    Cost: ({cost:.3e}) = J_obs ({J_obs:.3e}) + lam ({lambda:.1e}) * J_reg ({J_reg:.3e})
+    J_obs = mean({c_terms})
+    J_reg = mean({reg_terms})
     '''
 
     def add_true_bed(self):
@@ -167,12 +169,33 @@ class DataLogger(object):
         if i >= 0:
             # save the current index for the later cleaning of the data
             self.step_indices = np.append(self.step_indices, i)
+            # create c_terms and reg_terms string
+            c_terms_str = []
+            reg_terms_str = []
+            for key in self.c_terms_description[-1][0].keys():
+                if key in ['J_obs', 'J_reg']:
+                    continue
+                elif key in ['smoothed_bed']:
+                    reg_terms_str.append(
+                        f'{key}: {self.c_terms_description[-1][0][key]:.2e}')
+                else:
+                    # I assume it is an observation with years
+                    for year in self.c_terms_description[-1][0][key]:
+                        c_terms_str.append(
+                            f'{key} ({year}): '
+                            f'{self.c_terms_description[-1][0][key][year]:.2e}'
+                        )
             # define the arguments for the shown text
             args = {'experiment': self.filename,
                     'iteration': len(self.step_indices) - 1,
                     'fct_call': self.fct_calls[-1],
                     'time_needed': float(self.time_needed[-1]),
                     'cost': self.costs[-1][0],
+                    'J_obs': self.c_terms_description[-1][0]['J_obs'],
+                    'J_reg': self.c_terms_description[-1][0]['J_reg'],
+                    'lambda': self.cost_lambda,
+                    'c_terms': c_terms_str,
+                    'reg_terms': reg_terms_str
                     }
 
             # show text

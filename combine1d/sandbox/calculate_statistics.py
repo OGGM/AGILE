@@ -23,7 +23,7 @@ def add_0d_stats(x, y):
             'abs_diff': float(np.abs(x - y))}
 
 
-def calculate_result_statistics(gdir, data_logger):
+def calculate_result_statistics(gdir, data_logger, print_statistic=False):
     """calculate some statistics of the result for analysis"""
 
     # open the dataset of the run to add our calculated statistics
@@ -197,6 +197,62 @@ def calculate_result_statistics(gdir, data_logger):
                        data_logger.filename + '.pkl')
     with open(out, 'wb') as handle:
         pickle.dump(ds, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    if print_statistic:
+        # Here print the statistics in comparision to the default run
+
+        # open default statistics
+        fp_default = os.path.join(gdir.dir, 'default_oggm_statistics.pkl')
+        with open(fp_default, 'rb') as handle:
+            default_stats = pickle.load(handle)
+
+        # loop through the default statistics and show current
+        print('')
+        print('Statistic overview, values given as: current (oggm_dynamic, '
+              'oggm_static)')
+        for stat in default_stats.keys():
+            if '_dynamic' in stat:
+                stat_clean = stat.replace('_dynamic', '')
+                if stat_clean == 'observations_stats':
+                    print(f'{stat_clean}:')
+                    for obs in default_stats[stat].keys():
+                        for year in default_stats[stat][obs].keys():
+                            if obs not in ds.attrs[stat_clean].keys():
+                                continue
+                            print(f'    {obs} ({year}): ')
+                            for measure in default_stats[stat][obs][year].keys():
+                                if measure == 'diff':
+                                    continue
+                                current_val = ds.attrs[stat_clean][obs][year][measure]
+                                dynamic_val = default_stats[stat][obs][year][measure]
+                                static_val = \
+                                    default_stats[stat_clean + '_static'][obs][year][measure]
+                                print(f'        '
+                                      f'{measure}: {current_val:.2e} '
+                                      f'({dynamic_val:.2e}, {static_val:.2e})')
+                elif stat_clean in ['controls_stats', 'past_state_stats',
+                                    'today_state_stats', 'past_evol_stats',
+                                    'future_evol_stats']:
+                    if stat_clean not in ds.attrs.keys():
+                        continue
+                    print(f'{stat_clean}:')
+                    for var in default_stats[stat].keys():
+                        if var not in ds.attrs[stat_clean].keys():
+                            continue
+                        print(f'    {var}: ')
+                        for measure in default_stats[stat][var].keys():
+                            if measure == 'diff':
+                                continue
+                            current_val = ds.attrs[stat_clean][var][measure]
+                            dynamic_val = default_stats[stat][var][measure]
+                            static_val = \
+                                default_stats[stat_clean + '_static'][var][measure]
+                            print(f'        '
+                                  f'{measure}: {current_val:.2e} '
+                                  f'({dynamic_val:.2e}, {static_val:.2e})')
+
+                else:
+                    raise NotImplementedError(f'{stat_clean}')
 
 
 def calculate_default_oggm_statistics(gdir):

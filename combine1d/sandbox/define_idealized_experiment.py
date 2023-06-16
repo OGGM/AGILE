@@ -22,7 +22,8 @@ def idealized_experiment(use_experiment_glaciers,
                          params_file=None, override_params=None,
                          logging_level='WORKFLOW',
                          gcm='BCC-CSM2-MR',
-                         ssp='ssp370'):
+                         ssp='ssp370',
+                         print_statistic=True):
     # Local paths
     if override_params is None:
         override_params = {}
@@ -70,7 +71,8 @@ def idealized_experiment(use_experiment_glaciers,
                                     ))
 
     workflow.execute_entity_task(conduct_sandbox_inversion, all_experiments,
-                                 gcm=gcm, ssp=ssp)
+                                 gcm=gcm, ssp=ssp,
+                                 print_statistic=print_statistic)
 
     print('Experiments finished!')
     return gdirs
@@ -106,7 +108,8 @@ def conduct_sandbox_inversion(gdir, inversion_settings=None,
                               output_folder=None,
                               init_model_fls='_combine_first_guess',
                               gcm='BCC-CSM2-MR',
-                              ssp='ssp370'):
+                              ssp='ssp370',
+                              print_statistic=True):
     """TODO"""
 
     # check if mb_model_settings should be loaded from gdir
@@ -150,4 +153,5 @@ def conduct_sandbox_inversion(gdir, inversion_settings=None,
     add_future_projection_run(gdir, data_logger=data_logger, gcm=gcm, ssp=ssp)
 
     calculate_result_statistics(gdir,
-                                data_logger=data_logger)
+                                data_logger=data_logger,
+                                print_statistic=print_statistic)
