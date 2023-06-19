@@ -276,18 +276,6 @@ def prepare_for_combine_inversion(gdir, inversion_settings=None,
     gdir.write_pickle(inversion_settings, filename='inversion_input',
                       filesuffix=filesuffix)
 
-    # if dynamic model is implicit, initialise trapezoidal flowline here
-    if inversion_settings['dynamic_model'] == 'implicit':
-        cfg.PARAMS['downstream_line_shape'] = 'trapezoidal'
-        workflow.execute_entity_task(tasks.init_present_time_glacier, [gdir],
-                                     filesuffix='_trapezoidal')
-        fls = gdir.read_pickle('model_flowlines',
-                               filesuffix='_trapezoidal')
-        if ~np.all(fls[0].is_trapezoid):
-            raise ValueError('Implicit model only works with a pure '
-                             'trapezoidal flowline! You should use the '
-                             'elevation band flowlines of OGGM!')
-
 
 def get_control_var_bounds(data_logger):
     bounds = np.zeros(data_logger.len_unknown_parameter, dtype='object')
