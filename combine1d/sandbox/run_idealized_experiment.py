@@ -31,7 +31,7 @@ def parse_args(args):
     parser.add_argument('--experiment_file', type=str,
                         help='path to the experiment file, containing the '
                              'different experiments with their settings')
-    parser.add_argument('--print_statistics', nargs='?', const=True,
+    parser.add_argument('--print_statistic', nargs='?', const=True,
                         default=False,
                         help='If the idealized statistics should be printed '
                              'out after each run.')
