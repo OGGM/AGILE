@@ -666,7 +666,6 @@ class FlowlineModelTorch(FlowlineModelOGGM):
 
         # is needed so that run_until_and_store is working, because not
         # everything is supported right now
-        cfg.PARAMS['dynamic_spinup_min_ice_thick'] = None
         cfg.PARAMS['store_diagnostic_variables'] = ['volume', 'area', 'length']
 
         # Defaults conversion to PyTorch tensor
