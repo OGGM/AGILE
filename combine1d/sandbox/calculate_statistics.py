@@ -65,14 +65,8 @@ def calculate_result_statistics(gdir, data_logger, print_statistic=False):
                                 filesuffix='_combine_true_init')[0]
     for control_var in controls_mdl:
         if control_var in ['bed_h', 'area_bed_h']:
-            if control_var == 'area_bed_h':
-                obs_scal_key = 'observations_for_scaling'
-                scaling_fct = \
-                    ds.attrs[obs_scal_key]['fl_widths:m'][ds.ice_mask.values]
-            else:
-                scaling_fct = np.array([1])
             controls_true[control_var] = \
-                fls_true.bed_h[ds.ice_mask.values] / scaling_fct
+                fls_true.bed_h[ds.ice_mask.values]
         elif control_var in ['lambdas', 'w0_m']:
             controls_true[control_var] = \
                 getattr(fls_true, f'_{control_var}')[ds.ice_mask.values]
@@ -84,8 +78,14 @@ def calculate_result_statistics(gdir, data_logger, print_statistic=False):
     controls_stats = {}
     for control_var in controls_mdl.keys():
         if control_var in ['bed_h', 'area_bed_h', 'lambdas', 'w0_m']:
+            if control_var == 'area_bed_h':
+                obs_scal_key = 'observations_for_scaling'
+                scaling_fct = \
+                    ds.attrs[obs_scal_key]['fl_widths:m'][ds.ice_mask.values]
+            else:
+                scaling_fct = np.array([1])
             controls_stats[control_var] = add_1d_stats(
-                controls_mdl[control_var],
+                controls_mdl[control_var] / scaling_fct,
                 controls_true[control_var])
         elif control_var in ['height_shift_spinup']:
             controls_stats[control_var] = add_0d_stats(
@@ -364,16 +364,8 @@ def calculate_default_oggm_statistics(gdir):
 
         for control_var in all_control_vars:
             if control_var in ['bed_h', 'area_bed_h']:
-                if control_var == 'area_bed_h':
-                    # should be tha same for mdl and true
-                    scaling_fct = fls_true.widths_m
-                    assert np.allclose(fls_mdl.widths_m, fls_true.widths_m)
-                else:
-                    scaling_fct = np.array([1])
-                controls_mdl[control_var] = \
-                    fls_mdl.bed_h / scaling_fct
-                controls_true[control_var] = \
-                    fls_true.bed_h / scaling_fct
+                controls_mdl[control_var] = fls_mdl.bed_h
+                controls_true[control_var] = fls_true.bed_h
 
             elif control_var in ['lambdas', 'w0_m']:
                 controls_mdl[control_var] = getattr(fls_mdl, f'_{control_var}')
