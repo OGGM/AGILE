@@ -305,7 +305,7 @@ def cost_fct(unknown_parameters, data_logger):
     data_logger.save_data_in_datalogger('c_terms', c_terms)
     data_logger.save_data_in_datalogger('reg_terms', reg_terms)
     data_logger.save_data_in_datalogger('unknown_parameters',
-                                        unknown_parameters)
+                                        unknown_parameters_descaled)
     data_logger.save_data_in_datalogger('time_needed',
                                         time.time() - data_logger.start_time)
 
