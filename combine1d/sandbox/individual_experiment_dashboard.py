@@ -85,25 +85,46 @@ def individual_experiment_dashboard(working_dir, input_folder,
     all_glaciers = []
     all_experiments = []
 
+    # only keep experiment files
+    all_files = [file_tmp for file_tmp in all_files if '.pkl' in file_tmp]
+
     open_files = {}
 
     for file in all_files:
         # file = all_files[0]
-        glacier_experiment, experiment_settings = file.split('-')
+        splits = file.split('_')
+        splits = [single_split.removesuffix('.pkl') for single_split in splits]
 
-        # get glacier and experiment
-        glacier = glacier_experiment.split('_')[0]
+        # first is always glacier
+        glacier = splits[0]
         if glacier not in all_glaciers:
             all_glaciers.append(glacier)
-        experiment = '_'.join(glacier_experiment.split('_')[1:])
+
+        # loop through the rest, if three characters followed by numbers it is
+        # an experiment setting
+        experiment = ''
+        experiment_settings_tmp = []
+        for single_split in splits[1:]:
+            # find out if it has 3 characters followed only by numbers, if so
+            # is is an experiment setting
+            if len(single_split) > 3:
+                if single_split[:3].isalpha() and splits[3][3:].isdigit():
+                    if single_split not in experiment_settings_tmp:
+                        experiment_settings_tmp.append(single_split)
+                        continue
+            # add it to the experiment
+            if experiment == '':
+                experiment = single_split
+            else:
+                experiment += f'_{single_split}'
+
         if experiment not in all_experiments:
             all_experiments.append(experiment)
             all_experiment_settings[experiment] = []
 
         # get different settings
-        experiment_settings = os.path.splitext(experiment_settings)[0]
-        for exp_set in experiment_settings.split('_'):
-            if exp_set != '' and exp_set not in all_experiment_settings[experiment]:
+        for exp_set in experiment_settings_tmp:
+            if exp_set not in all_experiment_settings[experiment]:
                 all_experiment_settings[experiment].append(exp_set)
 
     all_experiment_settings[experiment].sort()
@@ -323,6 +344,7 @@ def individual_experiment_dashboard(working_dir, input_folder,
             for var in term.keys():
                 var_use = var.replace(':', '_')
                 var_use = var_use.replace('-', '')
+                var_use = var_use.replace(' ', '_')
                 if type(term[var]) == dict:
                     yr = list(term[var].keys())[0]
                     yr_use = yr.replace('-', '_')
@@ -369,6 +391,18 @@ def individual_experiment_dashboard(working_dir, input_folder,
                                                             height=200,
                                                             legend_position='left',
                                                             title='Cost Terms')
+
+        cost_data = []
+        for i, unknown_p in enumerate(ds.costs):
+            cost_data.append(
+                (i, unknown_p))
+        cost_plot = hv.Curve(cost_data,
+                             kdims='Iterations',
+                             vdims='(unitless)',
+                             ).opts(
+                opts.Curve(title='Cost fct',
+                           tools=['hover'],
+                           height=200))
 
         # calculate differences of surface height at start, rgi and end
         for gdir in gdirs:
@@ -453,6 +487,20 @@ def individual_experiment_dashboard(working_dir, input_folder,
         else:
             delta_sfc_h_rgi_plot = None
             delta_sfc_h_rgi_table = None
+
+        # dmdtda plot
+        dmdtda_data = []
+        for i, unknown_p in enumerate(ds.observations_mdl):
+            dmdtda_data.append(
+                (i, unknown_p.item()['dmdtda:kg m-2 yr-1']['2000-2020']))
+        dmdtda_true = ds.observations['dmdtda:kg m-2 yr-1']['2000-2020']
+        delta_dmdtda_plot = hv.Curve(dmdtda_data,
+                                     kdims='Iterations',
+                                     vdims='(kg m-2 yr)',
+                                     ).opts(
+                opts.Curve(title=f'dmdtda (true = {dmdtda_true:.1f})',
+                           tools=['hover'],
+                           height=200))
 
         # sfc_h_start
         d_sfc_h_start_lim = 0.
@@ -564,15 +612,24 @@ def individual_experiment_dashboard(working_dir, input_folder,
 
         x_all = ds.coords['x'].values
         surface_widths_rgi_true_plot = get_width_curve(x_all,
-                                                       fl_ref_rgi.widths_m,
+                                                       np.where(
+                                                           fl_ref_rgi.thick > 0,
+                                                           fl_ref_rgi.widths_m,
+                                                           0.),
                                                        'RGI',
                                                        'blue')
         surface_widths_start_true_plot = get_width_curve(x_all,
-                                                         fl_ref_start.widths_m,
+                                                         np.where(
+                                                             fl_ref_rgi.thick > 0,
+                                                             fl_ref_start.widths_m,
+                                                             0),
                                                          'Start',
                                                          'red')
         surface_widths_end_true_plot = get_width_curve(x_all,
-                                                       fl_ref_end.widths_m,
+                                                       np.where(
+                                                           fl_ref_rgi.thick > 0,
+                                                           fl_ref_end.widths_m,
+                                                           0),
                                                        'End',
                                                        'gray')
         widths_plot = (surface_widths_start_true_plot *
@@ -632,12 +689,14 @@ def individual_experiment_dashboard(working_dir, input_folder,
                                                ),
                                      grad_plots
                                  ),
-                                 pn.Row(c_terms_plot,
-                                        sizing_mode='stretch_width'),
+                                 pn.Column(c_terms_plot,
+                                           cost_plot,
+                                           sizing_mode='stretch_width'),
                              ),
                              pn.Column(delta_sfc_h_start_plot,
                                        delta_sfc_h_rgi_plot,
                                        delta_sfc_h_end_plot,
+                                       delta_dmdtda_plot,
                                        delta_sfc_h_start_table,
                                        delta_sfc_h_rgi_table,
                                        delta_sfc_h_end_table,
@@ -697,6 +756,7 @@ def individual_experiment_dashboard(working_dir, input_folder,
                     try:
                         open_files[current_file] = pickle.load(handle)
                     except:
+                        print('in except')
                         open_files[current_file] = CpuUnpickler(handle).load()
                     # pickle.load(handle,)
 
