@@ -271,7 +271,7 @@ class TestSandbox:
                 obs_key_name = obs_key.split(':')[0]
                 for year_key in ds.attrs[ds_key][obs_key].keys():
                     if obs_key_name in ['fl_surface_h', 'fl_widths']:
-                        test_metrics = ['rmsd', 'mean_ad', 'max_ad']
+                        test_metrics = ['rmsd', 'mean_ad', 'max_ad', 'bias']
                     elif obs_key_name in ['fl_total_area', 'area', 'dmdtda']:
                         test_metrics = ['diff', 'abs_diff']
                     else:
@@ -291,7 +291,7 @@ class TestSandbox:
             assert ds_key_oggm in ds_default_stats.keys()
             for control_key in ds.attrs[ds_key].keys():
                 if control_key in ['bed_h', 'area_bed_h', 'lambdas', 'w0_m']:
-                    test_metrics = ['rmsd', 'mean_ad', 'max_ad']
+                    test_metrics = ['rmsd', 'mean_ad', 'max_ad', 'bias']
                     test_default = True
                 elif control_key in ['height_shift_spinup']:
                     test_metrics = ['diff', 'abs_diff']
@@ -313,7 +313,7 @@ class TestSandbox:
             assert ds_key in ds.attrs.keys()
             assert ds_key_oggm in ds_default_stats.keys()
             for var in ['thick', 'area_m2', 'volume_m3']:
-                test_metrics = ['rmsd', 'mean_ad', 'max_ad', 'diff']
+                test_metrics = ['rmsd', 'mean_ad', 'max_ad', 'diff', 'bias']
                 for metric in test_metrics:
                     if metric == 'diff':
                         if var != 'thick':
@@ -338,7 +338,7 @@ class TestSandbox:
             assert ds_key in ds.attrs.keys()
             assert ds_key_oggm in ds_default_stats.keys()
             for var in ['volume_m3', 'area_m2']:
-                test_metrics = ['rmsd', 'mean_ad', 'max_ad']
+                test_metrics = ['rmsd', 'mean_ad', 'max_ad', 'bias']
                 for metric in test_metrics:
                     assert metric in ds.attrs[ds_key][var].keys()
                     assert metric in ds_default_stats[ds_key_oggm][var].keys()
@@ -353,7 +353,7 @@ class TestSandbox:
             assert ds_key in ds.attrs.keys()
             assert ds_key_oggm in ds_default_stats.keys()
             for var in ['thick', 'area_m2', 'volume_m3']:
-                test_metrics = ['rmsd', 'mean_ad', 'max_ad', 'diff']
+                test_metrics = ['rmsd', 'mean_ad', 'max_ad', 'diff', 'bias']
                 for metric in test_metrics:
                     if metric == 'diff':
                         if var != 'thick':
@@ -377,7 +377,7 @@ class TestSandbox:
             assert ds_key in ds.attrs.keys()
             assert ds_key_oggm in ds_default_stats.keys()
             for var in ['volume_m3', 'area_m2']:
-                test_metrics = ['rmsd', 'mean_ad', 'max_ad']
+                test_metrics = ['rmsd', 'mean_ad', 'max_ad', 'bias']
                 for metric in test_metrics:
                     assert metric in ds.attrs[ds_key][var].keys()
                     assert metric in ds_default_stats[ds_key_oggm][var].keys()

@@ -6,15 +6,21 @@ from oggm import utils, cfg
 
 
 # define which statistic we want to compute for different types of data
+def bias(a1, a2):
+    return (a1 - a2).mean().item()
+
+
 def add_1d_stats(x, y):
     diff = x - y
     rms_deviation = utils.rmsd(x, y)
     mean_absolute_deviation = utils.mad(x, y)
     max_absolute_deviation = np.max(np.abs(x - y))
+    bias_deviation = bias(x, y)
 
     return {'rmsd': float(rms_deviation),
             'mean_ad': float(mean_absolute_deviation),
             'max_ad': float(max_absolute_deviation),
+            'bias': float(bias_deviation),
             'diff': diff}
 
 
