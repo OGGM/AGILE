@@ -6,6 +6,10 @@ use_experiment_glaciers = ['Baltoro',  # 'Hintereisferner'  # 'Aletsch',
                            # 'Artesonraju', 'Shallap'
                            ]
 
+# here you can define glacier specific settings
+# {'RGI_ID': {'individual_setting_1': value}}
+inversion_settings_individual = None
+
 # general description of the current experiments
 general_description = 'test_functionality'
 

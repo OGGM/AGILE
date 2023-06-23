@@ -224,7 +224,7 @@ class TestSandbox:
                              ids=['area_bed_h', 'bed_h'])
     def test_run_idealized_experiment(self, test_dir, control_vars):
 
-        experiment_glacier = ['Aletsch']
+        experiment_glacier = ['Aletsch', 'Artesonraju']
 
         inversion_settings = get_default_inversion_settings()
         inversion_settings['minimize_options']['maxiter'] = 3
@@ -241,12 +241,46 @@ class TestSandbox:
         # add all possible control variables
         inversion_settings['control_vars'] = control_vars
 
-        gdirs = idealized_experiment(use_experiment_glaciers=experiment_glacier,
-                                     inversion_settings_all=[inversion_settings],
-                                     working_dir=test_dir,
-                                     output_folder=test_dir,
-                                     override_params={'border': 160,
-                                                      'cfl_number': 0.5})
+        # test individual settings
+        inversion_settings_individual = {
+            'RGI60-11.01450': {
+                'spinup_options': {
+                    'height_shift': {
+                        'mb_model': {'type': 'constant',
+                                     'years': np.array([1980, 2000]),
+                                     'fg_height_shift': -140},
+                        'spinup_length_yrs': 20}},
+            },
+            'RGI60-16.02444': {
+                'spinup_options': {
+                    'height_shift': {
+                        'mb_model': {'type': 'constant',
+                                     'years': np.array([1980, 2000]),
+                                     'fg_height_shift': -52},
+                        'spinup_length_yrs': 20}},
+            }
+        }
+
+        gdirs = idealized_experiment(
+            use_experiment_glaciers=experiment_glacier,
+            inversion_settings_all=[inversion_settings],
+            inversion_settings_individual=inversion_settings_individual,
+            working_dir=test_dir,
+            output_folder=test_dir,
+            override_params={'border': 160,
+                             'cfl_number': 0.5})
+
+        # test if individual inversion settings are correctly used
+        for gdir in gdirs:
+            inv_setting = gdir.read_pickle(filename='inversion_input',
+                                           filesuffix='COMBINE_inversion_results')
+            fg_hs = inv_setting['spinup_options']['height_shift']['mb_model']['fg_height_shift']
+            if gdir.rgi_id == 'RGI60-11.01450':
+                assert fg_hs == -140
+            elif gdir.rgi_id == 'RGI60-16.02444':
+                assert fg_hs == -52
+            else:
+                raise NotImplementedError(f'{gdir.rgi_id}')
 
         # open final dataset
         fp = os.path.join(test_dir,

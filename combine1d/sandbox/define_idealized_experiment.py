@@ -19,6 +19,7 @@ log = logging.getLogger(__name__)
 def idealized_experiment(use_experiment_glaciers,
                          inversion_settings_all,
                          working_dir, output_folder,
+                         inversion_settings_individual=None,
                          params_file=None, override_params=None,
                          logging_level='WORKFLOW',
                          gcm='BCC-CSM2-MR',
@@ -66,7 +67,16 @@ def idealized_experiment(use_experiment_glaciers,
     all_experiments = []
     for inv_setting in inversion_settings_all:
         for gdir in gdirs:
-            all_experiments.append((gdir, dict(inversion_settings=inv_setting,
+            inv_setting_use = copy.deepcopy(inv_setting)
+            if inversion_settings_individual is not None:
+                try:
+                    individual_setting = inversion_settings_individual[gdir.rgi_id]
+                    for key in individual_setting.keys():
+                        inv_setting_use[key] = individual_setting[key]
+                except KeyError:
+                    # if no individual settings for this glacier move on
+                    pass
+            all_experiments.append((gdir, dict(inversion_settings=inv_setting_use,
                                                output_folder=output_folder)
                                     ))
 
