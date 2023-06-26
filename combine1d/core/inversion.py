@@ -214,6 +214,10 @@ def get_default_inversion_settings(get_doc=False):
            "{'type': 'constant', 'years': np.array([1980, 2000]), " \
            "'fg_height_shift': -100," \
            "'spinup_length_yrs': 30}}}). " \
+           "Third Option is more for idealized experiments. It means you " \
+           "provide perfectly known initial surface height or initial ice " \
+           "thickness. You must provide the filesuffix of the initial " \
+           "flowline. e.g. {'perfect_sfc_h/perfect_thickness': 'filesuffix'}." \
            "Default: {'height_shift':" \
            "    {'mb_model': {'type': 'constant'," \
            "                  'years': np.array([1980, 2000]), " \
