@@ -63,6 +63,18 @@ class DataLogger(object):
         elif 'height_shift' in list(self.spinup_options.keys()):
             spinup_type = 'height_shift_spinup'
             inversion_input['control_vars'].append(spinup_type)
+        elif list(self.spinup_options.keys())[0] in ['perfect_sfc_h',
+                                                     'perfect_thickness']:
+            spinup_type = list(self.spinup_options.keys())[0]
+            fls_true_init = gdir.read_pickle(
+                'model_flowlines',
+                filesuffix=self.spinup_options[spinup_type])[0]
+            if spinup_type == 'perfect_sfc_h':
+                self.perfect_spinup_value = fls_true_init.surface_h
+            elif spinup_type == 'perfect_thickness':
+                self.perfect_spinup_value = fls_true_init.thick
+            else:
+                raise NotImplementedError(f'{spinup_type}')
         else:
             raise NotImplementedError
         self.spinup_type = spinup_type

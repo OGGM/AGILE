@@ -1,3 +1,4 @@
+import copy
 import matplotlib.pyplot as plt
 import pytest
 import xarray as xr
@@ -419,6 +420,67 @@ class TestSandbox:
                                       float)
                     assert isinstance(ds_default_stats[ds_key_oggm][var][metric],
                                       float)
+
+    def test_perfect_spinup(self, test_dir):
+
+        experiment_glacier = ['Aletsch']
+
+        inversion_settings = get_default_inversion_settings()
+        inversion_settings['minimize_options']['maxiter'] = 3
+
+        # add all possible observations to test everything
+        inversion_settings['observations']['fl_widths:m'] = {}
+        inversion_settings['obs_scaling_parameters']['uncertainty']['fl_widths:m'] = 1.
+        inversion_settings['observations']['fl_total_area:m2'] = {}
+        inversion_settings['obs_scaling_parameters']['uncertainty']['fl_total_area:m2'] = 1.
+        # extracted from experiment creation
+        inversion_settings['observations']['area:km2'] = {}
+        inversion_settings['obs_scaling_parameters']['uncertainty']['area:km2'] = 1.
+
+        inversion_settings1 = copy.deepcopy(inversion_settings)
+        inversion_settings2 = copy.deepcopy(inversion_settings)
+
+        # test perfect spinup options
+        inversion_settings1['spinup_options'] = {'perfect_sfc_h':
+                                                 '_creation_spinup'}
+        inversion_settings2['spinup_options'] = {'perfect_thickness':
+                                                 '_creation_spinup'}
+        inversion_settings1['experiment_description'] = 'perfect_sfc_h_spinup'
+        inversion_settings2['experiment_description'] = 'perfect_thickness_spinup'
+
+        gdirs = idealized_experiment(
+            use_experiment_glaciers=experiment_glacier,
+            inversion_settings_all=[inversion_settings1, inversion_settings2],
+            working_dir=test_dir,
+            output_folder=test_dir,
+            override_params={'border': 160,
+                             'cfl_number': 0.5})
+
+        fl_true_init = gdirs[0].read_pickle('model_flowlines',
+                                            filesuffix='_creation_spinup')[0]
+        # some tests for perfect sfc_h spinup
+        fp = os.path.join(test_dir,
+                          'Aletsch_perfect_sfc_h_spinup.pkl')
+        with open(fp, 'rb') as handle:
+            ds_perfect_sfc_h = pickle.load(handle)
+
+        for i in range(4):
+            # only compare where no negative thickness is defined with perfect
+            # surface height
+            index_thick = ds_perfect_sfc_h.flowline_init.thick > 0
+            assert np.allclose(ds_perfect_sfc_h.sfc_h_start[i][index_thick][:-10],
+                               fl_true_init.surface_h[index_thick][:-10])
+
+        fp = os.path.join(test_dir,
+                          'Aletsch_perfect_thickness_spinup.pkl')
+        with open(fp, 'rb') as handle:
+            ds_perfect_thickness = pickle.load(handle)
+
+        for i in range(4):
+            model_thick = (ds_perfect_thickness.sfc_h_start[i] -
+                           ds_perfect_thickness.flowlines[i].item().bed_h)
+            assert np.allclose(model_thick,
+                               fl_true_init.thick)
 
     def test_StackedMassBalance(self, test_dir):
         cfg.initialize(logging_level='WARNING')

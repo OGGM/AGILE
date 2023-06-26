@@ -242,7 +242,8 @@ def cost_fct(unknown_parameters, data_logger):
             cost = np.array(np.Inf)
             grad = np.empty(len(unknown_parameters)) * np.nan
             return cost, grad
-    elif data_logger.spinup_type not in [None, 'surface_h']:
+    elif data_logger.spinup_type not in [None, 'surface_h', 'perfect_sfc_h',
+                                         'perfect_thickness']:
         raise NotImplementedError(f'The spinup option {data_logger.spinup_type} '
                                   'is not implemented!')
 
@@ -475,10 +476,34 @@ def initialise_flowline(unknown_parameters, data_logger):
                     prefix = '_'
                 else:
                     prefix = ''
-                fl_vars_total[var] = torch.tensor(getattr(fl_init, prefix + var),
-                                                  dtype=torch_type,
-                                                  device=device,
-                                                  requires_grad=False)
+
+                if var == 'surface_h' and \
+                    data_logger.spinup_type in ['perfect_sfc_h',
+                                                'perfect_thickness']:
+                    if data_logger.spinup_type == 'perfect_sfc_h':
+                        perfect_sfc_h = torch.tensor(
+                            data_logger.perfect_spinup_value,
+                            dtype=torch_type,
+                            device=device,
+                            requires_grad=False)
+                        fl_vars_total['surface_h'] = perfect_sfc_h
+                    elif data_logger.spinup_type == 'perfect_thickness':
+                        perfect_thickness = torch.tensor(
+                            data_logger.perfect_spinup_value,
+                            dtype=torch_type,
+                            device=device,
+                            requires_grad=False)
+                    else:
+                        raise NotImplementedError(f'{data_logger.spinup_options}')
+                else:
+                    fl_vars_total[var] = torch.tensor(
+                        getattr(fl_init, prefix + var),
+                        dtype=torch_type,
+                        device=device,
+                        requires_grad=False)
+
+    if data_logger.spinup_type == 'perfect_thickness':
+        fl_vars_total['surface_h'] = perfect_thickness + fl_vars_total['bed_h']
 
     fl = MixedBedFlowline(line=fl_init.line,
                           dx=fl_init.dx,

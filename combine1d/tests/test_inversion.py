@@ -87,7 +87,7 @@ class TestInversion:
                                                   'fg_height_shift': -100},
                                              'spinup_length_yrs': 20
                                              }
-                            }
+                            },
                            ],
         ids=['No_spinup',
              'sfc_h_spinup',
