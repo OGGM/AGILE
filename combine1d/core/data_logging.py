@@ -64,7 +64,8 @@ class DataLogger(object):
             spinup_type = 'height_shift_spinup'
             inversion_input['control_vars'].append(spinup_type)
         elif list(self.spinup_options.keys())[0] in ['perfect_sfc_h',
-                                                     'perfect_thickness']:
+                                                     'perfect_thickness',
+                                                     'perfect_section']:
             spinup_type = list(self.spinup_options.keys())[0]
             fls_true_init = gdir.read_pickle(
                 'model_flowlines',
@@ -73,6 +74,8 @@ class DataLogger(object):
                 self.perfect_spinup_value = fls_true_init.surface_h
             elif spinup_type == 'perfect_thickness':
                 self.perfect_spinup_value = fls_true_init.thick
+            elif spinup_type == 'perfect_section':
+                self.perfect_spinup_value = fls_true_init.section
             else:
                 raise NotImplementedError(f'{spinup_type}')
         else:

@@ -243,7 +243,8 @@ def cost_fct(unknown_parameters, data_logger):
             grad = np.empty(len(unknown_parameters)) * np.nan
             return cost, grad
     elif data_logger.spinup_type not in [None, 'surface_h', 'perfect_sfc_h',
-                                         'perfect_thickness']:
+                                         'perfect_thickness',
+                                         'perfect_section']:
         raise NotImplementedError(f'The spinup option {data_logger.spinup_type} '
                                   'is not implemented!')
 
@@ -479,7 +480,8 @@ def initialise_flowline(unknown_parameters, data_logger):
 
                 if var == 'surface_h' and \
                     data_logger.spinup_type in ['perfect_sfc_h',
-                                                'perfect_thickness']:
+                                                'perfect_thickness',
+                                                'perfect_section']:
                     if data_logger.spinup_type == 'perfect_sfc_h':
                         perfect_sfc_h = torch.tensor(
                             data_logger.perfect_spinup_value,
@@ -493,6 +495,13 @@ def initialise_flowline(unknown_parameters, data_logger):
                             dtype=torch_type,
                             device=device,
                             requires_grad=False)
+                    elif data_logger.spinup_type == 'perfect_section':
+                        fl_vars_total['surface_h'] = torch.tensor(
+                            getattr(fl_init, prefix + var) * 0,
+                            dtype=torch_type,
+                            device=device,
+                            requires_grad=False
+                        )
                     else:
                         raise NotImplementedError(f'{data_logger.spinup_options}')
                 else:
@@ -519,6 +528,14 @@ def initialise_flowline(unknown_parameters, data_logger):
                           water_level=fl_init.water_level,
                           torch_type=torch_type,
                           device=device)
+
+    if data_logger.spinup_type == 'perfect_section':
+        fl.section = torch.tensor(
+            data_logger.perfect_spinup_value,
+            dtype=torch_type,
+            device=device,
+            requires_grad=False
+        )
 
     return fl
 

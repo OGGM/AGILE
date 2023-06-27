@@ -216,8 +216,10 @@ def get_default_inversion_settings(get_doc=False):
            "'spinup_length_yrs': 30}}}). " \
            "Third Option is more for idealized experiments. It means you " \
            "provide perfectly known initial surface height or initial ice " \
-           "thickness. You must provide the filesuffix of the initial " \
-           "flowline. e.g. {'perfect_sfc_h/perfect_thickness': 'filesuffix'}." \
+           "thickness or initial section (volume). You must provide the" \
+           "filesuffix of the true initial flowline." \
+           "e.g. {'perfect_sfc_h/perfect_thickness/perfect_section': " \
+           "'filesuffix'}." \
            "Default: {'height_shift':" \
            "    {'mb_model': {'type': 'constant'," \
            "                  'years': np.array([1980, 2000]), " \
