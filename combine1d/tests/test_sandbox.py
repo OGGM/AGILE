@@ -439,18 +439,24 @@ class TestSandbox:
 
         inversion_settings1 = copy.deepcopy(inversion_settings)
         inversion_settings2 = copy.deepcopy(inversion_settings)
+        inversion_settings3 = copy.deepcopy(inversion_settings)
 
         # test perfect spinup options
         inversion_settings1['spinup_options'] = {'perfect_sfc_h':
                                                  '_creation_spinup'}
         inversion_settings2['spinup_options'] = {'perfect_thickness':
                                                  '_creation_spinup'}
+        inversion_settings3['spinup_options'] = {'perfect_section':
+                                                 '_creation_spinup'}
         inversion_settings1['experiment_description'] = 'perfect_sfc_h_spinup'
         inversion_settings2['experiment_description'] = 'perfect_thickness_spinup'
+        inversion_settings3['experiment_description'] = 'perfect_section_spinup'
 
         gdirs = idealized_experiment(
             use_experiment_glaciers=experiment_glacier,
-            inversion_settings_all=[inversion_settings1, inversion_settings2],
+            inversion_settings_all=[inversion_settings1,
+                                    inversion_settings2,
+                                    inversion_settings3],
             working_dir=test_dir,
             output_folder=test_dir,
             override_params={'border': 160,
@@ -471,6 +477,7 @@ class TestSandbox:
             assert np.allclose(ds_perfect_sfc_h.sfc_h_start[i][index_thick][:-10],
                                fl_true_init.surface_h[index_thick][:-10])
 
+        # some tests for perfect thickness
         fp = os.path.join(test_dir,
                           'Aletsch_perfect_thickness_spinup.pkl')
         with open(fp, 'rb') as handle:
@@ -481,6 +488,22 @@ class TestSandbox:
                            ds_perfect_thickness.flowlines[i].item().bed_h)
             assert np.allclose(model_thick,
                                fl_true_init.thick)
+
+        # some tests for perfect section
+        fp = os.path.join(test_dir,
+                          'Aletsch_perfect_section_spinup.pkl')
+        with open(fp, 'rb') as handle:
+            ds_perfect_section = pickle.load(handle)
+
+        for i in range(4):
+            model_thick = (ds_perfect_section.sfc_h_start[i] -
+                           ds_perfect_section.flowlines[i].item().bed_h)
+            # use flowline to convert section to thickness
+            fl_mdl = ds_perfect_section.flowlines[i].item()
+            fl_mdl.section = fl_true_init.section
+            true_thick = fl_mdl.thick
+            assert np.allclose(model_thick,
+                               true_thick)
 
     def test_StackedMassBalance(self, test_dir):
         cfg.initialize(logging_level='WARNING')
