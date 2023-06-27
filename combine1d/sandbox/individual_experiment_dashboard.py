@@ -108,7 +108,7 @@ def individual_experiment_dashboard(working_dir, input_folder,
             # find out if it has 3 characters followed only by numbers, if so
             # is is an experiment setting
             if len(single_split) > 3:
-                if single_split[:3].isalpha() and splits[3][3:].isdigit():
+                if single_split[:3].isalpha() and single_split[3:].isdigit():
                     if single_split not in experiment_settings_tmp:
                         experiment_settings_tmp.append(single_split)
                         continue
@@ -488,19 +488,26 @@ def individual_experiment_dashboard(working_dir, input_folder,
             delta_sfc_h_rgi_plot = None
             delta_sfc_h_rgi_table = None
 
-        # dmdtda plot
-        dmdtda_data = []
-        for i, unknown_p in enumerate(ds.observations_mdl):
-            dmdtda_data.append(
-                (i, unknown_p.item()['dmdtda:kg m-2 yr-1']['2000-2020']))
-        dmdtda_true = ds.observations['dmdtda:kg m-2 yr-1']['2000-2020']
-        delta_dmdtda_plot = hv.Curve(dmdtda_data,
-                                     kdims='Iterations',
-                                     vdims='(kg m-2 yr)',
-                                     ).opts(
-                opts.Curve(title=f'dmdtda (true = {dmdtda_true:.1f})',
-                           tools=['hover'],
-                           height=200))
+        # dmdtda plot, only if in data
+        try:
+            dmdtda_data = []
+            for i, unknown_p in enumerate(ds.observations_mdl):
+                dmdtda_data.append(
+                    (i, unknown_p.item()['dmdtda:kg m-2 yr-1']['2000-2020']))
+            dmdtda_true = ds.observations['dmdtda:kg m-2 yr-1']['2000-2020']
+            delta_dmdtda_plot = hv.Curve(dmdtda_data,
+                                         kdims='Iterations',
+                                         vdims='(kg m-2 yr)',
+                                         ).opts(
+                    opts.Curve(title=f'dmdtda (true = {dmdtda_true:.1f})',
+                               tools=['hover'],
+                               height=200))
+        except KeyError:
+            delta_dmdtda_plot = hv.Curve((0, 0)
+                                         ).opts(
+                    opts.Curve(title=f'dmdtda not available',
+                               tools=['hover'],
+                               height=200))
 
         # sfc_h_start
         d_sfc_h_start_lim = 0.
