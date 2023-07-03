@@ -84,7 +84,7 @@ def get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
         flowline = do_height_shift_spinup(
             flowline=flowline, unknown_parameters=unknown_parameters,
             data_logger=data_logger)
-    elif data_logger.spinup_type not in [None, 'surface_h']:
+    elif data_logger.spinup_type not in [None, 'surface_h', 'section']:
         raise NotImplementedError(f'The spinup type {data_logger.spinup_type} '
                                   'possibility is not integrated!')
 
@@ -248,10 +248,11 @@ class TestCostFct:
         assert type(grad) == np.ndarray
         assert len(grad) == len(unknown_parameters)
 
-        data_logger.spinup_options = {'do_spinup': 'whatever'}
-        data_logger.spinup_type = 'do_spinup'
-        with pytest.raises(NotImplementedError,
-                           match=f'The spinup option {data_logger.spinup_type} '
-                                 'is not implemented!'
-                           ):
-            cost_fct(unknown_parameters, data_logger)
+        if data_logger.spinup_type not in ['section']:
+            data_logger.spinup_options = {'do_spinup': 'whatever'}
+            data_logger.spinup_type = 'do_spinup'
+            with pytest.raises(NotImplementedError,
+                               match=f'The spinup option {data_logger.spinup_type} '
+                                     'is not implemented!'
+                               ):
+                cost_fct(unknown_parameters, data_logger)
