@@ -115,9 +115,12 @@ def control_vars(request):
                                                        'fg_height_shift': -100},
                                           'spinup_length_yrs': 20
                                           }
-                         }
+                         },
+                        {'section': {'extra_grid_points': 10,
+                                          'limits': (0.75, 1.25)}}
                         ],
-                ids=['No_spinup', 'sfc_h_spinup', 'height_shift_spinup'])
+                ids=['No_spinup', 'sfc_h_spinup', 'height_shift_spinup',
+                     'section'])
 def spinup_option(request):
     return request.param
 

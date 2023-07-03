@@ -38,6 +38,10 @@ def test_get_first_guess(data_logger):
             first_guess_ind = data_logger.parameter_indices[con_var]
             assert np.allclose(first_guess[first_guess_ind],
                                get_first_guess_surface_h(data_logger))
+        elif con_var in ['section']:
+            first_guess_ind = data_logger.parameter_indices[con_var]
+            assert np.allclose(first_guess[first_guess_ind],
+                               fl.section[:len(first_guess_ind)])
         elif con_var in ['height_shift_spinup']:
             first_guess_ind = data_logger.parameter_indices[con_var]
             assert np.allclose(

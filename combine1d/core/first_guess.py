@@ -26,6 +26,11 @@ def get_first_guess(data_logger):
         elif ind in ['height_shift_spinup']:
             ind_first_guess = \
                 data_logger.spinup_options['height_shift']['mb_model']['fg_height_shift']
+        elif ind in ['section']:
+            extra_grid_points =\
+                data_logger.spinup_options['section']['extra_grid_points']
+            nx = sum(ice_mask)
+            ind_first_guess = fl.section[:nx + extra_grid_points]
         else:
             raise NotImplementedError(f'{ind} is not implemented!')
 

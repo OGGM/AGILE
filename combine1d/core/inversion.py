@@ -220,6 +220,19 @@ def get_default_inversion_settings(get_doc=False):
            "filesuffix of the true initial flowline." \
            "e.g. {'perfect_sfc_h/perfect_thickness/perfect_section': " \
            "'filesuffix'}." \
+           "Fourth Option is to use the initial cross section area as a " \
+           "control variable (with constant dx also can be considered as " \
+           " initial volume distribution), it is similar to 'surface_h' option " \
+           "but also takes grid cells of different sizes into account. It " \
+           "should be combined with a regularisation term which smoothes the " \
+           "initial ice flux. With 'extra_grid_points' you can define how " \
+           "many grid points you want to allow an advance/retreat of the " \
+           "glacier at the inital state." \
+           "e.g. {'section':" \
+           "         {'extra_grid_points': 10," \
+           "          'limits': (0.75, 1.25)," \
+           "          }" \
+           "      }" \
            "Default: {'height_shift':" \
            "    {'mb_model': {'type': 'constant'," \
            "                  'years': np.array([1980, 2000]), " \
@@ -322,6 +335,25 @@ def get_control_var_bounds(data_logger):
             bounds[var_indices] = [(sfc_h - data_logger.max_deviation_surface_h,
                                     sfc_h + data_logger.max_deviation_surface_h)
                                    for sfc_h in fl.surface_h]
+        elif var == 'section':
+            fl = data_logger.flowline_init
+            terminus_grid_points = \
+                data_logger.spinup_options['section']['extra_grid_points']
+            terminus_index = sum(fl.thick > 0)
+            limits = data_logger.spinup_options['section']['limits']
+            # first define limits without terminus
+            bounds_tmp = [(limits[0] * section, limits[1] * section)
+                          for section in
+                          fl.section[:terminus_index - terminus_grid_points]]
+
+            # finally add terminus limits, with always 0 lower bound
+            upper_terminus_bound = np.max(
+                fl.section[terminus_index - terminus_grid_points:
+                           terminus_index + terminus_grid_points]) * limits[1]
+            for i in range(2*terminus_grid_points):
+                bounds_tmp.append((0, upper_terminus_bound))
+            bounds[var_indices] = bounds_tmp
+
         elif var == 'lambdas':
             bounds[var_indices] = [data_logger.limits_lambda]
         elif var == 'w0_m':

@@ -42,9 +42,9 @@ class TestCreateCostFct:
                 prefix = ''
                 mask = data_logger.ice_mask
                 key = 'bed_h'
-            elif key in ['surface_h']:
-                prefix = ''
-                mask = np.full(data_logger.ice_mask.shape, True)
+            elif key in ['surface_h', 'section']:
+                assert key not in known_parameters.keys()
+                continue
             assert np.allclose(known_parameters[key],
                                getattr(fl, prefix + key)[~mask],
                                equal_nan=True)

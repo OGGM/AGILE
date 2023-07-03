@@ -421,7 +421,7 @@ class TestSandbox:
                     assert isinstance(ds_default_stats[ds_key_oggm][var][metric],
                                       float)
 
-    def test_perfect_spinup(self, test_dir):
+    def test_perfect_spinup_and_section_spinup(self, test_dir):
 
         experiment_glacier = ['Aletsch']
 
@@ -440,6 +440,7 @@ class TestSandbox:
         inversion_settings1 = copy.deepcopy(inversion_settings)
         inversion_settings2 = copy.deepcopy(inversion_settings)
         inversion_settings3 = copy.deepcopy(inversion_settings)
+        inversion_settings4 = copy.deepcopy(inversion_settings)
 
         # test perfect spinup options
         inversion_settings1['spinup_options'] = {'perfect_sfc_h':
@@ -448,15 +449,23 @@ class TestSandbox:
                                                  '_creation_spinup'}
         inversion_settings3['spinup_options'] = {'perfect_section':
                                                  '_creation_spinup'}
+        inversion_settings4['spinup_options'] = {'section':
+                                                 {'extra_grid_points': 10,
+                                                  'limits': (0.75, 1.25),
+                                                  }
+                                                 }
         inversion_settings1['experiment_description'] = 'perfect_sfc_h_spinup'
         inversion_settings2['experiment_description'] = 'perfect_thickness_spinup'
         inversion_settings3['experiment_description'] = 'perfect_section_spinup'
+        inversion_settings4['experiment_description'] = 'section_spinup'
 
         gdirs = idealized_experiment(
             use_experiment_glaciers=experiment_glacier,
             inversion_settings_all=[inversion_settings1,
                                     inversion_settings2,
-                                    inversion_settings3],
+                                    inversion_settings3,
+                                    inversion_settings4,
+                                    ],
             working_dir=test_dir,
             output_folder=test_dir,
             override_params={'border': 160,
@@ -504,6 +513,16 @@ class TestSandbox:
             true_thick = fl_mdl.thick
             assert np.allclose(model_thick,
                                true_thick)
+
+        # some tests for section spinup
+        fp = os.path.join(test_dir,
+                          'Aletsch_section_spinup.pkl')
+        with open(fp, 'rb') as handle:
+            ds_section = pickle.load(handle)
+
+        fl_fg = gdirs[0].read_pickle('model_flowlines',
+                                     filesuffix='_combine_first_guess')[0]
+        assert np.allclose(ds_section.section_start[0], fl_fg.section)
 
     def test_StackedMassBalance(self, test_dir):
         cfg.initialize(logging_level='WARNING')
