@@ -257,6 +257,9 @@ def individual_experiment_dashboard(working_dir, input_folder,
         if 'area_bed_h' in parameter_indices.keys():
             data_grad_area_bed_h = []
             grad_area_bed_h_lim = 0
+        if 'section' in parameter_indices.keys():
+            data_grad_section = []
+            grad_section_lim = 0
         if 'w0_m' in parameter_indices.keys():
             data_grad_w0_m = []
             grad_w0_m_lim = 0
@@ -282,6 +285,14 @@ def individual_experiment_dashboard(working_dir, input_folder,
                     grad_area_bed_h))])
                 for el in [(x, i, v) for x, v in zip(x_ice_mask, grad_area_bed_h)]:
                     data_grad_area_bed_h.append(el)
+            if 'section' in parameter_indices.keys():
+                grad_section = grad[parameter_indices['section']]
+                grad_section_lim = np.max([grad_section_lim,
+                                           np.max(np.abs(grad_section))])
+                for el in [(x, i, v) for x, v in zip(
+                        ds.coords['x'][:len(grad_section)].values,
+                        grad_section)]:
+                    data_grad_section.append(el)
             if 'w0_m' in parameter_indices.keys():
                 grad_w0_m = grad[parameter_indices['w0_m']]
                 grad_w0_m_lim = np.max([grad_w0_m_lim, np.max(np.abs(grad_w0_m))])
@@ -335,6 +346,12 @@ def individual_experiment_dashboard(working_dir, input_folder,
                            tools=['hover'],
                            height=200)
             ))
+        if 'section' in parameter_indices.keys():
+            grad_plots.append(get_heatmap(data_grad_section,
+                                          grad_section_lim,
+                                          'Grad section',
+                                          kdim='distance_x',
+                                          height=200))
 
         # convert c_terms
         c_terms_conv = {}
@@ -530,10 +547,40 @@ def individual_experiment_dashboard(working_dir, input_folder,
                                                   fl_ref_start.surface_h,
                                                   'sfc_h_start')
 
+        # section start
+        d_section_start_lim = 0.
+        data_section_start = []
+        table_data_section_start = []
+        try:
+            for i, tmp_section in enumerate(ds.section_start.values):
+                x_all = ds.coords['x'].values
+                d_section_start = (tmp_section -
+                                   fl_ref_start.section)
+                d_section_start_lim = np.max([d_section_start_lim,
+                                              np.max(np.abs(d_section_start))])
+                table_data_section_start.append(tmp_section)
+                for el in [(x, i, v) for x, v in zip(x_all, d_section_start)]:
+                    data_section_start.append(el)
+            delta_section_start_plot = get_heatmap(data_section_start,
+                                                   d_section_start_lim,
+                                                   'Delta section_start',
+                                                   kdim='total_distance_x',
+                                                   height=150)
+        except AttributeError:
+            delta_section_start_plot = hv.HeatMap([])
+
         # create Table with performance measures (bed_h, w0_m, sfc_h_start, sfc_h_end, sfc_h_rgi,
         # fct_calls, time, device)
         def get_performance_array(fct, attr):
-            if isinstance(getattr(ds.flowlines[0].values.item(), attr), np.ndarray):
+            if attr == 'section':
+                try:
+                    return [np.around(fct(val, getattr(fl_ref, attr)),
+                                      decimals=2) for val in ds.section_start]
+                except AttributeError:
+                    return [np.around(fct(getattr(fl_ref, attr),
+                                          getattr(fl_ref, attr)),
+                                      decimals=2) for val in ds.flowlines]
+            elif isinstance(getattr(ds.flowlines[0].values.item(), attr), np.ndarray):
                 return [np.around(fct(val, getattr(fl_ref, attr)[ds.ice_mask]),
                                   decimals=2) for val in
                         [getattr(fl.values.item(), attr)[ds.ice_mask]
@@ -567,6 +614,7 @@ def individual_experiment_dashboard(working_dir, input_folder,
         performance_tables = \
             pn.Column(get_performance_table('bed_h'),
                       get_performance_table('_w0_m'),
+                      get_performance_table('section'),
                       get_minimise_performance_table(),
                       sizing_mode='stretch_width')
 
@@ -692,6 +740,7 @@ def individual_experiment_dashboard(working_dir, input_folder,
                                      pn.Column(delta_bed_h_plot,
                                                delta_w0_m_plot,
                                                height_shift_spinup_plot,
+                                               delta_section_start_plot,
                                                sizing_mode='stretch_width'
                                                ),
                                      grad_plots

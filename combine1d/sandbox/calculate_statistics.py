@@ -78,6 +78,11 @@ def calculate_result_statistics(gdir, data_logger, print_statistic=False):
                 getattr(fls_true, f'_{control_var}')[ds.ice_mask.values]
         elif control_var in ['height_shift_spinup']:
             controls_true[control_var] = controls_mdl[control_var]
+        elif control_var in ['section']:
+            fls_1980_true = gdir.read_pickle('model_flowlines',
+                                             filesuffix='_creation_spinup')[0]
+            controls_true[control_var] = \
+                fls_1980_true.section[:len(controls_mdl['section'])]
         else:
             raise NotImplementedError(f'{control_var}')
 
@@ -95,6 +100,10 @@ def calculate_result_statistics(gdir, data_logger, print_statistic=False):
                 controls_true[control_var])
         elif control_var in ['height_shift_spinup']:
             controls_stats[control_var] = add_0d_stats(
+                controls_mdl[control_var],
+                controls_true[control_var])
+        elif control_var in ['section']:
+            controls_stats[control_var] = add_1d_stats(
                 controls_mdl[control_var],
                 controls_true[control_var])
         else:

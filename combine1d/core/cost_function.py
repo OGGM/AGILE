@@ -56,7 +56,8 @@ def get_known_parameters(data_logger):
 
     # save guard if new control vars are added
     potential_control_vars = ['bed_h', 'surface_h', 'lambdas', 'w0_m',
-                              'height_shift_spinup', 'area_bed_h']
+                              'height_shift_spinup', 'area_bed_h',
+                              'section']
 
     # extract the ice free parts of variables of the control_vars which are
     # assumed to be known
@@ -76,6 +77,12 @@ def get_known_parameters(data_logger):
         elif con_var in ['surface_h']:
             prefix_var = ''
             known_index = np.full(ice_mask.shape, False)
+        elif con_var in ['section']:
+            prefix_var = ''
+            known_index = np.full(ice_mask.shape, True)
+            last_point = sum(ice_mask) + \
+                data_logger.spinup_options['section']['extra_grid_points']
+            known_index[:last_point] = False
         elif con_var in ['height_shift_spinup']:
             # no known variable to save
             continue
@@ -102,6 +109,15 @@ def get_indices_for_unknown_parameters(data_logger):
             parameter_length = ice_grid_points
         elif control_var in ['surface_h']:
             parameter_length = grid_points
+        elif control_var in ['section']:
+            extra_grid_points = \
+                data_logger.spinup_options['section']['extra_grid_points']
+            if extra_grid_points is None:
+                parameter_length = grid_points
+            else:
+                tmp_length = ice_grid_points + extra_grid_points
+                parameter_length = grid_points if tmp_length > grid_points \
+                    else tmp_length
         elif control_var in ['w0_m', 'lambdas']:
             parameter_length = trapezoid_grid_points
         elif control_var in ['height_shift_spinup']:
@@ -244,13 +260,14 @@ def cost_fct(unknown_parameters, data_logger):
             return cost, grad
     elif data_logger.spinup_type not in [None, 'surface_h', 'perfect_sfc_h',
                                          'perfect_thickness',
-                                         'perfect_section']:
+                                         'perfect_section', 'section']:
         raise NotImplementedError(f'The spinup option {data_logger.spinup_type} '
                                   'is not implemented!')
 
     # sfc_h saved to be able to save the past glacier evolution after the
     # minimisation and for the evaluation of idealized experiments
     sfc_h_start = flowline.surface_h.detach().clone()
+    section_start = flowline.section.detach().clone()
 
     observations = data_logger.observations
 
@@ -301,6 +318,7 @@ def cost_fct(unknown_parameters, data_logger):
     data_logger.save_data_in_datalogger(
         'observations_mdl', detach_observations_mdl(observations_mdl))
     data_logger.save_data_in_datalogger('sfc_h_start', sfc_h_start)
+    data_logger.save_data_in_datalogger('section_start', section_start)
     data_logger.save_data_in_datalogger('flowlines', detach_flowline(final_fl))
     data_logger.save_data_in_datalogger('costs', cost)
     data_logger.save_data_in_datalogger('grads', grad)
@@ -387,7 +405,8 @@ def initialise_flowline(unknown_parameters, data_logger):
 
     # initialise all potential control variables for flowline as empty tensor
     # and fill them
-    all_potential_control_vars = ['surface_h', 'lambdas', 'w0_m']
+    all_potential_control_vars = ['surface_h', 'lambdas', 'w0_m',
+                                  'section']
     if not any(k in parameter_indices.keys() for k in ['bed_h', 'area_bed_h']):
         all_potential_control_vars.insert(0, 'bed_h')
     elif all(k in parameter_indices.keys() for k in ['bed_h', 'area_bed_h']):
@@ -420,6 +439,11 @@ def initialise_flowline(unknown_parameters, data_logger):
                 var_index = np.full(ice_mask.shape, True)
             elif var in ['lambdas', 'w0_m']:
                 var_index = (trap_index & ice_mask)
+            elif var in ['section']:
+                var_index = np.full(ice_mask.shape, False)
+                last_point = sum(ice_mask) + \
+                    data_logger.spinup_options['section']['extra_grid_points']
+                var_index[:last_point] = True
             else:
                 raise NotImplementedError(f'{var}')
 
@@ -495,7 +519,8 @@ def initialise_flowline(unknown_parameters, data_logger):
                             dtype=torch_type,
                             device=device,
                             requires_grad=False)
-                    elif data_logger.spinup_type == 'perfect_section':
+                    elif data_logger.spinup_type in ['perfect_section',
+                                                     'section']:
                         fl_vars_total['surface_h'] = torch.tensor(
                             getattr(fl_init, prefix + var) * 0,
                             dtype=torch_type,
@@ -536,6 +561,8 @@ def initialise_flowline(unknown_parameters, data_logger):
             device=device,
             requires_grad=False
         )
+    elif data_logger.spinup_type == 'section':
+        fl.section = fl_vars_total['section']
 
     return fl
 

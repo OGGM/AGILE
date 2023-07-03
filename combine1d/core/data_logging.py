@@ -60,6 +60,9 @@ class DataLogger(object):
         elif 'surface_h' in list(self.spinup_options.keys()):
             spinup_type = 'surface_h'
             inversion_input['control_vars'].append(spinup_type)
+        elif 'section' in list(self.spinup_options.keys()):
+            spinup_type = 'section'
+            inversion_input['control_vars'].append(spinup_type)
         elif 'height_shift' in list(self.spinup_options.keys()):
             spinup_type = 'height_shift_spinup'
             inversion_input['control_vars'].append(spinup_type)
@@ -130,6 +133,7 @@ class DataLogger(object):
         self.grads = None
         self.flowlines = None
         self.sfc_h_start = None
+        self.section_start = None
         self.observations_mdl = None
         self.end_time = None
         self.known_parameters = None
@@ -236,6 +240,7 @@ class DataLogger(object):
         self.time_needed = self.squeeze_generic(self.time_needed[index])
         self.flowlines = self.squeeze_generic(self.flowlines[index])
         self.sfc_h_start = self.squeeze_generic(self.sfc_h_start[index])
+        self.section_start = self.squeeze_generic(self.section_start[index])
         self.observations_mdl = self.squeeze_generic(self.observations_mdl[index])
         self.unknown_parameters = self.unknown_parameters[index]
         self.fct_calls = self.squeeze_generic(self.fct_calls[index + 1])
@@ -256,6 +261,7 @@ class DataLogger(object):
         ds['grads'] = (['iteration', 'nr_unknown_parameters'], self.grads)
         ds['flowlines'] = (['iteration'], self.flowlines)
         ds['sfc_h_start'] = (['iteration', 'x'], self.sfc_h_start)
+        ds['section_start'] = (['iteration', 'x'], self.section_start)
         ds['observations_mdl'] = (['iteration'], self.observations_mdl)
         ds['c_terms'] = (['iteration', 'nr_cost_terms'], self.c_terms)
         ds['reg_terms'] = (['iteration', 'nr_reg_terms'], self.reg_terms)
