@@ -234,6 +234,8 @@ def get_default_inversion_settings(get_doc=False):
            "          'limits': (0.75, 1.25)," \
            "          }" \
            "      }" \
+           "Option 'perfect_bed_h' could be used for idealized experiments. " \
+           "e.g. {'perfect_bed_h': filesuffix}" \
            "Default: {'height_shift':" \
            "    {'mb_model': {'type': 'constant'," \
            "                  'years': np.array([1980, 2000]), " \
