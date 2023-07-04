@@ -42,9 +42,16 @@ class TestCreateCostFct:
                 prefix = ''
                 mask = data_logger.ice_mask
                 key = 'bed_h'
-            elif key in ['surface_h', 'section']:
-                assert key not in known_parameters.keys()
-                continue
+            elif key in ['surface_h']:
+                prefix = ''
+                mask = np.full(data_logger.ice_mask.shape, True)
+            elif key in ['section']:
+                prefix = ''
+                mask = data_logger.ice_mask
+                extra_points = \
+                    data_logger.spinup_options['section']['extra_grid_points']
+                end_point = sum(mask) + extra_points
+                mask[:end_point] = True
             assert np.allclose(known_parameters[key],
                                getattr(fl, prefix + key)[~mask],
                                equal_nan=True)
