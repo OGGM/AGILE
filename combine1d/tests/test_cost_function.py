@@ -84,6 +84,7 @@ def get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
     flowline = initialise_flowline(unknown_parameters, data_logger)
     mb_models = initialise_mb_models(unknown_parameters, data_logger)
     dynamic_model = data_logger.dynamic_model
+    initial_flux = dynamic_model(flowline).flux_stag[0]
 
     if data_logger.spinup_type == 'height_shift_spinup':
         # Here a spinup run is conducted using the control variable
@@ -121,7 +122,7 @@ def get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
 
     define_scaling_terms(data_logger)
 
-    return flowline, mb_models, observations_mdl, final_fl, data_logger
+    return flowline, mb_models, observations_mdl, final_fl, initial_flux, data_logger
 
 
 class TestCostFct:
@@ -157,11 +158,12 @@ class TestCostFct:
     def test_calculate_difference_between_observation_and_model(self, data_logger,
                                                                 unknown_parameters,
                                                                 observations):
-        flowline, mb_models, observations_mdl, final_fl, data_logger = \
+        flowline, mb_models, observations_mdl, final_fl, flux, data_logger = \
             get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
                                            observations)
         c_terms, reg_terms = get_cost_terms(observations_mdl,
                                             final_fl,
+                                            flux,
                                             data_logger)
 
         dobs, nobs = calculate_difference_between_observation_and_model(
@@ -225,12 +227,13 @@ class TestCostFct:
 
     def test_get_cost_terms(self, data_logger, unknown_parameters,
                             observations):
-        flowline, mb_models, observations_mdl, final_fl, data_logger = \
+        flowline, mb_models, observations_mdl, final_fl, flux, data_logger = \
             get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
                                            observations)
 
         c_terms, reg_terms = get_cost_terms(observations_mdl,
                                             final_fl,
+                                            flux,
                                             data_logger)
 
         assert len(c_terms) == 13
@@ -244,7 +247,7 @@ class TestCostFct:
             assert isinstance(reg_term, torch.Tensor)
 
     def test_cost_fct(self, data_logger, unknown_parameters, observations):
-        flowline, mb_models, observations_mdl, final_fl, data_logger = \
+        flowline, mb_models, observations_mdl, final_fl, flux, data_logger = \
             get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
                                            observations)
 
