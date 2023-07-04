@@ -83,6 +83,12 @@ class DataLogger(object):
                 raise NotImplementedError(f'{spinup_type}')
         else:
             raise NotImplementedError(f'{self.spinup_options.keys()}')
+
+        if 'perfect_bed_h' in list(self.spinup_options.keys()):
+            fls_true_init = gdir.read_pickle(
+                'model_flowlines',
+                filesuffix=self.spinup_options['perfect_bed_h'])[0]
+            self.perfect_spinup_value = fls_true_init.bed_h
         self.spinup_type = spinup_type
         self.control_vars = inversion_input['control_vars']
 

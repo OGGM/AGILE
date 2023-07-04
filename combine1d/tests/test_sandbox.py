@@ -602,3 +602,52 @@ class TestSandbox:
                                match=f'No mb model defined for year '
                                      f'{false_year}'):
                 mb_model.get_monthly_mb(test_heights, year=false_year)
+
+    def test_perfect_bed_h(self, test_dir):
+        experiment_glacier = ['Aletsch']
+
+        inversion_settings = get_default_inversion_settings()
+        inversion_settings['minimize_options']['maxiter'] = 3
+
+        # add all possible observations to test everything
+        inversion_settings['observations']['fl_widths:m'] = {}
+        inversion_settings['obs_scaling_parameters']['uncertainty']['fl_widths:m'] = 1.
+        inversion_settings['observations']['fl_total_area:m2'] = {}
+        inversion_settings['obs_scaling_parameters']['uncertainty']['fl_total_area:m2'] = 1.
+        # extracted from experiment creation
+        inversion_settings['observations']['area:km2'] = {}
+        inversion_settings['obs_scaling_parameters']['uncertainty']['area:km2'] = 1.
+
+        # test perfect spinup options
+        inversion_settings['control_vars'] = []
+        inversion_settings['spinup_options'] = {'section':
+                                                {'extra_grid_points': 10,
+                                                 'limits': (0.75, 1.25),
+                                                 },
+                                                'perfect_bed_h':
+                                                '_creation_spinup',
+                                                }
+        inversion_settings['regularisation_terms'] = {
+            'smoothed_flux': 10.}
+        inversion_settings['experiment_description'] = 'perfect_bed_h'
+
+        gdirs = idealized_experiment(
+            use_experiment_glaciers=experiment_glacier,
+            inversion_settings_all=[inversion_settings],
+            working_dir=test_dir,
+            output_folder=test_dir,
+            override_params={'border': 160,
+                             'cfl_number': 0.5})
+
+        fl_true_init = gdirs[0].read_pickle('model_flowlines',
+                                            filesuffix='_creation_spinup')[0]
+        # some tests for perfect sfc_h spinup
+        fp = os.path.join(test_dir,
+                          'Aletsch_perfect_bed_h.pkl')
+        with open(fp, 'rb') as handle:
+            ds_perfect_bed_h = pickle.load(handle)
+
+        for i in range(4):
+            assert np.allclose(fl_true_init.bed_h,
+                               ds_perfect_bed_h.flowlines[i].item().bed_h)
+

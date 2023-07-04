@@ -426,6 +426,8 @@ def initialise_flowline(unknown_parameters, data_logger):
         all_potential_control_vars.insert(0, 'bed_h')
     elif 'area_bed_h' in parameter_indices.keys():
         all_potential_control_vars.insert(0, 'area_bed_h')
+    elif 'perfect_bed_h' in data_logger.spinup_options.keys():
+        all_potential_control_vars.insert(0, 'bed_h')
     else:
         raise NotImplementedError('I have not expected to come to this point!')
     fl_vars_total = {}  # they are used for actual initialisation
@@ -514,7 +516,8 @@ def initialise_flowline(unknown_parameters, data_logger):
                 if var == 'surface_h' and \
                     data_logger.spinup_type in ['perfect_sfc_h',
                                                 'perfect_thickness',
-                                                'perfect_section']:
+                                                'perfect_section',
+                                                'section']:
                     if data_logger.spinup_type == 'perfect_sfc_h':
                         perfect_sfc_h = torch.tensor(
                             data_logger.perfect_spinup_value,
@@ -538,6 +541,14 @@ def initialise_flowline(unknown_parameters, data_logger):
                         )
                     else:
                         raise NotImplementedError(f'{data_logger.spinup_options}')
+                elif var == 'bed_h' and \
+                        'perfect_bed_h' in data_logger.spinup_options.keys():
+                    fl_vars_total['bed_h'] = torch.tensor(
+                        data_logger.perfect_spinup_value,
+                        dtype=torch_type,
+                        device=device,
+                        requires_grad=False
+                    )
                 else:
                     fl_vars_total[var] = torch.tensor(
                         getattr(fl_init, prefix + var),

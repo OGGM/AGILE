@@ -322,6 +322,8 @@ def individual_experiment_dashboard(working_dir, input_folder,
                                                kdim='ice_mask_x',
                                                height=200),
                                    sizing_mode='stretch_width')
+        else:
+            grad_plots = pn.Column(hv.HeatMap([]))
 
         if 'w0_m' in parameter_indices.keys():
             grad_plots.append(get_heatmap(data_grad_w0_m,
