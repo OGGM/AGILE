@@ -117,6 +117,11 @@ class TestInversion:
             control_vars = all_supported_control_vars
         inversion_settings['control_vars'] = control_vars
         inversion_settings['spinup_options'] = spinup_options
+        if spinup_options is not None:
+            if 'section' in spinup_options.keys():
+                inversion_settings['regularisation_terms'] = {
+                    'smoothed_bed': 1.,
+                    'smoothed_flux': 10.}
         inversion_settings['dynamic_model'] = dynamic_model
 
         # add an artificial measurement for dmdtda

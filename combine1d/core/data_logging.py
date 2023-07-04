@@ -82,7 +82,7 @@ class DataLogger(object):
             else:
                 raise NotImplementedError(f'{spinup_type}')
         else:
-            raise NotImplementedError
+            raise NotImplementedError(f'{self.spinup_options.keys()}')
         self.spinup_type = spinup_type
         self.control_vars = inversion_input['control_vars']
 
@@ -194,7 +194,7 @@ class DataLogger(object):
             for key in self.c_terms_description[-1][0].keys():
                 if key in ['J_obs', 'J_reg']:
                     continue
-                elif key in ['smoothed_bed']:
+                elif key in ['smoothed_bed', 'smoothed_flux']:
                     reg_terms_str.append(
                         f'{key}: {self.c_terms_description[-1][0][key]:.2e}')
                 else:

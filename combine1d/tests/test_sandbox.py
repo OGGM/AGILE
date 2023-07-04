@@ -454,6 +454,9 @@ class TestSandbox:
                                                   'limits': (0.75, 1.25),
                                                   }
                                                  }
+        inversion_settings4['regularisation_terms'] = {
+            'smoothed_bed': 1.,
+            'smoothed_flux': 10.}
         inversion_settings1['experiment_description'] = 'perfect_sfc_h_spinup'
         inversion_settings2['experiment_description'] = 'perfect_thickness_spinup'
         inversion_settings3['experiment_description'] = 'perfect_section_spinup'

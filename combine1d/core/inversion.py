@@ -173,8 +173,8 @@ def get_default_inversion_settings(get_doc=False):
     add_setting()
 
     _key = "regularisation_terms"
-    _doc = "Defines which additional regularisation terms should be used (with " \
-           "their reg parameter). Scaling of " \
+    _doc = "Defines which additional regularisation terms should be used " \
+           "(with their reg parameter). Scaling of " \
            "regularisation terms is also included during the creation." \
            "Options: " \
            "'smoothed_bed' adds a term which prefer smoother beds. " \
@@ -182,6 +182,7 @@ def get_default_inversion_settings(get_doc=False):
            "(NOT GOOD) 'fl_surface_h_scale_2' scale fl_surface_h in cost function with " \
            "1/sum(wk) ()² * wk." \
            "'bed_h_grad_scale' scales the bed_h gradient with width." \
+           "'smoothed_flux' prefer smoother initial flux." \
            "Default: {'smoothed_bed': 1}"
     _default = {'smoothed_bed': 1.}
     add_setting()
