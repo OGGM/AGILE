@@ -142,6 +142,9 @@ def data_logger_init(hef_gdir, control_vars, spinup_option, dynamic_models,
         inversion_settings['control_vars'] = control_vars
     inversion_settings['dynamic_model'] = dynamic_models
     inversion_settings['spinup_options'] = spinup_option
+    if spinup_option == 'section':
+        inversion_settings['regularisation_terms'] = {'smoothed_bed': 1.,
+                                                      'smoothed_flux': 10.}
     prepare_for_combine_inversion(hef_gdir, inversion_settings=inversion_settings,
                                   filesuffix='_combine')
     data_logger = initialise_DataLogger(hef_gdir, inversion_input_filesuffix='_combine')

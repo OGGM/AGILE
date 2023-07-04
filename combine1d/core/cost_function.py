@@ -197,6 +197,9 @@ def define_scaling_terms(data_logger):
             data_logger.reg_scaling_terms['smoothed_bed'] = \
                 data_logger.regularisation_terms['smoothed_bed'] / \
                 smoothing_scale
+        elif regularisation_term == 'smoothed_flux':
+            data_logger.reg_scaling_terms['smoothed_flux'] = \
+                data_logger.regularisation_terms['smoothed_flux']
         else:
             raise NotImplementedError(f'{regularisation_term}')
 
@@ -242,6 +245,11 @@ def cost_fct(unknown_parameters, data_logger):
                                 fs=fs, glen_a=glen_a)
 
     mb_models = initialise_mb_models(unknown_parameters_descaled, data_logger)
+
+    if 'smoothed_flux' in data_logger.regularisation_terms.keys():
+        initial_flux = dynamic_model(flowline).flux_stag[0]
+    else:
+        initial_flux = None
 
     if data_logger.spinup_type == 'height_shift_spinup':
         try:
@@ -293,6 +301,7 @@ def cost_fct(unknown_parameters, data_logger):
     c_terms, reg_terms = get_cost_terms(
         observations_mdl,
         final_fl,  # for regularisation term 'smoothed_bed'
+        initial_flux,  # for regularisation term 'smoothed_flux'
         data_logger  # for reg_parameters and observations
         )
 
@@ -650,6 +659,7 @@ def do_height_shift_spinup(flowline, unknown_parameters, data_logger):
 
 def get_cost_terms(observations_mdl,
                    flowline,
+                   flux,
                    data_logger):
     """
     Returns the individual terms of the cost function. TODO
@@ -658,6 +668,7 @@ def get_cost_terms(observations_mdl,
     ----------
     observations_mdl
     flowline
+    flux
     data_logger
 
     Returns
@@ -738,6 +749,17 @@ def get_cost_terms(observations_mdl,
                           'bed_h_grad_scale']:
             # this regularisation terms are handled elsewhere
             pass
+        elif reg_term in ['smoothed_flux']:
+            reg_scale = torch.tensor(data_logger.reg_scaling_terms[reg_term],
+                                     dtype=data_logger.torch_type,
+                                     device=data_logger.device,
+                                     requires_grad=False)
+            reg_terms[i_costs] = reg_scale * \
+                (torch.sum(torch.abs(torch.diff(flux))) / torch.max(flux) - 2)
+
+            reg_term_np = reg_terms[i_costs].detach().to('cpu').numpy()
+            cost_terms_description[reg_term] = reg_term_np
+            individual_reg_terms.append(reg_term_np)
         else:
             raise NotImplementedError(f'{reg_term}')
         i_costs += 1
