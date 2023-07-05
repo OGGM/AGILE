@@ -93,6 +93,8 @@ def construct_needed_model_data(observations):
                 unit_check(obs_name, obs_unit, ['m'])
             elif obs_name in ['us']:
                 unit_check(obs_name, obs_unit, ['myr-1'])
+            elif obs_name in ['volume']:
+                unit_check(obs_name, obs_unit, ['m3', 'km3'])
             else:
                 raise NotImplementedError(f'{obs_name} not implemented!')
 
@@ -148,6 +150,8 @@ def run_model_and_get_model_values(flowline, dynamic_model, mb_models,
                     actual_model_data[obs_yr][var] = dyn_model.area_km2
                 elif var == 'volume:m3':
                     actual_model_data[obs_yr][var] = dyn_model.volume_m3
+                elif var == 'volume:km3':
+                    actual_model_data[obs_yr][var] = dyn_model.volume_km3
                 elif var == 'fl_surface_h:m':
                     actual_model_data[obs_yr][var] = dyn_model.fls[0].surface_h
                 elif var == 'fl_widths:m':
@@ -198,7 +202,7 @@ def calculate_model_observations(observations, actual_model_data):
         # first all observations where nothing need to be calculated
         if var_key in ['area:m2', 'area:km2', 'fl_total_area:m2',
                        'fl_total_area:km2', 'fl_surface_h:m', 'fl_widths:m',
-                       'us:myr-1']:
+                       'us:myr-1', 'volume:m3', 'volume:km3']:
             for year in out[var_key].keys():
                 out[var_key][year] = actual_model_data[int(year)][var_key]
 
