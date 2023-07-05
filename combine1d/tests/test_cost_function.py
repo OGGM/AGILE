@@ -114,6 +114,8 @@ def get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
                                                     'fl_total_area:km2': 10.,
                                                     'area:m2': 1.,
                                                     'area:km2': 10.,
+                                                    'volume:m3': 100000,
+                                                    'volume:km3': 0.01,
                                                     'dmdtda:kg m-2 yr-1': 1.,
                                                     'dmdtda:kg yr-1': 1.,
                                                     'us:myr-1': 1.,
@@ -189,11 +191,12 @@ class TestCostFct:
                 assert isinstance(dobs[obs_var][year], torch.Tensor)
                 if obs_var in ['fl_total_area:m2', 'fl_total_area:km2',
                                'area:m2', 'area:km2', 'dmdtda:kg m-2 yr-1',
-                               'dmdtda:kg yr-1', 'us:myr-1']:
+                               'dmdtda:kg yr-1', 'us:myr-1',
+                               'volume:m3', 'volume:km3']:
                     assert np.isclose(
                         dobs[obs_var][year].detach().to('cpu').numpy().astype(
                             np.float64), 100.)  # 100 because of 10^2
-        assert nobs == 13
+        assert nobs == 15
 
     def test_define_scaling_terms(self, data_logger, observations):
         # fill observations with some values
@@ -202,7 +205,8 @@ class TestCostFct:
             for year in observations[obs_var].keys():
                 if obs_var in ['fl_total_area:m2', 'fl_total_area:km2',
                                'area:m2', 'area:km2', 'dmdtda:kg m-2 yr-1',
-                               'dmdtda:kg yr-1', 'us:myr-1']:
+                               'dmdtda:kg yr-1', 'us:myr-1',
+                               'volume:m3', 'volume:km3']:
                     observations[obs_var][year] = single_value
                     single_value += 10.
                 elif obs_var in ['fl_surface_h:m', 'fl_widths:m']:
@@ -220,6 +224,8 @@ class TestCostFct:
                                                         'fl_total_area:km2': 10.,
                                                         'area:m2': 1.,
                                                         'area:km2': 10.,
+                                                        'volume:m3': 100000,
+                                                        'volume:km3': 0.01,
                                                         'dmdtda:kg m-2 yr-1': 1.,
                                                         'dmdtda:kg yr-1': 1.,
                                                         'us:myr-1': 1.,
@@ -248,7 +254,7 @@ class TestCostFct:
                                             unknown_parameters_scaled,
                                             data_logger)
 
-        assert len(c_terms) == 13
+        assert len(c_terms) == 15
         for c_term in c_terms:
             assert c_term != []
             assert isinstance(c_term, torch.Tensor)
