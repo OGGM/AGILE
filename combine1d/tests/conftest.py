@@ -117,7 +117,9 @@ def control_vars(request):
                                           }
                          },
                         {'section': {'extra_grid_points': 10,
-                                          'limits': (0.75, 1.25)}}
+                                     'limits': (0.75, 1.25),
+                                     'fg_years': 1,
+                                     }}
                         ],
                 ids=['No_spinup', 'sfc_h_spinup', 'height_shift_spinup',
                      'section'])

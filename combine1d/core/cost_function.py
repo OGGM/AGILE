@@ -200,6 +200,12 @@ def define_scaling_terms(data_logger):
         elif regularisation_term == 'smoothed_flux':
             data_logger.reg_scaling_terms['smoothed_flux'] = \
                 data_logger.regularisation_terms['smoothed_flux']
+        elif regularisation_term == 'distance_from_fg':
+            tmp_reg_scaling = np.ones(data_logger.len_unknown_parameter)
+            for var in data_logger.parameter_indices.keys():
+                tmp_reg_scaling[data_logger.parameter_indices[var]] = \
+                    data_logger.regularisation_terms['distance_from_fg'][var]
+            data_logger.reg_scaling_terms['distance_from_fg'] = tmp_reg_scaling
         else:
             raise NotImplementedError(f'{regularisation_term}')
 
@@ -302,6 +308,7 @@ def cost_fct(unknown_parameters, data_logger):
         observations_mdl,
         final_fl,  # for regularisation term 'smoothed_bed'
         initial_flux,  # for regularisation term 'smoothed_flux'
+        unknown_parameters,  # for distance from fg regularisation
         data_logger  # for reg_parameters and observations
         )
 
@@ -671,6 +678,7 @@ def do_height_shift_spinup(flowline, unknown_parameters, data_logger):
 def get_cost_terms(observations_mdl,
                    flowline,
                    flux,
+                   unknown_parameters,
                    data_logger):
     """
     Returns the individual terms of the cost function. TODO
@@ -771,6 +779,21 @@ def get_cost_terms(observations_mdl,
             reg_term_np = reg_terms[i_costs].detach().to('cpu').numpy()
             cost_terms_description[reg_term] = reg_term_np
             individual_reg_terms.append(reg_term_np)
+        elif reg_term in ['distance_from_fg']:
+            reg_scale = torch.tensor(data_logger.reg_scaling_terms[reg_term],
+                                     dtype=data_logger.torch_type,
+                                     device=data_logger.device,
+                                     requires_grad=False)
+            first_guess = torch.tensor(data_logger.first_guess,
+                                       dtype=data_logger.torch_type,
+                                       device=data_logger.device,
+                                       requires_grad=False)
+            reg_terms[i_costs] = torch.sum(
+                reg_scale * (first_guess - unknown_parameters) /
+                torch.tensor([data_logger.len_unknown_parameter],
+                             dtype=data_logger.torch_type,
+                             device=data_logger.device,
+                             requires_grad=False))
         else:
             raise NotImplementedError(f'{reg_term}')
         i_costs += 1
