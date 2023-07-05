@@ -52,7 +52,7 @@ def calculate_result_statistics(gdir, data_logger, print_statistic=False):
                 obs_stats[obs_key][year_key] = add_1d_stats(
                     obs_mdl[obs_key][year_key],
                     obs_given[obs_key][year_key])
-            elif obs_key_name in ['fl_total_area', 'area', 'dmdtda']:
+            elif obs_key_name in ['fl_total_area', 'area', 'dmdtda', 'volume']:
                 obs_stats[obs_key][year_key] = add_0d_stats(
                     obs_mdl[obs_key][year_key],
                     obs_given[obs_key][year_key])
