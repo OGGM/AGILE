@@ -135,6 +135,15 @@ class TestCostFct:
 
         return unknown_parameters_descaled
 
+    @pytest.fixture(scope='function')
+    def unknown_parameters_scaled(self, data_logger):
+        unknown_parameters = get_first_guess(data_logger)
+
+        unknown_parameters, unknown_parameters_descaled = \
+            descale_unknown_parameters(unknown_parameters, data_logger)
+
+        return unknown_parameters_scaled
+
     def test_initialise_flowline(self, data_logger, unknown_parameters):
         # just checking that their is a flowline coming out
         flowline = initialise_flowline(unknown_parameters, data_logger)
@@ -157,6 +166,7 @@ class TestCostFct:
 
     def test_calculate_difference_between_observation_and_model(self, data_logger,
                                                                 unknown_parameters,
+                                                                unknown_parameters_scaled,
                                                                 observations):
         flowline, mb_models, observations_mdl, final_fl, flux, data_logger = \
             get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
@@ -164,6 +174,7 @@ class TestCostFct:
         c_terms, reg_terms = get_cost_terms(observations_mdl,
                                             final_fl,
                                             flux,
+                                            unknown_parameters_scaled,
                                             data_logger)
 
         dobs, nobs = calculate_difference_between_observation_and_model(
@@ -226,7 +237,7 @@ class TestCostFct:
                 assert isinstance(reg_parameters[obs_var][year], np.float64)
 
     def test_get_cost_terms(self, data_logger, unknown_parameters,
-                            observations):
+                            unknown_parameters_scaled, observations):
         flowline, mb_models, observations_mdl, final_fl, flux, data_logger = \
             get_prepared_data_for_cost_fct(unknown_parameters, data_logger,
                                            observations)
@@ -234,6 +245,7 @@ class TestCostFct:
         c_terms, reg_terms = get_cost_terms(observations_mdl,
                                             final_fl,
                                             flux,
+                                            unknown_parameters_scaled,
                                             data_logger)
 
         assert len(c_terms) == 13

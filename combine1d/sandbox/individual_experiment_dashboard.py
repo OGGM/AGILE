@@ -567,9 +567,9 @@ def individual_experiment_dashboard(working_dir, input_folder,
                                                    d_section_start_lim,
                                                    'Delta section_start',
                                                    kdim='total_distance_x',
-                                                   height=150)
+                                                   height=200)
         except AttributeError:
-            delta_section_start_plot = hv.HeatMap([])
+            delta_section_start_plot = hv.HeatMap([], height=200)
 
         # create Table with performance measures (bed_h, w0_m, sfc_h_start, sfc_h_end, sfc_h_rgi,
         # fct_calls, time, device)

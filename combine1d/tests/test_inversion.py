@@ -89,16 +89,18 @@ class TestInversion:
                                              }
                             },
                            {'section': {'extra_grid_points': 10,
-                                             'limits': (0.75, 1.25)}},
+                                        'limits': (0.75, 1.25),
+                                        'fg_years': 1,
+                                        }},
                            ],
         ids=['No_spinup',
              'sfc_h_spinup',
              'height_shift_spinup',
              'section',
              ])
-    @pytest.mark.parametrize('dynamic_model', [#'flux_based',
+    @pytest.mark.parametrize('dynamic_model', ['flux_based',
                                                'implicit'],
-                             ids=[#'flux_based',
+                             ids=['flux_based',
                                   'implicit'])
     def test_combine_inversion(self, hef_gdir, control_vars, spinup_options,
                                dynamic_model, all_supported_control_vars):

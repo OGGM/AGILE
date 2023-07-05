@@ -1,8 +1,9 @@
 import copy
 
 import numpy as np
-from oggm.core.flowline import FluxBasedModel
-from oggm.core.massbalance import MultipleFlowlineMassBalance, ConstantMassBalance
+from oggm.core.flowline import FluxBasedModel, SemiImplicitModel
+from oggm.core.massbalance import MultipleFlowlineMassBalance, \
+    ConstantMassBalance, MonthlyTIModel
 
 
 def get_first_guess(data_logger):
@@ -30,7 +31,11 @@ def get_first_guess(data_logger):
             extra_grid_points =\
                 data_logger.spinup_options['section']['extra_grid_points']
             nx = sum(ice_mask)
-            ind_first_guess = fl.section[:nx + extra_grid_points]
+            dyn_model = SemiImplicitModel(
+                fl, mb_model=MonthlyTIModel(data_logger.gdir), y0=1980)
+            dyn_model.run_until(
+                1980 + data_logger.spinup_options['section']['fg_years'])
+            ind_first_guess = dyn_model.fls[0].section[:nx + extra_grid_points]
         else:
             raise NotImplementedError(f'{ind} is not implemented!')
 
@@ -42,6 +47,8 @@ def get_first_guess(data_logger):
     max_bound = np.array(max_bound)
     scale = data_logger.control_vars_characteristic_scale
     first_guess = (first_guess - min_bound) / (max_bound - min_bound) * scale
+
+    data_logger.first_guess = first_guess
 
     return first_guess
 

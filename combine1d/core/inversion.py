@@ -183,6 +183,9 @@ def get_default_inversion_settings(get_doc=False):
            "1/sum(wk) ()² * wk." \
            "'bed_h_grad_scale' scales the bed_h gradient with width." \
            "'smoothed_flux' prefer smoother initial flux." \
+           "'distance_from_fg' use distance from fg to make some control " \
+           "variables more likely to change use with {'control': factor, " \
+           "'control1: factor2}. NOT SCALED PROBABLY AT THE MOMENT! " \
            "Default: {'smoothed_bed': 1}"
     _default = {'smoothed_bed': 1.}
     add_setting()
@@ -232,6 +235,7 @@ def get_default_inversion_settings(get_doc=False):
            "e.g. {'section':" \
            "         {'extra_grid_points': 10," \
            "          'limits': (0.75, 1.25)," \
+           "          'fg_years': 1" \
            "          }" \
            "      }" \
            "Option 'perfect_bed_h' could be used for idealized experiments. " \

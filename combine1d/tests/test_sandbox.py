@@ -452,11 +452,14 @@ class TestSandbox:
         inversion_settings4['spinup_options'] = {'section':
                                                  {'extra_grid_points': 10,
                                                   'limits': (0.75, 1.25),
+                                                  'fg_years': 0,
                                                   }
                                                  }
         inversion_settings4['regularisation_terms'] = {
             'smoothed_bed': 1.,
-            'smoothed_flux': 10.}
+            'smoothed_flux': 10.,
+            'distance_from_fg':  {'area_bed_h': 1,
+                                  'section': 10}}
         inversion_settings1['experiment_description'] = 'perfect_sfc_h_spinup'
         inversion_settings2['experiment_description'] = 'perfect_thickness_spinup'
         inversion_settings3['experiment_description'] = 'perfect_section_spinup'
@@ -623,6 +626,7 @@ class TestSandbox:
         inversion_settings['spinup_options'] = {'section':
                                                 {'extra_grid_points': 10,
                                                  'limits': (0.75, 1.25),
+                                                 'fg_years': 1,
                                                  },
                                                 'perfect_bed_h':
                                                 '_creation_spinup',
@@ -650,4 +654,6 @@ class TestSandbox:
         for i in range(4):
             assert np.allclose(fl_true_init.bed_h,
                                ds_perfect_bed_h.flowlines[i].item().bed_h)
+            assert np.allclose(fl_true_init._w0_m,
+                               ds_perfect_bed_h.flowlines[i].item()._w0_m)
 

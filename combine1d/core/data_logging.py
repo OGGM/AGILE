@@ -84,11 +84,12 @@ class DataLogger(object):
         else:
             raise NotImplementedError(f'{self.spinup_options.keys()}')
 
-        if 'perfect_bed_h' in list(self.spinup_options.keys()):
-            fls_true_init = gdir.read_pickle(
-                'model_flowlines',
-                filesuffix=self.spinup_options['perfect_bed_h'])[0]
-            self.perfect_spinup_value = fls_true_init.bed_h
+        if spinup_type is not None:
+            if 'perfect_bed_h' in list(self.spinup_options.keys()):
+                fls_true_init = gdir.read_pickle(
+                    'model_flowlines',
+                    filesuffix=self.spinup_options['perfect_bed_h'])[0]
+                self.perfect_spinup_value = fls_true_init.bed_h
         self.spinup_type = spinup_type
         self.control_vars = inversion_input['control_vars']
 
@@ -152,6 +153,7 @@ class DataLogger(object):
         self.minimize_status = None
         self.memory_error = False
         self.extra_bed_h = None
+        self.first_guess = None
 
         self.filename = gdir.name + '_' + \
                         inversion_input['experiment_description']
