@@ -142,7 +142,7 @@ class TestCostFct:
         unknown_parameters, unknown_parameters_descaled = \
             descale_unknown_parameters(unknown_parameters, data_logger)
 
-        return unknown_parameters_scaled
+        return unknown_parameters
 
     def test_initialise_flowline(self, data_logger, unknown_parameters):
         # just checking that their is a flowline coming out
