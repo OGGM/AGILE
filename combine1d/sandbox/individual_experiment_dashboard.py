@@ -35,7 +35,6 @@ experiment_select = []
 glacier_select = []
 menu = pn.Column()
 button = pn.widgets.Button(name='Select new one', button_type='primary')
-open_files = {}
 
 
 def define_options_for_experiment(event):
@@ -76,7 +75,7 @@ def individual_experiment_dashboard(working_dir, input_folder,
     global all_experiment_settings
     global experiment_select
     global glacier_select
-    global open_files
+
     cfg.PATHS['working_dir'] = working_dir
     gdirs = workflow.init_glacier_directories()
 
@@ -88,7 +87,7 @@ def individual_experiment_dashboard(working_dir, input_folder,
     # only keep experiment files
     all_files = [file_tmp for file_tmp in all_files if '.pkl' in file_tmp]
 
-    open_files = {}
+    open_file = None
 
     for file in all_files:
         # file = all_files[0]
@@ -164,8 +163,8 @@ def individual_experiment_dashboard(working_dir, input_folder,
         return accordion
 
     # Define individual plots
-    def get_individual_plot(current_file):
-        ds = open_files[current_file]
+    def get_individual_plot(open_file, current_file):
+        ds = open_file
 
         # get reference flowline for true values
         rgi_id = ds.attrs['rgi_id']
@@ -780,14 +779,14 @@ def individual_experiment_dashboard(working_dir, input_folder,
     current_file_first = current_file_first[0]
     with open(input_folder + current_file_first, 'rb') as handle:
         try:
-            open_files[current_file_first] = pickle.load(handle)
+            open_file = pickle.load(handle)
         except:
-            open_files[current_file_first] = CpuUnpickler(handle).load()
+            open_file = CpuUnpickler(handle).load()
         # pickle.load(handle)
 
-    figure = get_individual_plot(current_file_first)
+    figure = get_individual_plot(open_file, current_file_first)
 
-    def change_figure(event, open_files):
+    def change_figure(event):
         # here get the right filename for the current selection
         current_file = list(compress(all_files,
                                      [glacier_select.value + '_' +
@@ -808,22 +807,21 @@ def individual_experiment_dashboard(working_dir, input_folder,
             button.button_type = 'primary'
             current_file = current_file[0]
 
-            # if the first time open it
-            if current_file not in open_files.keys():
-                with open(input_folder + current_file, 'rb') as handle:
-                    try:
-                        open_files[current_file] = pickle.load(handle)
-                    except:
-                        print('in except')
-                        open_files[current_file] = CpuUnpickler(handle).load()
-                    # pickle.load(handle,)
+            # open the file
+            with open(input_folder + current_file, 'rb') as handle:
+                try:
+                    open_file = pickle.load(handle)
+                except:
+                    print('in except')
+                    open_file = CpuUnpickler(handle).load()
+                # pickle.load(handle,)
 
-            figure.objects = [get_individual_plot(current_file)]
+            figure.objects = [get_individual_plot(open_file, current_file)]
 
-    button.on_click(partial(change_figure, open_files=open_files))
+    button.on_click(change_figure)
 
     individual_app = pn.Row(pn.Column(menu,
                                       get_description_accordion()),
                             figure)
 
-    return individual_app, open_files
+    return individual_app
