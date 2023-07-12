@@ -1,3 +1,3 @@
 #!/bin/bash
 set -e
-exec pytest.combine1d
+exec pytest.agile1d
