@@ -18,6 +18,6 @@ coverage erase
 coverage run --source=./agile1d --parallel-mode --module \
     pytest --verbose --run-test-env $TEST_ENV agile1d
 
-coverage agile
+coverage combine
 coverage xml
 coverage report --skip-covered
