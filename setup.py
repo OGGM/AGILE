@@ -49,7 +49,7 @@ setup(
     # There are some restrictions on what makes a valid project name
     # specification here:
     # https://packaging.python.org/specifications/core-metadata/#name
-    name='COMBINE',  # Required
+    name='agile',  # Required
 
     # Versions should comply with PEP 440:
     # https://www.python.org/dev/peps/pep-0440/
@@ -90,7 +90,7 @@ setup(
     #
     # This field corresponds to the "Home-Page" metadata field:
     # https://packaging.python.org/specifications/core-metadata/#home-page-optional
-    url='https://github.com/OGGM/COMBINE',  # Optional
+    url='https://github.com/OGGM/agile',  # Optional
 
     # This should be your name or the name of the organization which owns the
     # project.
@@ -177,8 +177,8 @@ setup(
     # executes the function `main` from this package when invoked:
     entry_points={
         'console_scripts': [
-            'run_idealized_experiment = combine1d.sandbox.run_idealized_experiment:main',
-            'pytest.combine1d = combine1d.tests.__main__:main'
+            'run_idealized_experiment = agile1d.sandbox.run_idealized_experiment:main',
+            'pytest.agile1d = agile1d.tests.__main__:main'
         ],
     },
 
@@ -192,7 +192,7 @@ setup(
     # maintainers, and where to support the project financially. The key is
     # what's used to render the link text on PyPI.
     project_urls={  # Optional
-        'Bug Reports': 'https://github.com/OGGM/COMBINE/issues',
-        'Source': 'https://github.com/OGGM/COMBINE',
+        'Bug Reports': 'https://github.com/OGGM/agile/issues',
+        'Source': 'https://github.com/OGGM/agile',
     },
 )

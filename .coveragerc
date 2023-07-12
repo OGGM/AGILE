@@ -1,5 +1,5 @@
 [run]
-source = combine1d
+source = agile1d
 omit =
     */tests/*
     */_version.py
