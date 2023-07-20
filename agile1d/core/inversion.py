@@ -96,8 +96,16 @@ def get_default_inversion_settings(get_doc=False):
     _doc = "The upper boundary of the ice thickness is calculated using the " \
            "approach from GlabTop (Linsbauer 2021) and this value is added " \
            "additionally for the definition of the upper boundary. " \
-           "Default: 100"
+           "Default: 100, OUTDATED"
     _default = 100.
+    add_setting()
+
+    _key = "bed_h_bounds"
+    _doc = "Define how large the boundaries for the bed_h are, in relation of " \
+           "first guess thickness. (e.g. (0.2, 1.4) means the bed height can " \
+           "be between 1.4*fg_thick and 0.2*fg_thick). " \
+           "Default: (0.2, 1.4)"
+    _default = (0.2, 1.4)
     add_setting()
 
     _key = "max_deviation_surface_h"
@@ -311,32 +319,53 @@ def get_control_var_bounds(data_logger):
         if var == 'bed_h':
             fl = data_logger.flowline_init
             ice_mask = data_logger.ice_mask
-            upper_limits = get_adaptive_upper_ice_thickness_limit(
-                fl,
-                additional_ice_thickness=data_logger.additional_ice_thickness,
-                max_thickness=data_logger.max_ice_thickness,
-                w0_min=data_logger.min_w0_m)
-            bounds[var_indices] = [(sfc_h - upper_limit,
-                                    sfc_h - data_logger.min_ice_thickness)
-                                   for sfc_h, upper_limit in
+            bed_h_bounds = data_logger.bed_h_bounds
+            bounds[var_indices] = [(sfc_h - thick * bed_h_bounds[1],
+                                    sfc_h - thick * bed_h_bounds[0])
+                                   for sfc_h, thick in
                                    zip(fl.surface_h[ice_mask],
-                                       upper_limits)]
+                                       fl.thick[ice_mask])]
+
+            # Outdated calculation using GlabTop
+            # upper_limits = get_adaptive_upper_ice_thickness_limit(
+            #     fl,
+            #     additional_ice_thickness=data_logger.additional_ice_thickness,
+            #     max_thickness=data_logger.max_ice_thickness,
+            #     w0_min=data_logger.min_w0_m)
+            # bounds[var_indices] = [(sfc_h - upper_limit,
+            #                         sfc_h - data_logger.min_ice_thickness)
+            #                        for sfc_h, upper_limit in
+            #                        zip(fl.surface_h[ice_mask],
+            #                            upper_limits)]
+
         elif var == 'area_bed_h':
             fl = data_logger.flowline_init
             ice_mask = data_logger.ice_mask
-            upper_limits = get_adaptive_upper_ice_thickness_limit(
-                fl,
-                additional_ice_thickness=data_logger.additional_ice_thickness,
-                max_thickness=data_logger.max_ice_thickness,
-                w0_min=data_logger.min_w0_m)
-            bounds[var_indices] = [((sfc_h - upper_limit) * width_m,
-                                    (sfc_h - data_logger.min_ice_thickness) *
+            bed_h_bounds = data_logger.bed_h_bounds
+            bounds[var_indices] = [((sfc_h - thick * bed_h_bounds[1]) *
+                                    width_m,
+                                    (sfc_h - thick * bed_h_bounds[0]) *
                                     width_m)
-                                   for sfc_h, width_m, upper_limit in
+                                   for sfc_h, thick, width_m in
                                    zip(fl.surface_h[ice_mask],
-                                       fl.widths_m[ice_mask],
-                                       upper_limits)
-                                   ]
+                                       fl.thick[ice_mask],
+                                       fl.widths_m[ice_mask])]
+
+            # Outdated calculation using GlabTop
+            # upper_limits = get_adaptive_upper_ice_thickness_limit(
+            #     fl,
+            #     additional_ice_thickness=data_logger.additional_ice_thickness,
+            #     max_thickness=data_logger.max_ice_thickness,
+            #     w0_min=data_logger.min_w0_m)
+            # bounds[var_indices] = [((sfc_h - upper_limit) * width_m,
+            #                         (sfc_h - data_logger.min_ice_thickness) *
+            #                         width_m)
+            #                        for sfc_h, width_m, upper_limit in
+            #                        zip(fl.surface_h[ice_mask],
+            #                            fl.widths_m[ice_mask],
+            #                            upper_limits)
+            #                        ]
+
         elif var == 'surface_h':
             fl = data_logger.flowline_init
             bounds[var_indices] = [(sfc_h - data_logger.max_deviation_surface_h,
