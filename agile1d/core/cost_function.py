@@ -172,7 +172,15 @@ def define_scaling_terms(data_logger):
 
         for obs_val in observations.keys():
             for year in observations[obs_val].keys():
-                reg_parameters[obs_val][year] = 1 / scales[obs_val]**2
+                if 'absolute' in scales[obs_val].keys():
+                    reg_parameters[obs_val][year] = \
+                        1 / scales[obs_val]['absolute']**2
+                elif 'relative' in scales[obs_val].keys():
+                    reg_parameters[obs_val][year] = \
+                        1 / (scales[obs_val]['relative'] *
+                             observations[obs_val][year])**2
+                else:
+                    raise NotImplementedError(f'{scales[obs_val].keys()}')
 
         data_logger.obs_scaling_parameters = reg_parameters
 

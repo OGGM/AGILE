@@ -232,12 +232,15 @@ class TestSandbox:
 
         # add all possible observations to test everything
         inversion_settings['observations']['fl_widths:m'] = {}
-        inversion_settings['obs_scaling_parameters']['uncertainty']['fl_widths:m'] = 1.
+        inversion_settings['obs_scaling_parameters']['uncertainty']['fl_widths:m'] = \
+            {'absolute': 1.}
         inversion_settings['observations']['fl_total_area:m2'] = {}
-        inversion_settings['obs_scaling_parameters']['uncertainty']['fl_total_area:m2'] = 1.
+        inversion_settings['obs_scaling_parameters']['uncertainty']['fl_total_area:m2'] = \
+            {'absolute': 1.}
         # extracted from experiment creation
         inversion_settings['observations']['area:km2'] = {}
-        inversion_settings['obs_scaling_parameters']['uncertainty']['area:km2'] = 1.
+        inversion_settings['obs_scaling_parameters']['uncertainty']['area:km2'] = \
+            {'relative': 0.1}
 
         # add all possible control variables
         inversion_settings['control_vars'] = control_vars
@@ -430,12 +433,15 @@ class TestSandbox:
 
         # add all possible observations to test everything
         inversion_settings['observations']['fl_widths:m'] = {}
-        inversion_settings['obs_scaling_parameters']['uncertainty']['fl_widths:m'] = 1.
+        inversion_settings['obs_scaling_parameters']['uncertainty']['fl_widths:m'] = \
+            {'absolute': 1.}
         inversion_settings['observations']['fl_total_area:m2'] = {}
-        inversion_settings['obs_scaling_parameters']['uncertainty']['fl_total_area:m2'] = 1.
+        inversion_settings['obs_scaling_parameters']['uncertainty']['fl_total_area:m2'] = \
+            {'absolute': 1.}
         # extracted from experiment creation
         inversion_settings['observations']['area:km2'] = {}
-        inversion_settings['obs_scaling_parameters']['uncertainty']['area:km2'] = 1.
+        inversion_settings['obs_scaling_parameters']['uncertainty']['area:km2'] = \
+            {'relative': 0.1}
 
         inversion_settings1 = copy.deepcopy(inversion_settings)
         inversion_settings2 = copy.deepcopy(inversion_settings)
@@ -614,12 +620,15 @@ class TestSandbox:
 
         # add all possible observations to test everything
         inversion_settings['observations']['fl_widths:m'] = {}
-        inversion_settings['obs_scaling_parameters']['uncertainty']['fl_widths:m'] = 1.
+        inversion_settings['obs_scaling_parameters']['uncertainty']['fl_widths:m'] = \
+            {'absolute': 1.}
         inversion_settings['observations']['fl_total_area:m2'] = {}
-        inversion_settings['obs_scaling_parameters']['uncertainty']['fl_total_area:m2'] = 1.
+        inversion_settings['obs_scaling_parameters']['uncertainty']['fl_total_area:m2'] = \
+            {'absolute': 1.}
         # extracted from experiment creation
         inversion_settings['observations']['area:km2'] = {}
-        inversion_settings['obs_scaling_parameters']['uncertainty']['area:km2'] = 1.
+        inversion_settings['obs_scaling_parameters']['uncertainty']['area:km2'] = \
+            {'relative': 0.1}
 
         # test perfect spinup options
         inversion_settings['control_vars'] = []

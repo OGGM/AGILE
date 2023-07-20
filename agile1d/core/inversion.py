@@ -166,7 +166,9 @@ def get_default_inversion_settings(get_doc=False):
            "total cost value. There are two options 'uncertainty' and 'scale'." \
            " If 'uncertainty' is given the reg parameter of an observations " \
            "equals '1 / uncertainty²'. The uncertainty " \
-           "is prescribed in cost_function define_reg_parameters. Or (NOT " \
+           "is prescribed in cost_function define_reg_parameters. The " \
+           "uncertainty can be given as 'absolute' values or 'relative' to " \
+           "the observed quantity. Or (NOT " \
            "RECOMMENDED) one can use a dict with key 'scale' (e.g. " \
            "{'scale': {'fl_surface_h': 10., 'fl_widths_m': 1.}}), this option " \
            "first express the individual mismatches in percent of the " \
@@ -176,8 +178,8 @@ def get_default_inversion_settings(get_doc=False):
            "weighted as a 10% mismatch at 'fl_widths_m'). " \
            "Default: {'uncertainty': {'fl_surface_h:m': 1.," \
            "'dmdtda:kg m-2 yr-1': 1.}}"
-    _default = {'uncertainty': {'fl_surface_h:m': 10.,
-                                'dmdtda:kg m-2 yr-1': 100.}}
+    _default = {'uncertainty': {'fl_surface_h:m': {'absolute': 10.},
+                                'dmdtda:kg m-2 yr-1': {'absolute': 100.}}}
     add_setting()
 
     _key = "regularisation_terms"
