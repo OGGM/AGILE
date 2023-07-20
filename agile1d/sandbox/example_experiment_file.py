@@ -27,8 +27,8 @@ experiment_options = \
                          },
         'obs_scaling_parameters': {
             'obsreg1': {'uncertainty': {
-                'fl_surface_h:m': 1.,
-                'dmdtda:kg m-2 yr-1': 1.}},
+                'fl_surface_h:m': {'absolute': 1.},
+                'dmdtda:kg m-2 yr-1': {'absolute': 1.}}},
             # 'obsreg2': {'uncertainty': {
             #     'fl_surface_h:m': 10.,
             #     'dmdtda:kg m-2 yr-1': 1.}},

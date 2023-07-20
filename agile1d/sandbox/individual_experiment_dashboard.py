@@ -392,7 +392,7 @@ def individual_experiment_dashboard(working_dir, input_folder,
                                                len(ds.coords['iteration'].values))
 
         tooltips_c_terms = [('Iteration', '@{Iteration}')]
-        tooltips_c_terms += [(key, '@{' + key + '}{%0.4f}') for key in c_terms_conv.keys()]
+        tooltips_c_terms += [(key, '@{' + key + '}{%0.2e}') for key in c_terms_conv.keys()]
         hover_c_terms = HoverTool(tooltips=tooltips_c_terms,
                                   formatters=dict([('@{' + key + '}', 'printf') for key in
                                                    c_terms_conv.keys()]),
