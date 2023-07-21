@@ -135,6 +135,11 @@ class TestSandbox:
                 else:
                     raise NotImplementedError(f'{stat_key}')
 
+        assert gdir.has_file('model_flowlines',
+                             filesuffix='_oggm_first_guess')
+        assert gdir.has_file('model_flowlines',
+                             filesuffix='_glabtop_first_guess')
+
         if do_plot:
             for gdir in gdirs:
                 fl_oggm = gdir.read_pickle('model_flowlines')[0]
@@ -148,9 +153,9 @@ class TestSandbox:
                 fl_agile_end = \
                     gdir.read_pickle('model_flowlines',
                                      filesuffix='_agile_true_end')[0]
-                fl_agile_first_guess = \
+                fl_oggm_first_guess = \
                     gdir.read_pickle('model_flowlines',
-                                     filesuffix='_agile_first_guess')[0]
+                                     filesuffix='_oggm_first_guess')[0]
 
                 def get_fl_diagnostics(filesuffix):
                     f = gdir.get_filepath('fl_diagnostics',
@@ -191,13 +196,13 @@ class TestSandbox:
                 ax2.legend()
 
                 ax3.axhline(0, color='black')
-                ax3.plot(fl_spinup.bed_h - fl_agile_first_guess.bed_h,
+                ax3.plot(fl_spinup.bed_h - fl_oggm_first_guess.bed_h,
                          label='positive means overdeepening')
                 ax3.set_title('delta bed_h')
                 ax3.legend()
 
-                ax4.plot(fl_agile_first_guess.is_trapezoid, label='trapez')
-                ax4.plot(fl_agile_first_guess.is_rectangular, label='rect')
+                ax4.plot(fl_oggm_first_guess.is_trapezoid, label='trapez')
+                ax4.plot(fl_oggm_first_guess.is_rectangular, label='rect')
                 ax4.legend()
 
                 ax5.plot(fl_oggm.thick > 0, label='OGGM thick > 0')
@@ -223,7 +228,11 @@ class TestSandbox:
                              [['area_bed_h', 'lambdas', 'w0_m'],
                               ['bed_h', 'lambdas', 'w0_m']],
                              ids=['area_bed_h', 'bed_h'])
-    def test_run_idealized_experiment(self, test_dir, control_vars):
+    @pytest.mark.parametrize('init_mdl_fls',
+                             ['_oggm_first_guess', '_glabtop_first_guess'],
+                             ids=['oggm_fg', 'glabtop_fg'])
+    def test_run_idealized_experiment(self, test_dir, control_vars,
+                                      init_mdl_fls):
 
         experiment_glacier = ['Aletsch', 'Artesonraju']
 
@@ -269,6 +278,7 @@ class TestSandbox:
             use_experiment_glaciers=experiment_glacier,
             inversion_settings_all=[inversion_settings],
             inversion_settings_individual=inversion_settings_individual,
+            init_model_fls=init_mdl_fls,
             working_dir=test_dir,
             output_folder=test_dir,
             override_params={'border': 160,
@@ -533,7 +543,7 @@ class TestSandbox:
             ds_section = pickle.load(handle)
 
         fl_fg = gdirs[0].read_pickle('model_flowlines',
-                                     filesuffix='_agile_first_guess')[0]
+                                     filesuffix='_oggm_first_guess')[0]
         assert np.allclose(ds_section.section_start[0], fl_fg.section)
 
     def test_StackedMassBalance(self, test_dir):

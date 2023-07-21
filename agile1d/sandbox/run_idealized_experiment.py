@@ -35,6 +35,8 @@ def parse_args(args):
                         default=False,
                         help='If the idealized statistics should be printed '
                              'out after each run.')
+    parser.add_argument('--first_guess', type=str, default='oggm',
+                        help='The first guess method to use (oggm, glabtop).')
 
     args = parser.parse_args(args)
 
@@ -48,6 +50,14 @@ def parse_args(args):
 
     output_folder = os.path.abspath(output_folder)
     working_dir = os.path.abspath(working_dir)
+
+    # define first guess flowline to use
+    if args.first_guess == 'oggm':
+        init_model_fls = '_oggm_first_guess'
+    elif args.first_guess == 'glabtop':
+        init_model_fls = '_glabtop_first_guess'
+    else:
+        raise NotImplementedError(f'{args.first_guess}')
 
     # check if information for experiments is correctly given in separate file
     spec = importlib.util.spec_from_file_location("experiments",
@@ -74,6 +84,7 @@ def parse_args(args):
                 logging_level=args.logging_level,
                 inversion_settings_all=foo.inversion_settings_all,
                 inversion_settings_individual=foo.inversion_settings_individual,
+                init_model_fls=init_model_fls,
                 use_experiment_glaciers=use_experiment_glaciers,
                 print_statistic=args.print_statistic
                 )
