@@ -302,7 +302,7 @@ def get_default_inversion_settings(get_doc=False):
 
 @entity_task(log, writes=['inversion_input'])
 def prepare_for_agile_inversion(gdir, inversion_settings=None,
-                                  filesuffix='_agile'):
+                                filesuffix='_agile'):
     """TODO
     """
     if inversion_settings is None:
@@ -322,11 +322,18 @@ def get_control_var_bounds(data_logger):
             fl = data_logger.flowline_init
             ice_mask = data_logger.ice_mask
             bed_h_bounds = data_logger.bed_h_bounds
-            bounds[var_indices] = [(sfc_h - thick * bed_h_bounds[1],
-                                    sfc_h - thick * bed_h_bounds[0])
-                                   for sfc_h, thick in
+
+            h_max_w0 = (fl.widths_m[fl.thick > 0] - data_logger.min_w0_m) / \
+                       fl._lambdas[fl.thick > 0]
+
+            bounds[var_indices] = [(sfc_h - min(thick * bed_h_bounds[1],
+                                                thick_max),
+                                    sfc_h - thick * bed_h_bounds[0]
+                                    )
+                                   for sfc_h, thick, thick_max in
                                    zip(fl.surface_h[ice_mask],
-                                       fl.thick[ice_mask])]
+                                       fl.thick[ice_mask],
+                                       h_max_w0)]
 
             # Outdated calculation using GlabTop
             # upper_limits = get_adaptive_upper_ice_thickness_limit(
@@ -344,14 +351,19 @@ def get_control_var_bounds(data_logger):
             fl = data_logger.flowline_init
             ice_mask = data_logger.ice_mask
             bed_h_bounds = data_logger.bed_h_bounds
-            bounds[var_indices] = [((sfc_h - thick * bed_h_bounds[1]) *
-                                    width_m,
-                                    (sfc_h - thick * bed_h_bounds[0]) *
-                                    width_m)
-                                   for sfc_h, thick, width_m in
+
+            h_max_w0 = (fl.widths_m[fl.thick > 0] - data_logger.min_w0_m) / \
+                       fl._lambdas[fl.thick > 0]
+
+            bounds[var_indices] = [((sfc_h - min(thick * bed_h_bounds[1],
+                                                 thick_max)) * width_m,
+                                    (sfc_h - thick * bed_h_bounds[0]) * width_m
+                                    )
+                                   for sfc_h, thick, width_m, thick_max in
                                    zip(fl.surface_h[ice_mask],
                                        fl.thick[ice_mask],
-                                       fl.widths_m[ice_mask])]
+                                       fl.widths_m[ice_mask],
+                                       h_max_w0)]
 
             # Outdated calculation using GlabTop
             # upper_limits = get_adaptive_upper_ice_thickness_limit(
