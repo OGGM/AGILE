@@ -150,7 +150,7 @@ def data_logger_init(hef_gdir, control_vars, spinup_option, dynamic_models,
         inversion_settings['regularisation_terms'] = {'smoothed_bed': 1.,
                                                       'smoothed_flux': 10.}
     prepare_for_agile_inversion(hef_gdir, inversion_settings=inversion_settings,
-                                  filesuffix='_agile')
+                                filesuffix='_agile')
     data_logger = initialise_DataLogger(hef_gdir, inversion_input_filesuffix='_agile')
     return data_logger
 

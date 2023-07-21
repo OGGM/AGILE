@@ -6,9 +6,9 @@ import pytest
 
 from agile1d.core.first_guess import get_first_guess
 from agile1d.core.inversion import (prepare_for_agile_inversion,
-                                      get_control_var_bounds,
-                                      get_default_inversion_settings,
-                                      agile_inversion)
+                                    get_control_var_bounds,
+                                    get_default_inversion_settings,
+                                    agile_inversion)
 from agile1d.core.data_logging import initialise_DataLogger
 from agile1d.core.cost_function import create_cost_fct, descale_unknown_parameters
 
@@ -27,7 +27,7 @@ class TestInversion:
 
         # add default inversion_input_agile and try again
         prepare_for_agile_inversion(hef_gdir, inversion_settings=None,
-                                      filesuffix='_agile')
+                                    filesuffix='_agile')
         data_logger = initialise_DataLogger(
             hef_gdir, inversion_input_filesuffix='_agile')
 
@@ -103,7 +103,7 @@ class TestInversion:
                              ids=[#'flux_based',
                                   'implicit'])
     def test_agile_inversion(self, hef_gdir, control_vars, spinup_options,
-                               dynamic_model, all_supported_control_vars):
+                             dynamic_model, all_supported_control_vars):
         # Final integration test that the inversion runs with no errors, also
         # test the saving of the final past evolution
         inversion_settings = get_default_inversion_settings(get_doc=False)
@@ -131,11 +131,11 @@ class TestInversion:
         inversion_settings['observations'][measure_key]['2000-2019'] = -1.
 
         prepare_for_agile_inversion(hef_gdir,
-                                      inversion_settings=inversion_settings,
-                                      filesuffix='_agile')
+                                    inversion_settings=inversion_settings,
+                                    filesuffix='_agile')
 
         data_logger = agile_inversion(hef_gdir, give_data_logger_back=True,
-                                        save_past_evolution=True)
+                                      save_past_evolution=True)
 
         # test if data_logger contains data
         assert data_logger.minimize_message is not None
