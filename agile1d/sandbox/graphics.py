@@ -503,7 +503,7 @@ def plot_glacier_evolution(gdir, ax_v, ax_a, ax_l, text_position=1.1,
 def plot_dhdt_first_guess_db(gdir, ax_dh, ax_db, ax_ds=None, grid_points_added=0):
     # open flowlines to be plotted (only for single flowline models)
     fls_true_rgi = gdir.read_pickle('model_flowlines', filesuffix='_agile_true_init')[0]
-    fls_first_guess = gdir.read_pickle('model_flowlines', filesuffix='_agile_first_guess')[0]
+    fls_first_guess = gdir.read_pickle('model_flowlines', filesuffix='_oggm_first_guess')[0]
 
 
     # define extend to plot according to longest flowline

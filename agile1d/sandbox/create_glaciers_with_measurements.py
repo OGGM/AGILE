@@ -12,6 +12,7 @@ from oggm.core.massbalance import ConstantMassBalance, MultipleFlowlineMassBalan
 from oggm.shop import bedtopo, gcm_climate
 
 from agile1d.core.massbalance import StackedMassBalance
+from agile1d.core.inversion import get_adaptive_upper_ice_thickness_limit
 from agile1d.sandbox.calculate_statistics import calculate_default_oggm_statistics
 from agile1d.sandbox.glaciers_for_idealized_experiments import experiment_glaciers
 
@@ -130,6 +131,9 @@ def create_idealized_experiments(all_glaciers,
 
     # now OGGM inversion from idealized glacier surface for first guess
     workflow.execute_entity_task(oggm_inversion_for_first_guess, gdirs)
+
+    # now add a second bed inversion
+    workflow.execute_entity_task(glabtop_inversion_for_first_guess, gdirs)
 
     # finally use oggm default initialisation for comparisons
     workflow.execute_entity_task(oggm_default_initialisation, gdirs,
@@ -538,7 +542,48 @@ def oggm_inversion_for_first_guess(gdir):
     assert np.allclose(fls_first_guess.widths_m, fls_experiment.widths_m)
     assert np.allclose(fls_first_guess.thick[ice_mask], inv_thick_use)
     gdir.write_pickle([fls_first_guess], 'model_flowlines',
-                      filesuffix='_agile_first_guess')
+                      filesuffix='_oggm_first_guess')
+
+
+@entity_task(log, writes=['model_flowlines'])
+def glabtop_inversion_for_first_guess(gdir):
+    """TODO
+    """
+    fls_experiment = gdir.read_pickle('model_flowlines',
+                                      filesuffix='_agile_true_init')[0]
+    ice_mask = np.where(fls_experiment.thick > 0.01, True, False)
+
+    fg_thick = get_adaptive_upper_ice_thickness_limit(
+        fls_experiment, additional_ice_thickness=15)
+    fg_bed_h = fls_experiment.surface_h[fls_experiment.thick > 0] - fg_thick
+
+    bed_h_new = copy.deepcopy(fls_experiment.bed_h)
+    bed_h_new[ice_mask] = fg_bed_h
+
+    section_new = np.zeros(fls_experiment.nx)
+    widths = fls_experiment.widths_m[ice_mask]
+    lam = fls_experiment._lambdas[ice_mask]
+    section_new[ice_mask] = (2*widths - lam * fg_thick) / 2 * fg_thick
+
+    fl_fg = MixedBedFlowline(line=fls_experiment.line,
+                             dx=fls_experiment.dx,
+                             map_dx=fls_experiment.map_dx,
+                             surface_h=fls_experiment.surface_h,
+                             bed_h=bed_h_new,
+                             section=section_new,
+                             bed_shape=fls_experiment.bed_shape,
+                             is_trapezoid=fls_experiment.is_trapezoid,
+                             lambdas=fls_experiment._lambdas,
+                             widths_m=fls_experiment.widths_m,
+                             rgi_id=fls_experiment.rgi_id,
+                             gdir=gdir)
+
+    assert np.allclose(fl_fg.widths_m, fls_experiment.widths_m)
+    assert np.all(fl_fg._w0_m > 10)
+    assert np.all(fl_fg.is_trapezoid)
+
+    gdir.write_pickle([fl_fg], 'model_flowlines',
+                      filesuffix='_glabtop_first_guess')
 
 
 def get_experiment_mb_model(gdir):
@@ -556,7 +601,7 @@ def oggm_default_initialisation(gdir, ys, ye, gcm='BCC-CSM2-MR', ssp='ssp370'):
     # do dynamic initialisation
     spinup_model = tasks.run_dynamic_spinup(
         gdir, spinup_start_yr=ys, ye=ye, evolution_model=SemiImplicitModel,
-        model_flowline_filesuffix='_agile_first_guess',
+        model_flowline_filesuffix='_oggm_first_guess',
         precision_absolute=0.1,
         output_filesuffix='_oggm_dynamic_past', store_model_geometry=True,
         store_fl_diagnostics=True, store_model_evolution=True,
@@ -564,7 +609,7 @@ def oggm_default_initialisation(gdir, ys, ye, gcm='BCC-CSM2-MR', ssp='ssp370'):
 
     # do static initialisation
     fls_init = gdir.read_pickle('model_flowlines',
-                                filesuffix='_agile_first_guess')
+                                filesuffix='_oggm_first_guess')
     static_model = tasks.run_from_climate_data(
         gdir, ye=ye,
         fixed_geometry_spinup_yr=ys,

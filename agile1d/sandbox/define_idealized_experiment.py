@@ -21,6 +21,7 @@ def idealized_experiment(use_experiment_glaciers,
                          working_dir, output_folder,
                          inversion_settings_individual=None,
                          params_file=None, override_params=None,
+                         init_model_fls='_oggm_first_guess',
                          logging_level='WORKFLOW',
                          gcm='BCC-CSM2-MR',
                          ssp='ssp370',
@@ -81,6 +82,7 @@ def idealized_experiment(use_experiment_glaciers,
                                     ))
 
     workflow.execute_entity_task(conduct_sandbox_inversion, all_experiments,
+                                 init_model_fls=init_model_fls,
                                  gcm=gcm, ssp=ssp,
                                  print_statistic=print_statistic)
 
@@ -116,7 +118,7 @@ def add_future_projection_run(gdir, data_logger, gcm='BCC-CSM2-MR',
 @entity_task(log, writes=['inversion_input', 'model_flowlines'])
 def conduct_sandbox_inversion(gdir, inversion_settings=None,
                               output_folder=None,
-                              init_model_fls='_agile_first_guess',
+                              init_model_fls='_oggm_first_guess',
                               gcm='BCC-CSM2-MR',
                               ssp='ssp370',
                               print_statistic=True):
@@ -143,22 +145,22 @@ def conduct_sandbox_inversion(gdir, inversion_settings=None,
             raise RuntimeError(f'No observation for {msr} available!')
 
     prepare_for_agile_inversion(gdir,
-                                  inversion_settings=inversion_settings,
-                                  filesuffix=
-                                  inversion_settings['experiment_description'])
+                                inversion_settings=inversion_settings,
+                                filesuffix=
+                                inversion_settings['experiment_description'])
 
     data_logger = agile_inversion(gdir,
-                                    inversion_input_filesuffix=
-                                    inversion_settings['experiment_description'],
-                                    init_model_filesuffix=None,
-                                    init_model_fls=init_model_fls,
-                                    climate_filename='climate_historical',
-                                    climate_filesuffix='',
-                                    output_filesuffix='_agile_output_' +
-                                                      inversion_settings['experiment_description'],
-                                    output_filepath=output_folder,
-                                    save_dataset=True,
-                                    give_data_logger_back=True)
+                                  inversion_input_filesuffix=
+                                  inversion_settings['experiment_description'],
+                                  init_model_filesuffix=None,
+                                  init_model_fls=init_model_fls,
+                                  climate_filename='climate_historical',
+                                  climate_filesuffix='',
+                                  output_filesuffix='_agile_output_' +
+                                                    inversion_settings['experiment_description'],
+                                  output_filepath=output_folder,
+                                  save_dataset=True,
+                                  give_data_logger_back=True)
 
     add_future_projection_run(gdir, data_logger=data_logger, gcm=gcm, ssp=ssp)
 

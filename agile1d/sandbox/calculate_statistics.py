@@ -373,7 +373,7 @@ def calculate_default_oggm_statistics(gdir):
         controls_mdl = {}
         controls_true = {}
         fls_mdl = gdir.read_pickle('model_flowlines',
-                                   filesuffix='_agile_first_guess')[0]
+                                   filesuffix='_oggm_first_guess')[0]
         fls_true = gdir.read_pickle('model_flowlines',
                                     filesuffix='_agile_true_init')[0]
 
