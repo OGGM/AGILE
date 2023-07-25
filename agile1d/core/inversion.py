@@ -3,6 +3,7 @@ import logging
 import shutil
 import warnings
 import time
+import copy
 
 # External libs
 from agile1d.core.dynamics import run_model_and_get_model_values
@@ -475,10 +476,10 @@ def get_adaptive_upper_ice_thickness_limit(fl, additional_ice_thickness=100,
 
 def save_past_evolution_to_disk(gdir, data_logger):
     # recreate initial flowline
-    fl_final = data_logger.flowlines[-1]
+    fl_final = copy.deepcopy(data_logger.flowlines[-1])
     # set to initial ice thickness distribution, this already includes a
     # potential spinup
-    fl_final.surface_h = data_logger.sfc_h_start[-1]
+    fl_final.surface_h = copy.deepcopy(data_logger.sfc_h_start[-1])
     # convert flowline to torch flowline
     fl_final = MixedBedFlowline(
         line=fl_final.line, dx=fl_final.dx, map_dx=fl_final.map_dx,

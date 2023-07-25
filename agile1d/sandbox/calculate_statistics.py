@@ -1,5 +1,6 @@
 import os
 import pickle
+import copy
 import numpy as np
 import xarray as xr
 from oggm import utils, cfg
@@ -112,8 +113,8 @@ def calculate_result_statistics(gdir, data_logger, print_statistic=False):
     ds.attrs['controls_stats'] = controls_stats
 
     # how well do we match the past glacier state -----------------------------
-    fls_start_mdl = data_logger.flowlines[-1]
-    sfc_h_start = data_logger.sfc_h_start[-1]
+    fls_start_mdl = copy.deepcopy(data_logger.flowlines[-1])
+    sfc_h_start = copy.deepcopy(data_logger.sfc_h_start[-1])
     fls_start_mdl.surface_h = sfc_h_start
     fls_start_true = gdir.read_pickle('model_flowlines',
                                       filesuffix='_creation_spinup')[0]
@@ -162,7 +163,7 @@ def calculate_result_statistics(gdir, data_logger, print_statistic=False):
     ds.attrs['past_evol_stats'] = past_evol_stats
 
     # how well do we match today's glacier state ------------------------------
-    fls_end_mdl = data_logger.flowlines[-1]
+    fls_end_mdl = copy.deepcopy(data_logger.flowlines[-1])
     fls_end_true = gdir.read_pickle('model_flowlines',
                                     filesuffix='_agile_true_end')[0]
 
