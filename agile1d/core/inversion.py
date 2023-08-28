@@ -61,10 +61,10 @@ def get_default_inversion_settings(get_doc=False):
            "one year before first given observation year!" \
            "Default: {'MB': {'type': 'TIModel'," \
            "                 'years': np.array([1980, 2020])," \
-           "                 'mb_model_args': {}}}"
+           "                 'model_args': {}}}"
     _default = {'MB': {'type': 'TIModel',
                        'years': np.array([1980, 2020]),
-                       'mb_model_args': {}}}
+                       'model_args': {}}}
 
     add_setting()
 
