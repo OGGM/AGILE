@@ -428,7 +428,8 @@ def individual_experiment_dashboard(working_dir, input_folder,
                 fl_ref_rgi = gdir.read_pickle('model_flowlines',
                                               filesuffix='_agile_true_init')[0]
                 fl_ref_start = gdir.read_pickle('model_flowlines',
-                                                filesuffix='_creation_spinup')[0]
+                                                filesuffix='_creation_spinup_'
+                                                           f'{glacier_state}')[0]
                 fl_ref_end = gdir.read_pickle('model_flowlines',
                                               filesuffix='_agile_true_end')[0]
 

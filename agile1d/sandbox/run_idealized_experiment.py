@@ -70,10 +70,14 @@ def parse_args(args):
     if not hasattr(foo, 'use_experiment_glaciers'):
         raise InvalidParamsError('No variable "experiment_glaciers" in '
                                  'provided experiments file!')
+    if not hasattr(foo, 'use_experiment_glacier_states'):
+        raise InvalidParamsError('No variable "experiment_glacier_states" in '
+                                 'provided experiments file!')
     if not hasattr(foo, 'inversion_settings_individual'):
         raise InvalidParamsError('No variable "inversion_settings_individual" in '
                                  'provided experiments file!')
     use_experiment_glaciers = foo.use_experiment_glaciers
+    use_experiment_glacier_states = foo.use_experiment_glacier_states
     for glacier in use_experiment_glaciers:
         if glacier not in experiment_glaciers.keys():
             raise InvalidParamsError(f'{glacier} not supported! First must be '
@@ -86,6 +90,7 @@ def parse_args(args):
                 inversion_settings_individual=foo.inversion_settings_individual,
                 init_model_fls=init_model_fls,
                 use_experiment_glaciers=use_experiment_glaciers,
+                use_experiment_glacier_states=use_experiment_glacier_states,
                 print_statistic=args.print_statistic
                 )
 

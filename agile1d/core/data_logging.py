@@ -157,7 +157,7 @@ class DataLogger(object):
         self.first_guess = None
 
         self.filename = gdir.name + '_' + \
-                        inversion_input['experiment_description']
+            inversion_input['experiment_description']
 
         # create info Text for callback_fct TODO: think about showing the evolution of the c_terms
         self.info_text = '''

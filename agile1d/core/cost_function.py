@@ -138,7 +138,6 @@ def get_indices_for_unknown_parameters(data_logger):
 
 
 def define_scaling_terms(data_logger):
-
     # define scaling terms for observation stuff
     if 'scale' in data_logger.obs_scaling_parameters.keys():
         observations = data_logger.observations
@@ -318,7 +317,7 @@ def cost_fct(unknown_parameters, data_logger):
         initial_flux,  # for regularisation term 'smoothed_flux'
         unknown_parameters,  # for distance from fg regularisation
         data_logger  # for reg_parameters and observations
-        )
+    )
 
     # sum up cost function terms using cost lambda
     cost_lambda = torch.tensor(data_logger.cost_lambda,
@@ -625,20 +624,36 @@ def initialise_mb_models(unknown_parameters,
             # -1 because period defined as [y0 - halfsize, y0 + halfsize + 1]
             y0 = (y_start + y_end - 1) / 2
             halfsize = (y_end - y_start - 1) / 2
-            mb_models[mb_mdl_set] = {'mb_model':
-                                     ConstantMassBalanceTorch(
-                                         gdir, y0=y0, halfsize=halfsize,
-                                         torch_type=torch_type, device=device),
-                                     'years':
-                                     mb_models_settings[mb_mdl_set]['years']}
+            mb_models[mb_mdl_set] = {
+                'mb_model': ConstantMassBalanceTorch(
+                    gdir, y0=y0, halfsize=halfsize,
+                    torch_type=torch_type, device=device),
+                'years':
+                    mb_models_settings[mb_mdl_set]['years']}
         elif mb_models_settings[mb_mdl_set]['type'] == 'TIModel':
-            mb_models[mb_mdl_set] = {'mb_model':
-                                     MBModelTorchWrapper(
-                                         gdir=gdir,
-                                         mb_model=MonthlyTIModel(gdir)),
-                                     'years':
-                                     mb_models_settings[mb_mdl_set]['years']
-                                     }
+            mb_model_args = mb_models_settings[mb_mdl_set]['model_args']
+            mb_models[mb_mdl_set] = {
+                'mb_model': MBModelTorchWrapper(
+                    gdir=gdir,
+                    mb_model=MonthlyTIModel(
+                        gdir,
+                        **mb_model_args)
+                ),
+                'years':
+                    mb_models_settings[mb_mdl_set]['years']
+            }
+        elif mb_models_settings[mb_mdl_set]['type'] == 'ConstantModel':
+            mb_model_args = mb_models_settings[mb_mdl_set]['model_args']
+            mb_models[mb_mdl_set] = {
+                'mb_model': MBModelTorchWrapper(
+                    gdir=gdir,
+                    mb_model=ConstantMassBalance(
+                        gdir,
+                        **mb_model_args)
+                ),
+                'years':
+                    mb_models_settings[mb_mdl_set]['years']
+            }
         else:
             raise NotImplementedError("The MassBalance type "
                                       f"{mb_models_settings[mb_mdl_set]['type']} "

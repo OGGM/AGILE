@@ -21,6 +21,7 @@ log = logging.getLogger(__name__)
 
 
 def create_idealized_experiments(all_glaciers,
+                                 glacier_states,
                                  prepro_border=None,
                                  from_prepro_level=None,
                                  base_url=None,
@@ -50,6 +51,14 @@ def create_idealized_experiments(all_glaciers,
     for glacier in all_glaciers:
         if glacier not in experiment_glaciers.keys():
             raise ValueError(f'{glacier} not defined for idealized experiments')
+
+    # check if glacier states are valid
+    if any(state not in ['equilibrium', 'retreating', 'advancing']
+           for state in glacier_states):
+        raise NotImplementedError("Glacier states could only be one of "
+                                  "['equilibrium', 'retreating', 'advancing']"
+                                  ", but given was "
+                                  f"{glacier_states}.")
 
     # create a dict which translate rgi_ids to glacier name
     rgi_id_to_name = dict([(experiment_glaciers[glacier]['rgi_id'],
@@ -116,29 +125,36 @@ def create_idealized_experiments(all_glaciers,
     for gdir in gdirs:
         gdir.rgi_date = 2000
 
-    # create spinup glacier starting from consensus flowline
-    workflow.execute_entity_task(create_spinup_glacier, gdirs,
-                                 yr_run_start=yr_run_start)
+    # create glacier with experiment measurements, for all states
+    for glacier_state in glacier_states:
+        # create spinup glacier starting from consensus flowline
+        workflow.execute_entity_task(create_spinup_glacier, gdirs,
+                                     glacier_state=glacier_state,
+                                     yr_run_start=yr_run_start)
 
-    # create glacier with experiment measurements
-    workflow.execute_entity_task(evolve_glacier_and_create_measurements, gdirs,
-                                 used_mb_models=used_mb_models,
-                                 yr_dmdt_start=yr_dmdt_start,
-                                 yr_run_start=yr_run_start,
-                                 yr_run_end=yr_run_end,
-                                 gcm=gcm,
-                                 ssp=ssp)
+        workflow.execute_entity_task(evolve_glacier_and_create_measurements,
+                                     gdirs,
+                                     glacier_state=glacier_state,
+                                     used_mb_models=used_mb_models,
+                                     yr_dmdt_start=yr_dmdt_start,
+                                     yr_run_start=yr_run_start,
+                                     yr_run_end=yr_run_end,
+                                     gcm=gcm,
+                                     ssp=ssp)
 
-    # now OGGM inversion from idealized glacier surface for first guess
-    workflow.execute_entity_task(oggm_inversion_for_first_guess, gdirs)
+        # now OGGM inversion from idealized glacier surface for first guess
+        workflow.execute_entity_task(oggm_inversion_for_first_guess,
+                                     gdirs, glacier_state=glacier_state)
 
-    # now add a second bed inversion
-    workflow.execute_entity_task(glabtop_inversion_for_first_guess, gdirs)
+        # now add a second bed inversion
+        workflow.execute_entity_task(glabtop_inversion_for_first_guess,
+                                     gdirs, glacier_state=glacier_state)
 
-    # finally use oggm default initialisation for comparisons
-    workflow.execute_entity_task(oggm_default_initialisation, gdirs,
-                                 ys=yr_run_start, ye=yr_run_end, gcm=gcm,
-                                 ssp=ssp)
+        # finally use oggm default initialisation for comparisons
+        workflow.execute_entity_task(oggm_default_initialisation,
+                                     gdirs, glacier_state=glacier_state,
+                                     ys=yr_run_start, ye=yr_run_end, gcm=gcm,
+                                     ssp=ssp)
 
     print('Experiment creation finished')
     return gdirs
@@ -234,8 +250,75 @@ def initialise_consensus_flowline(gdir):
                       filesuffix='_consensus')
 
 
+def get_equilibrium_year_and_halfsize(gdir):
+    return ({'RGI60-11.01450': 1993,  # Aletsch
+             'RGI60-16.02444': 1982,  # Artesonraju
+             'RGI60-14.06794': 1987,  # Baltoro
+             'RGI60-02.05098': 1957,  # Peyto
+             }[gdir.rgi_id],
+            {'RGI60-11.01450': 5,  # Aletsch
+             'RGI60-16.02444': 1,  # Artesonraju
+             'RGI60-14.06794': 6,  # Baltoro
+             'RGI60-02.05098': 9,  # Peyto
+             }[gdir.rgi_id])
+
+
+def get_spinup_mb_model(gdir, glacier_state, fls_spinup):
+    if glacier_state in ['retreating']:
+        t_bias_default = gdir.read_json('mb_calib')['temp_bias']
+        if gdir.rgi_id == 'RGI60-16.02444':
+            t_bias_use = t_bias_default - 1
+        elif gdir.rgi_id in ['RGI60-02.05098', 'RGI60-14.06794']:
+            t_bias_use = t_bias_default - 0
+        elif gdir.rgi_id == 'RGI60-11.01450':
+            t_bias_use = t_bias_default + 1.1
+        else:
+            raise NotImplementedError(f'{gdir.rgi_id}')
+        mb_model = MultipleFlowlineMassBalance(gdir,
+                                               fls=fls_spinup,
+                                               mb_model_class=RandomMassBalance,
+                                               seed=2,
+                                               filename='climate_historical',
+                                               y0=1950,
+                                               halfsize=30,
+                                               temp_bias=t_bias_use
+                                               )
+    elif glacier_state in ['advancing']:
+        t_bias_default = gdir.read_json('mb_calib')['temp_bias']
+        if gdir.rgi_id == 'RGI60-16.02444':
+            t_bias_use = t_bias_default + 0.5
+        elif gdir.rgi_id in ['RGI60-02.05098']:
+            t_bias_use = t_bias_default - 0.5
+        elif gdir.rgi_id in ['RGI60-14.06794']:
+            t_bias_use = t_bias_default - 0
+        elif gdir.rgi_id == 'RGI60-11.01450':
+            t_bias_use = t_bias_default + 1.1
+        else:
+            raise NotImplementedError(f'{gdir.rgi_id}')
+        mb_model = MultipleFlowlineMassBalance(gdir,
+                                               fls=fls_spinup,
+                                               mb_model_class=RandomMassBalance,
+                                               seed=2,
+                                               filename='climate_historical',
+                                               y0=1950,
+                                               halfsize=30,
+                                               temp_bias=t_bias_use)
+    elif glacier_state in ['equilibrium']:
+        y0, halfsize = get_equilibrium_year_and_halfsize(gdir)
+        mb_model = MultipleFlowlineMassBalance(gdir,
+                                               fls=fls_spinup,
+                                               mb_model_class=ConstantMassBalance,
+                                               filename='climate_historical',
+                                               y0=y0,
+                                               halfsize=halfsize)
+    else:
+        raise NotImplementedError(f'{glacier_state}')
+
+    return mb_model
+
+
 @entity_task(log, writes=['model_flowlines'])
-def create_spinup_glacier(gdir, yr_run_start):
+def create_spinup_glacier(gdir, glacier_state, yr_run_start):
     """
     Creates and saves the glacier state at yr_run_start (e.g. 1980) as
     'model_flowlines_creation_spinup'. Method inspired from model creation of
@@ -243,6 +326,8 @@ def create_spinup_glacier(gdir, yr_run_start):
     """
     # define how many years the random climate spinup should be
     years_to_run_random = 60
+    if glacier_state == 'equilibrium':
+        years_to_run_random = 120
 
     # use flow-parameters from default oggm inversion
     diag = gdir.get_diagnostics()
@@ -254,13 +339,7 @@ def create_spinup_glacier(gdir, yr_run_start):
     fls_spinup = gdir.read_pickle('model_flowlines',
                                   filesuffix='_consensus')
 
-    mb_random = MultipleFlowlineMassBalance(gdir,
-                                            fls=fls_spinup,
-                                            mb_model_class=RandomMassBalance,
-                                            seed=2,
-                                            filename='climate_historical',
-                                            y0=1950,
-                                            halfsize=30)
+    mb_random = get_spinup_mb_model(gdir, glacier_state, fls_spinup)
 
     model = SemiImplicitModel(fls_spinup,
                               mb_random,
@@ -269,24 +348,110 @@ def create_spinup_glacier(gdir, yr_run_start):
     model.run_until_and_store(
         yr_run_start,
         diag_path=gdir.get_filepath('model_diagnostics',
-                                    filesuffix='_agile_creation_spinup',
+                                    filesuffix='_agile_creation_spinup_'
+                                               f'{glacier_state}',
                                     delete=True))
 
     print(f'{gdir.name} L mismatch at rgi_date:'
           f' {model.fls[-1].length_m - fls_spinup[-1].length_m} m')
 
     gdir.write_pickle(model.fls, 'model_flowlines',
-                      filesuffix='_creation_spinup')
+                      filesuffix='_creation_spinup_'
+                                 f'{glacier_state}')
+
+
+def get_glacier_state_mb_model(gdir, glacier_state, save_to_gdir=False,
+                               fls_spinup=None):
+    if fls_spinup is None:
+        fls_spinup = gdir.read_pickle('model_flowlines',
+                                      filesuffix='_creation_spinup_'
+                                                 f'{glacier_state}')
+    model_type = None
+    model_args = {}
+    if glacier_state == 'equilibrium':
+        y0, halfsize = get_equilibrium_year_and_halfsize(gdir)
+        mb_model = MultipleFlowlineMassBalance(
+            gdir,
+            fls=fls_spinup,
+            mb_model_class=ConstantMassBalance,
+            y0=y0,
+            halfsize=halfsize,
+            filename='climate_historical',
+            )
+        model_type = 'ConstantModel'
+        model_args['y0'] = y0
+        model_args['halfsize'] = halfsize
+        model_args['filename'] = 'climate_historical'
+
+    elif glacier_state == 'advancing':
+        t_bias_default = gdir.read_json('mb_calib')['temp_bias']
+        if gdir.rgi_id == 'RGI60-16.02444':
+            t_bias_use = t_bias_default - 2.5
+        elif gdir.rgi_id in ['RGI60-02.05098']:
+            t_bias_use = t_bias_default - 1.8
+        elif gdir.rgi_id in ['RGI60-14.06794']:
+            t_bias_use = t_bias_default - 2.5
+        elif gdir.rgi_id == 'RGI60-11.01450':
+            t_bias_use = t_bias_default - 2
+        else:
+            raise NotImplementedError(f'{gdir.rgi_id}')
+        mb_model = MultipleFlowlineMassBalance(
+            gdir,
+            fls=fls_spinup,
+            mb_model_class=MonthlyTIModel,
+            temp_bias=t_bias_use,
+            filename='climate_historical')
+
+        model_type = 'TIModel'
+        model_args['temp_bias'] = t_bias_use
+        model_args['filename'] = 'climate_historical'
+
+    elif glacier_state == 'retreating':
+        t_bias_default = gdir.read_json('mb_calib')['temp_bias']
+        if gdir.rgi_id == 'RGI60-16.02444':
+            t_bias_use = t_bias_default + 0
+        elif gdir.rgi_id in ['RGI60-02.05098']:
+            t_bias_use = t_bias_default + 0
+        elif gdir.rgi_id in ['RGI60-14.06794']:
+            t_bias_use = t_bias_default + 1.2
+        elif gdir.rgi_id == 'RGI60-11.01450':
+            t_bias_use = t_bias_default + 1.3
+        else:
+            raise NotImplementedError(f'{gdir.rgi_id}')
+        mb_model = MultipleFlowlineMassBalance(
+            gdir,
+            fls=fls_spinup,
+            mb_model_class=MonthlyTIModel,
+            temp_bias=t_bias_use,
+            filename='climate_historical')
+
+        model_type = 'TIModel'
+        model_args['temp_bias'] = t_bias_use
+        model_args['filename'] = 'climate_historical'
+
+    if save_to_gdir:
+        mb_models_agile = {'MB': {'type': model_type,
+                                  'model_args': model_args,
+                                  'years': np.array([1980, 2020])}
+                           }
+
+        # write the mb_model settings for later into gdir
+        gdir.write_pickle(mb_models_agile, 'inversion_input',
+                          filesuffix=f'_agile_mb_models_{glacier_state}')
+
+    return mb_model
 
 
 @entity_task(log, writes=['model_flowlines', 'inversion_input'])
-def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_dmdt_start,
-                                           yr_run_start, yr_run_end,
+def evolve_glacier_and_create_measurements(gdir, glacier_state, used_mb_models,
+                                           yr_dmdt_start, yr_run_start,
+                                           yr_run_end,
                                            gcm='BCC-CSM2-MR', ssp='ssp370'):
     """TODO
     """
     fls_spinup = gdir.read_pickle('model_flowlines',
-                                  filesuffix='_creation_spinup')
+                                  filesuffix='_creation_spinup_'
+                                             f'{glacier_state}')
     yr_rgi = gdir.rgi_date
 
     # use flow-parameters from default oggm inversion
@@ -297,33 +462,26 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_dmdt_start,
 
     # now start actual experiment run for the creation of measurements
     if used_mb_models == 'constant':
-        mb_models_agile = {'MB1': {'type': 'constant',
-                                     'years': np.array([yr_run_start,
-                                                        yr_dmdt_start])},
-                             'MB2': {'type': 'constant',
-                                     'years': np.array([yr_dmdt_start,
-                                                        yr_run_end])}
-                             }
-        mb_run = StackedMassBalance(gdir=gdir,
-                                    mb_model_settings=mb_models_agile)
+        '''
+            mb_models_agile = {'MB1': {'type': 'constant',
+                                       'years': np.array([yr_run_start,
+                                                          yr_dmdt_start])},
+                               'MB2': {'type': 'constant',
+                                       'years': np.array([yr_dmdt_start,
+                                                          yr_run_end])}
+                               }
+            mb_run = StackedMassBalance(gdir=gdir,
+                                        mb_model_settings=mb_models_agile)
+        '''
+
+        raise NotImplementedError('Not implemented for different glacier'
+                                  'states!')
 
     elif used_mb_models == 'TIModel':
-        mb_run = MultipleFlowlineMassBalance(gdir,
-                                             fls=fls_spinup,
-                                             mb_model_class=MonthlyTIModel,
-                                             filename='climate_historical')
-
-        mb_models_agile = {'MB': {'type': 'TIModel',
-                                    'years': []}
-                             }
-
+        mb_run = get_glacier_state_mb_model(gdir, glacier_state,
+                                            save_to_gdir=True)
     else:
         raise NotImplementedError(f'{used_mb_models}')
-
-    # write the mb_model settings for later into gdir
-    gdir.write_pickle(mb_models_agile, 'inversion_input',
-                      filesuffix='_agile_mb_models')
-
     # do spinup period before first measurement
     model = SemiImplicitModel(copy.deepcopy(fls_spinup),
                               mb_run,
@@ -332,10 +490,12 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_dmdt_start,
     model.run_until_and_store(
         yr_dmdt_start,
         diag_path=gdir.get_filepath('model_diagnostics',
-                                    filesuffix='_agile_true_dmdt_start',
+                                    filesuffix='_agile_true_dmdt_start_'
+                                               f'{glacier_state}',
                                     delete=True),
         fl_diag_path=gdir.get_filepath('fl_diagnostics',
-                                       filesuffix='_agile_true_dmdt_start',
+                                       filesuffix='_agile_true_dmdt_start_'
+                                                  f'{glacier_state}',
                                        delete=True)
     )
 
@@ -348,14 +508,16 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_dmdt_start,
     model.run_until_and_store(
         yr_rgi,
         diag_path=gdir.get_filepath('model_diagnostics',
-                                    filesuffix='_agile_true_init',
+                                    filesuffix='_agile_true_init_'
+                                               f'{glacier_state}',
                                     delete=True),
         fl_diag_path=gdir.get_filepath('fl_diagnostics',
-                                       filesuffix='_agile_true_init',
+                                       filesuffix='_agile_true_init_'
+                                                  f'{glacier_state}',
                                        delete=True)
     )
     gdir.write_pickle(model.fls, 'model_flowlines',
-                      filesuffix='_agile_true_init')
+                      filesuffix=f'_agile_true_init_{glacier_state}')
     rgi_date_area_km2 = model.area_km2
     rgi_date_volume_km3 = model.volume_km3
     rgi_date_fl_surface_h = model.fls[0].surface_h
@@ -371,32 +533,35 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_dmdt_start,
     model.run_until_and_store(
         yr_run_end,
         diag_path=gdir.get_filepath('model_diagnostics',
-                                    filesuffix='_agile_true_end',
+                                    filesuffix='_agile_true_end_'
+                                               f'{glacier_state}',
                                     delete=True),
         geom_path=gdir.get_filepath('model_geometry',
-                                    filesuffix='_agile_true_end',
+                                    filesuffix='_agile_true_end_'
+                                               f'{glacier_state}',
                                     delete=True),
         fl_diag_path=gdir.get_filepath('fl_diagnostics',
-                                       filesuffix='_agile_true_end',
+                                       filesuffix='_agile_true_end_'
+                                                  f'{glacier_state}',
                                        delete=True)
                               )
     gdir.write_pickle(model.fls, 'model_flowlines',
-                      filesuffix='_agile_true_end')
+                      filesuffix=f'_agile_true_end_{glacier_state}')
     dmdtda_volume[1] = model.volume_m3
     dmdtda_area[1] = model.area_m2
 
     # agile model diagnostics to one file for the whole period
     tasks.merge_consecutive_run_outputs(
         gdir,
-        input_filesuffix_1='_agile_true_dmdt_start',
-        input_filesuffix_2='_agile_true_init',
-        output_filesuffix='_agile_true_total_run',
+        input_filesuffix_1=f'_agile_true_dmdt_start_{glacier_state}',
+        input_filesuffix_2=f'_agile_true_init_{glacier_state}',
+        output_filesuffix=f'_agile_true_total_run_{glacier_state}',
         delete_input=False)
     tasks.merge_consecutive_run_outputs(
         gdir,
-        input_filesuffix_1='_agile_true_total_run',
-        input_filesuffix_2='_agile_true_end',
-        output_filesuffix='_agile_true_total_run',
+        input_filesuffix_1=f'_agile_true_total_run_{glacier_state}',
+        input_filesuffix_2=f'_agile_true_end_{glacier_state}',
+        output_filesuffix=f'_agile_true_total_run_{glacier_state}',
         delete_input=False)
 
     # calculate dmdtda
@@ -425,7 +590,7 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_dmdt_start,
                         'fl_total_area:km2': {str(yr_rgi): rgi_date_area_km2},
                         }
     gdir.write_pickle(all_measurements, 'inversion_input',
-                      filesuffix='_agile_measurements')
+                      filesuffix=f'_agile_measurements_{glacier_state}')
 
     # conduct one future simulation for comparison
     # download locations for precipitation and temperature
@@ -449,20 +614,22 @@ def evolve_glacier_and_create_measurements(gdir, used_mb_models, yr_dmdt_start,
                                  climate_input_filesuffix=rid,
                                  init_model_fls=model.fls,
                                  ys=yr_run_end,
-                                 output_filesuffix='_agile_true_future',
+                                 output_filesuffix='_agile_true_future_'
+                                                   f'{glacier_state}',
                                  evolution_model=SemiImplicitModel,
                                  store_fl_diagnostics=True
                                  )
 
 
 @entity_task(log, writes=['model_flowlines'])
-def oggm_inversion_for_first_guess(gdir):
+def oggm_inversion_for_first_guess(gdir, glacier_state):
     """TODO
     """
     # now use _agile_true_init for an OGGM inversion for the first guess
     fls_inversion = gdir.read_pickle('inversion_flowlines')[0]
     fls_experiment = gdir.read_pickle('model_flowlines',
-                                      filesuffix='_agile_true_init')[0]
+                                      filesuffix='_agile_true_init_'
+                                                 f'{glacier_state}')[0]
 
     # load the oggm default dynamic parameters
     diag = gdir.get_diagnostics()
@@ -474,7 +641,8 @@ def oggm_inversion_for_first_guess(gdir):
     ice_mask_index_diff = np.diff(np.where(fls_experiment.thick > 0.01)[0])
     # if their is an ice-free gap raise an assertion
     assert np.all(ice_mask_index_diff == 1), (f'Their is a ice-free gap, check!'
-                                              f' (rgi_id: {gdir.rgi_id})')
+                                              f' (rgi_id: {gdir.rgi_id}, '
+                                              f'glacier_state: {glacier_state})')
 
     # now use ice mask to create new inversion_flowlines
     fls_inversion.nx = int(sum(ice_mask))
@@ -542,19 +710,20 @@ def oggm_inversion_for_first_guess(gdir):
     assert np.allclose(fls_first_guess.widths_m, fls_experiment.widths_m)
     assert np.allclose(fls_first_guess.thick[ice_mask], inv_thick_use)
     gdir.write_pickle([fls_first_guess], 'model_flowlines',
-                      filesuffix='_oggm_first_guess')
+                      filesuffix=f'_oggm_first_guess_{glacier_state}')
 
 
 @entity_task(log, writes=['model_flowlines'])
-def glabtop_inversion_for_first_guess(gdir):
+def glabtop_inversion_for_first_guess(gdir, glacier_state):
     """TODO
     """
     fls_experiment = gdir.read_pickle('model_flowlines',
-                                      filesuffix='_agile_true_init')[0]
+                                      filesuffix='_agile_true_init_'
+                                                 f'{glacier_state}')[0]
     ice_mask = np.where(fls_experiment.thick > 0.01, True, False)
 
     fg_thick = get_adaptive_upper_ice_thickness_limit(
-        fls_experiment, additional_ice_thickness=15)
+        fls_experiment, additional_ice_thickness=0)
     fg_bed_h = fls_experiment.surface_h[fls_experiment.thick > 0] - fg_thick
 
     bed_h_new = copy.deepcopy(fls_experiment.bed_h)
@@ -579,11 +748,11 @@ def glabtop_inversion_for_first_guess(gdir):
                              gdir=gdir)
 
     assert np.allclose(fl_fg.widths_m, fls_experiment.widths_m)
-    assert np.all(fl_fg._w0_m > 10)
+    assert np.all(fl_fg._w0_m >= 9.9)
     assert np.all(fl_fg.is_trapezoid)
 
     gdir.write_pickle([fl_fg], 'model_flowlines',
-                      filesuffix='_glabtop_first_guess')
+                      filesuffix=f'_glabtop_first_guess_{glacier_state}')
 
 
 def get_experiment_mb_model(gdir):
@@ -594,27 +763,35 @@ def get_experiment_mb_model(gdir):
     return StackedMassBalance(gdir=gdir, mb_model_settings=mb_model_settings)
 
 
-def oggm_default_initialisation(gdir, ys, ye, gcm='BCC-CSM2-MR', ssp='ssp370'):
+def oggm_default_initialisation(gdir, glacier_state, ys, ye,
+                                gcm='BCC-CSM2-MR', ssp='ssp370'):
     """ Use oggm default initialisation method and do a projection
     """
+
+    # define mb_model depening on glacier_state
+    mb_model = get_glacier_state_mb_model(gdir, glacier_state)
 
     # do dynamic initialisation
     spinup_model = tasks.run_dynamic_spinup(
         gdir, spinup_start_yr=ys, ye=ye, evolution_model=SemiImplicitModel,
-        model_flowline_filesuffix='_oggm_first_guess',
-        precision_absolute=0.1,
-        output_filesuffix='_oggm_dynamic_past', store_model_geometry=True,
+        model_flowline_filesuffix=f'_oggm_first_guess_{glacier_state}',
+        #precision_absolute=0.1,
+        mb_model_historical=mb_model,
+        output_filesuffix=f'_oggm_dynamic_past_{glacier_state}',
+        store_model_geometry=True,
         store_fl_diagnostics=True, store_model_evolution=True,
         ignore_errors=False, add_fixed_geometry_spinup=True)
 
     # do static initialisation
     fls_init = gdir.read_pickle('model_flowlines',
-                                filesuffix='_oggm_first_guess')
+                                filesuffix='_oggm_first_guess_'
+                                           f'{glacier_state}')
     static_model = tasks.run_from_climate_data(
         gdir, ye=ye,
         fixed_geometry_spinup_yr=ys,
         init_model_fls=fls_init,
-        output_filesuffix='_oggm_static_past',
+        mb_model=mb_model,
+        output_filesuffix=f'_oggm_static_past_{glacier_state}',
         store_model_geometry=True, store_fl_diagnostics=True)
 
     # conduct projection run for dynamic initialisation
@@ -625,7 +802,8 @@ def oggm_default_initialisation(gdir, ys, ye, gcm='BCC-CSM2-MR', ssp='ssp370'):
                                  climate_input_filesuffix=rid,
                                  init_model_fls=spinup_model.fls,
                                  ys=ye,
-                                 output_filesuffix='_oggm_dynamic_future',
+                                 output_filesuffix='_oggm_dynamic_future_'
+                                                   f'{glacier_state}',
                                  evolution_model=SemiImplicitModel,
                                  )
 
@@ -637,9 +815,10 @@ def oggm_default_initialisation(gdir, ys, ye, gcm='BCC-CSM2-MR', ssp='ssp370'):
                                  climate_input_filesuffix=rid,
                                  init_model_fls=static_model.fls,
                                  ys=ye,
-                                 output_filesuffix='_oggm_static_future',
+                                 output_filesuffix='_oggm_static_future_'
+                                                   f'{glacier_state}',
                                  evolution_model=SemiImplicitModel,
                                  )
 
     # calculate statistics
-    calculate_default_oggm_statistics(gdir)
+    calculate_default_oggm_statistics(gdir, glacier_state)

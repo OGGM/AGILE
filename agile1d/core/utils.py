@@ -144,7 +144,9 @@ class InversionGlacierDirectory(GlacierDirectory):
 
     def write_inversion_settings(self,
                                  control_vars=['bed_h'],
-                                 mb_models_settings={'MB1': {'type': 'constant', 'years': np.array([1950, 2016])}},
+                                 mb_models_settings={'MB1': {
+                                     'type': 'constant',
+                                     'years': np.array([1950, 2016])}},
                                  min_w0_m=10.,
                                  observations=None,  # {'Area', {'2010': np.array([23])}}
                                  reg_parameters=None,  # [0, 0.1, 10]
