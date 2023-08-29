@@ -470,6 +470,7 @@ class TestSandbox:
     def test_perfect_spinup_and_section_spinup(self, test_dir):
 
         experiment_glacier = ['Aletsch']
+        glacier_states = ['retreating']
 
         inversion_settings = get_default_inversion_settings()
         inversion_settings['minimize_options']['maxiter'] = 3
@@ -516,6 +517,7 @@ class TestSandbox:
 
         gdirs = idealized_experiment(
             use_experiment_glaciers=experiment_glacier,
+            use_experiment_glacier_states=glacier_states,
             inversion_settings_all=[inversion_settings1,
                                     inversion_settings2,
                                     inversion_settings3,
@@ -527,10 +529,11 @@ class TestSandbox:
                              'cfl_number': 0.5})
 
         fl_true_init = gdirs[0].read_pickle('model_flowlines',
-                                            filesuffix='_creation_spinup')[0]
+                                            filesuffix='_creation_spinup_'
+                                                       f'{glacier_states[0]}')[0]
         # some tests for perfect sfc_h spinup
         fp = os.path.join(test_dir,
-                          'Aletsch_perfect_sfc_h_spinup.pkl')
+                          f'Aletsch_{glacier_states[0]}_perfect_sfc_h_spinup.pkl')
         with open(fp, 'rb') as handle:
             ds_perfect_sfc_h = pickle.load(handle)
 
@@ -543,7 +546,7 @@ class TestSandbox:
 
         # some tests for perfect thickness
         fp = os.path.join(test_dir,
-                          'Aletsch_perfect_thickness_spinup.pkl')
+                          f'Aletsch_{glacier_states[0]}_perfect_thickness_spinup.pkl')
         with open(fp, 'rb') as handle:
             ds_perfect_thickness = pickle.load(handle)
 
@@ -555,7 +558,7 @@ class TestSandbox:
 
         # some tests for perfect section
         fp = os.path.join(test_dir,
-                          'Aletsch_perfect_section_spinup.pkl')
+                          f'Aletsch_{glacier_states[0]}_perfect_section_spinup.pkl')
         with open(fp, 'rb') as handle:
             ds_perfect_section = pickle.load(handle)
 
@@ -571,12 +574,13 @@ class TestSandbox:
 
         # some tests for section spinup
         fp = os.path.join(test_dir,
-                          'Aletsch_section_spinup.pkl')
+                          f'Aletsch_{glacier_states[0]}_section_spinup.pkl')
         with open(fp, 'rb') as handle:
             ds_section = pickle.load(handle)
 
         fl_fg = gdirs[0].read_pickle('model_flowlines',
-                                     filesuffix='_oggm_first_guess')[0]
+                                     filesuffix=f'_oggm_first_guess_'
+                                                f'{glacier_states[0]}')[0]
         assert np.allclose(ds_section.section_start[0], fl_fg.section)
 
     def test_StackedMassBalance(self, test_dir):
@@ -594,10 +598,12 @@ class TestSandbox:
                    'L1-L2_files/elev_bands/'
 
         glacier_names = ['Aletsch']
+        glacier_states = ['retreating']
 
         cfg.PARAMS['use_multiprocessing'] = False
         cfg.PARAMS['cfl_number'] = 0.5
         gdirs = create_idealized_experiments(glacier_names,
+                                             glacier_states,
                                              prepro_border=prepro_border,
                                              from_prepro_level=from_prepro_level,
                                              base_url=base_url, )
@@ -657,6 +663,7 @@ class TestSandbox:
 
     def test_perfect_bed_h(self, test_dir):
         experiment_glacier = ['Aletsch']
+        glacier_states = ['retreating']
 
         inversion_settings = get_default_inversion_settings()
         inversion_settings['minimize_options']['maxiter'] = 3
@@ -689,6 +696,7 @@ class TestSandbox:
 
         gdirs = idealized_experiment(
             use_experiment_glaciers=experiment_glacier,
+            use_experiment_glacier_states=glacier_states,
             inversion_settings_all=[inversion_settings],
             working_dir=test_dir,
             output_folder=test_dir,
@@ -696,10 +704,11 @@ class TestSandbox:
                              'cfl_number': 0.5})
 
         fl_true_init = gdirs[0].read_pickle('model_flowlines',
-                                            filesuffix='_creation_spinup')[0]
+                                            filesuffix='_creation_spinup_'
+                                                       f'{glacier_states[0]}')[0]
         # some tests for perfect sfc_h spinup
         fp = os.path.join(test_dir,
-                          'Aletsch_perfect_bed_h.pkl')
+                          f'Aletsch_{glacier_states[0]}_perfect_bed_h.pkl')
         with open(fp, 'rb') as handle:
             ds_perfect_bed_h = pickle.load(handle)
 

@@ -151,6 +151,17 @@ def conduct_sandbox_inversion(gdir, glacier_state, inversion_settings=None,
                          filesuffix='_agile_mb_models_'
                                     f'{glacier_state}')
 
+    # if perfect spinup we must add glacier state to string
+    spn_option = list(inversion_settings['spinup_options'].keys())[0]
+    if spn_option in ['perfect_sfc_h', 'perfect_thickness', 'perfect_section']:
+        inversion_settings['spinup_options'][spn_option] = \
+            inversion_settings['spinup_options'][spn_option] + f'_{glacier_state}'
+
+    # also for perfect_bed_h we need to add the glacier state
+    if 'perfect_bed_h' in list(inversion_settings['spinup_options'].keys()):
+        inversion_settings['spinup_options']['perfect_bed_h'] = \
+            inversion_settings['spinup_options']['perfect_bed_h'] + f'_{glacier_state}'
+
     # load the observations to use from gdir
     all_measurements = gdir.read_pickle('inversion_input',
                                         filesuffix='_agile_measurements_'
