@@ -33,6 +33,7 @@ options_selects = []
 all_experiment_settings = {}
 experiment_select = []
 glacier_select = []
+glacier_state_select = []
 menu = pn.Column()
 button = pn.widgets.Button(name='Select new one', button_type='primary')
 
@@ -59,6 +60,7 @@ def define_options_for_experiment(event):
         options_selects.append(pn.widgets.Select(name=name_tmp, options=options_tmp))
 
     new_menu = pn.Column(glacier_select,
+                         glacier_state_select,
                          experiment_select)
 
     for opt_select in options_selects:
@@ -75,6 +77,7 @@ def individual_experiment_dashboard(working_dir, input_folder,
     global all_experiment_settings
     global experiment_select
     global glacier_select
+    global glacier_state_select
 
     cfg.PATHS['working_dir'] = working_dir
     gdirs = workflow.init_glacier_directories()
@@ -82,6 +85,7 @@ def individual_experiment_dashboard(working_dir, input_folder,
     # Extract info from directory
     all_files = os.listdir(input_folder)
     all_glaciers = []
+    all_glacier_states = []
     all_experiments = []
 
     # only keep experiment files
@@ -99,11 +103,16 @@ def individual_experiment_dashboard(working_dir, input_folder,
         if glacier not in all_glaciers:
             all_glaciers.append(glacier)
 
+        # second is always glacier state
+        single_glacier_state = splits[1]
+        if single_glacier_state not in all_glacier_states:
+            all_glacier_states.append(single_glacier_state)
+
         # loop through the rest, if three characters followed by numbers it is
         # an experiment setting
         experiment = ''
         experiment_settings_tmp = []
-        for single_split in splits[1:]:
+        for single_split in splits[2:]:
             # find out if it has 3 characters followed only by numbers, if so
             # is is an experiment setting
             if len(single_split) > 3:
@@ -144,6 +153,8 @@ def individual_experiment_dashboard(working_dir, input_folder,
 
     # Define menu
     glacier_select = pn.widgets.Select(name='glacier', options=all_glaciers)
+    glacier_state_select = pn.widgets.Select(name='glacier_state',
+                                             options=all_glacier_states)
     experiment_select = pn.widgets.Select(name='experiment', options=all_experiments)
 
     experiment_select.param.watch(define_options_for_experiment, 'value')
@@ -163,7 +174,7 @@ def individual_experiment_dashboard(working_dir, input_folder,
         return accordion
 
     # Define individual plots
-    def get_individual_plot(open_file, current_file):
+    def get_individual_plot(open_file, current_file, glacier_state):
         ds = open_file
 
         # get reference flowline for true values
@@ -172,7 +183,8 @@ def individual_experiment_dashboard(working_dir, input_folder,
         for gdir in gdirs:
             if gdir.rgi_id == rgi_id:
                 fl_ref = gdir.read_pickle('model_flowlines',
-                                          filesuffix='_agile_true_init')[0]
+                                          filesuffix='_agile_true_init_'
+                                                     f'{glacier_state}')[0]
 
         # now calculate data for delta bed_h and w0_m
         data_bed_h = []
@@ -426,12 +438,14 @@ def individual_experiment_dashboard(working_dir, input_folder,
         for gdir in gdirs:
             if gdir.rgi_id == rgi_id:
                 fl_ref_rgi = gdir.read_pickle('model_flowlines',
-                                              filesuffix='_agile_true_init')[0]
+                                              filesuffix='_agile_true_init_'
+                                                         f'{glacier_state}')[0]
                 fl_ref_start = gdir.read_pickle('model_flowlines',
                                                 filesuffix='_creation_spinup_'
                                                            f'{glacier_state}')[0]
                 fl_ref_end = gdir.read_pickle('model_flowlines',
-                                              filesuffix='_agile_true_end')[0]
+                                              filesuffix='_agile_true_end_'
+                                                         f'{glacier_state}')[0]
 
         def get_performance_sfc_h_array(fct, data, ref_val):
             return [np.around(fct(val, ref_val), decimals=2) for val in data]
@@ -771,6 +785,7 @@ def individual_experiment_dashboard(working_dir, input_folder,
     # put together and link menu with plots
     current_file_first = list(compress(all_files,
                                        [glacier_select.value in file and
+                                        glacier_state_select.value in file and
                                         experiment_select.value in file
                                         for file in all_files]))
     for opt_select in options_selects:
@@ -785,12 +800,14 @@ def individual_experiment_dashboard(working_dir, input_folder,
             open_file = CpuUnpickler(handle).load()
         # pickle.load(handle)
 
-    figure = get_individual_plot(open_file, current_file_first)
+    figure = get_individual_plot(open_file, current_file_first,
+                                 glacier_state_select.value)
 
     def change_figure(event):
         # here get the right filename for the current selection
         current_file = list(compress(all_files,
                                      [glacier_select.value + '_' +
+                                      glacier_state_select.value + '_' +
                                       experiment_select.value in file
                                       for file in all_files]))
 
@@ -817,7 +834,8 @@ def individual_experiment_dashboard(working_dir, input_folder,
                     open_file = CpuUnpickler(handle).load()
                 # pickle.load(handle,)
 
-            figure.objects = [get_individual_plot(open_file, current_file)]
+            figure.objects = [get_individual_plot(open_file, current_file,
+                                                  glacier_state_select.value)]
 
     button.on_click(change_figure)
 
