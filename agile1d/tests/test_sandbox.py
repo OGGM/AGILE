@@ -6,12 +6,16 @@ import numpy as np
 import os
 import pickle
 
+from agile1d.core.cost_function import initialise_mb_models
 from agile1d.core.inversion import get_default_inversion_settings
 from agile1d.core.massbalance import StackedMassBalance
-from agile1d.sandbox.create_glaciers_with_measurements import create_idealized_experiments
-from agile1d.sandbox.define_idealized_experiment import idealized_experiment
+from agile1d.sandbox.create_glaciers_with_measurements import create_idealized_experiments, \
+    get_glacier_state_mb_model
+from agile1d.sandbox.define_idealized_experiment import idealized_experiment, \
+    conduct_sandbox_inversion
 
 from oggm import cfg
+from oggm.core.massbalance import ConstantMassBalance, MonthlyTIModel
 
 do_plot = False
 
@@ -20,7 +24,7 @@ pytestmark = [pytest.mark.filterwarnings("ignore:<class 'agile1d.core.torch_inte
               pytest.mark.test_env("sandbox")]
 
 class TestSandbox:
-    def test_create_idealized_experiments(self, test_dir):
+    def test_create_idealized_experiments_and_mb_glacier_state(self, test_dir):
         cfg.initialize(logging_level='WARNING')
         cfg.PATHS['working_dir'] = test_dir
         cfg.PARAMS['use_multiprocessing'] = False
@@ -249,6 +253,55 @@ class TestSandbox:
                     fig.suptitle(f'{gdir.name}, {glacier_state}', fontsize=16)
                     fig.tight_layout(pad=1.0)
                     plt.show()
+
+        # test that glacier state mb is correctly used
+        inversion_settings = get_default_inversion_settings()
+        inversion_settings['minimize_options']['maxiter'] = 1
+
+        # add all possible observations to test everything
+        inversion_settings['observations']['fl_widths:m'] = {}
+        inversion_settings['obs_scaling_parameters']['uncertainty']['fl_widths:m'] = \
+            {'absolute': 1.}
+        inversion_settings['observations']['fl_total_area:m2'] = {}
+        inversion_settings['obs_scaling_parameters']['uncertainty']['fl_total_area:m2'] = \
+            {'absolute': 1.}
+        # extracted from experiment creation
+        inversion_settings['observations']['area:km2'] = {}
+        inversion_settings['obs_scaling_parameters']['uncertainty']['area:km2'] = \
+            {'relative': 0.1}
+
+        # add all possible control variables
+        inversion_settings['control_vars'] = ['area_bed_h']
+
+        for gdir in gdirs:
+            for glacier_state in glacier_states:
+                inversion_settings['experiment_description'] = (
+                    f"{glacier_state}_"
+                    f"{inversion_settings['experiment_description']}")
+                data_logger = conduct_sandbox_inversion(
+                    gdir, glacier_state=glacier_state,
+                    inversion_settings=inversion_settings,
+                    output_folder=test_dir,
+                    init_model_fls='_oggm_first_guess',
+                    gcm='BCC-CSM2-MR',
+                    ssp='ssp370',
+                    print_statistic=False,
+                    return_data_logger=True)
+
+                mb_models = initialise_mb_models(None, data_logger)
+                mb_model = mb_models['MB']['mb_model'].mbmod
+                mb_model_ref = get_glacier_state_mb_model(gdir, glacier_state)
+                mb_model_ref = mb_model_ref.flowline_mb_models[0]
+
+                if glacier_state == 'equilibrium':
+                    assert isinstance(mb_model, ConstantMassBalance)
+                    assert mb_model.halfsize == mb_model_ref.halfsize, f"{gdir.rgi_id}"
+                    assert mb_model.y0 == mb_model_ref.y0, f"{gdir.rgi_id}"
+                elif glacier_state in ['retreating', 'advancing']:
+                    assert isinstance(mb_model, MonthlyTIModel)
+                    assert mb_model.temp_bias == mb_model_ref.temp_bias, f"{gdir.rgi_id}"
+                else:
+                    raise NotImplementedError(f'{glacier_state}')
 
     @pytest.mark.parametrize('control_vars',
                              [['area_bed_h', 'lambdas', 'w0_m'],

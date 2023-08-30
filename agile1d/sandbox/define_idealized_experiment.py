@@ -139,7 +139,8 @@ def conduct_sandbox_inversion(gdir, glacier_state, inversion_settings=None,
                               init_model_fls='_oggm_first_guess',
                               gcm='BCC-CSM2-MR',
                               ssp='ssp370',
-                              print_statistic=True):
+                              print_statistic=True,
+                              return_data_logger=False):
     """TODO"""
 
     # add glacier state to first guess
@@ -202,3 +203,6 @@ def conduct_sandbox_inversion(gdir, glacier_state, inversion_settings=None,
                                 glacier_state=glacier_state,
                                 data_logger=data_logger,
                                 print_statistic=print_statistic)
+
+    if return_data_logger:
+        return data_logger
