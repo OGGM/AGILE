@@ -140,6 +140,7 @@ class DataLogger(object):
         self.time_needed = None
         self.grads = None
         self.flowlines = None
+        self.initial_flux = None
         self.sfc_h_start = None
         self.section_start = None
         self.observations_mdl = None
@@ -248,6 +249,7 @@ class DataLogger(object):
         self.reg_terms = self.reg_terms[index]
         self.time_needed = self.squeeze_generic(self.time_needed[index])
         self.flowlines = self.squeeze_generic(self.flowlines[index])
+        self.initial_flux = self.squeeze_generic(self.initial_flux[index])
         self.sfc_h_start = self.squeeze_generic(self.sfc_h_start[index])
         self.section_start = self.squeeze_generic(self.section_start[index])
         self.observations_mdl = self.squeeze_generic(self.observations_mdl[index])
@@ -269,6 +271,7 @@ class DataLogger(object):
         ds['costs'] = (['iteration'], self.costs)
         ds['grads'] = (['iteration', 'nr_unknown_parameters'], self.grads)
         ds['flowlines'] = (['iteration'], self.flowlines)
+        ds['initial_flux'] = (['iteration', 'x'], self.initial_flux)
         ds['sfc_h_start'] = (['iteration', 'x'], self.sfc_h_start)
         ds['section_start'] = (['iteration', 'x'], self.section_start)
         ds['observations_mdl'] = (['iteration'], self.observations_mdl)

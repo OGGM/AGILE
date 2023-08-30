@@ -259,10 +259,7 @@ def cost_fct(unknown_parameters, data_logger):
 
     mb_models = initialise_mb_models(unknown_parameters_descaled, data_logger)
 
-    if 'smoothed_flux' in data_logger.regularisation_terms.keys():
-        initial_flux = dynamic_model(flowline).flux_stag[0]
-    else:
-        initial_flux = None
+    initial_flux = dynamic_model(flowline).flux_stag[0]
 
     if data_logger.spinup_type == 'height_shift_spinup':
         try:
@@ -343,6 +340,9 @@ def cost_fct(unknown_parameters, data_logger):
     data_logger.save_data_in_datalogger('sfc_h_start', sfc_h_start)
     data_logger.save_data_in_datalogger('section_start', section_start)
     data_logger.save_data_in_datalogger('flowlines', detach_flowline(final_fl))
+    # exclude last grid point because initial flux is defined on staggered grid
+    data_logger.save_data_in_datalogger('initial_flux',
+                                        initial_flux.detach().clone()[:-1])
     data_logger.save_data_in_datalogger('costs', cost)
     data_logger.save_data_in_datalogger('grads', grad)
     data_logger.save_data_in_datalogger('c_terms', c_terms)
