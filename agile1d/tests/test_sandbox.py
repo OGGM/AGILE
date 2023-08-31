@@ -300,6 +300,9 @@ class TestSandbox:
                 elif glacier_state in ['retreating', 'advancing']:
                     assert isinstance(mb_model, MonthlyTIModel)
                     assert mb_model.temp_bias == mb_model_ref.temp_bias, f"{gdir.rgi_id}"
+                    assert mb_model.repeat == mb_model_ref.repeat, f"{gdir.rgi_id}"
+                    assert mb_model.ys == mb_model_ref.ys, f"{gdir.rgi_id}"
+                    assert mb_model.ye == mb_model_ref.ye, f"{gdir.rgi_id}"
                 else:
                     raise NotImplementedError(f'{glacier_state}')
 

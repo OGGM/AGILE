@@ -267,7 +267,7 @@ def get_spinup_mb_model(gdir, glacier_state, fls_spinup):
     if glacier_state in ['retreating']:
         t_bias_default = gdir.read_json('mb_calib')['temp_bias']
         if gdir.rgi_id == 'RGI60-16.02444':
-            t_bias_use = t_bias_default - 1
+            t_bias_use = t_bias_default + 0
         elif gdir.rgi_id in ['RGI60-02.05098', 'RGI60-14.06794']:
             t_bias_use = t_bias_default - 0
         elif gdir.rgi_id == 'RGI60-11.01450':
@@ -286,7 +286,7 @@ def get_spinup_mb_model(gdir, glacier_state, fls_spinup):
     elif glacier_state in ['advancing']:
         t_bias_default = gdir.read_json('mb_calib')['temp_bias']
         if gdir.rgi_id == 'RGI60-16.02444':
-            t_bias_use = t_bias_default + 0.5
+            t_bias_use = t_bias_default + 0.4
         elif gdir.rgi_id in ['RGI60-02.05098']:
             t_bias_use = t_bias_default - 0.5
         elif gdir.rgi_id in ['RGI60-14.06794']:
@@ -385,8 +385,14 @@ def get_glacier_state_mb_model(gdir, glacier_state, save_to_gdir=False,
 
     elif glacier_state == 'advancing':
         t_bias_default = gdir.read_json('mb_calib')['temp_bias']
+        repeat = False
+        ys = None
+        ye = None
         if gdir.rgi_id == 'RGI60-16.02444':
-            t_bias_use = t_bias_default - 2.5
+            t_bias_use = t_bias_default - 0.35
+            repeat = True
+            ys = 1979
+            ye = 2012
         elif gdir.rgi_id in ['RGI60-02.05098']:
             t_bias_use = t_bias_default - 1.8
         elif gdir.rgi_id in ['RGI60-14.06794']:
@@ -400,10 +406,15 @@ def get_glacier_state_mb_model(gdir, glacier_state, save_to_gdir=False,
             fls=fls_spinup,
             mb_model_class=MonthlyTIModel,
             temp_bias=t_bias_use,
+            repeat=repeat,
+            ys=ys, ye=ye,
             filename='climate_historical')
 
         model_type = 'TIModel'
         model_args['temp_bias'] = t_bias_use
+        model_args['repeat'] = repeat
+        model_args['ys'] = ys
+        model_args['ye'] = ye
         model_args['filename'] = 'climate_historical'
 
     elif glacier_state == 'retreating':
