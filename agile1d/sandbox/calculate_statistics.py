@@ -30,7 +30,8 @@ def add_0d_stats(x, y):
             'abs_diff': float(np.abs(x - y))}
 
 
-def calculate_result_statistics(gdir, data_logger, print_statistic=False):
+def calculate_result_statistics(gdir, glacier_state, data_logger,
+                                print_statistic=False):
     """calculate some statistics of the result for analysis"""
 
     # open the dataset of the run to add our calculated statistics
@@ -69,7 +70,8 @@ def calculate_result_statistics(gdir, data_logger, print_statistic=False):
             ds.unknown_parameters[-1][control_indices[control_var]].values
     controls_true = {}
     fls_true = gdir.read_pickle('model_flowlines',
-                                filesuffix='_agile_true_init')[0]
+                                filesuffix='_agile_true_init_'
+                                           f'{glacier_state}')[0]
     for control_var in controls_mdl:
         if control_var in ['bed_h', 'area_bed_h']:
             controls_true[control_var] = \
@@ -81,7 +83,8 @@ def calculate_result_statistics(gdir, data_logger, print_statistic=False):
             controls_true[control_var] = controls_mdl[control_var]
         elif control_var in ['section']:
             fls_1980_true = gdir.read_pickle('model_flowlines',
-                                             filesuffix='_creation_spinup')[0]
+                                             filesuffix='_creation_spinup_'
+                                                        f'{glacier_state}')[0]
             controls_true[control_var] = \
                 fls_1980_true.section[:len(controls_mdl['section'])]
         else:
@@ -117,7 +120,8 @@ def calculate_result_statistics(gdir, data_logger, print_statistic=False):
     sfc_h_start = copy.deepcopy(data_logger.sfc_h_start[-1])
     fls_start_mdl.surface_h = sfc_h_start
     fls_start_true = gdir.read_pickle('model_flowlines',
-                                      filesuffix='_creation_spinup')[0]
+                                      filesuffix='_creation_spinup_'
+                                                 f'{glacier_state}')[0]
 
     past_state_stats = {}
     for var in ['thick', 'area_m2', 'volume_m3']:
@@ -150,7 +154,8 @@ def calculate_result_statistics(gdir, data_logger, print_statistic=False):
     with xr.open_dataset(fp) as ds_diag:
         past_evol_mdl = ds_diag.load()
     fp = gdir.get_filepath('model_diagnostics',
-                           filesuffix='_agile_true_total_run')
+                           filesuffix='_agile_true_total_run_'
+                                      f'{glacier_state}')
     with xr.open_dataset(fp) as ds_diag:
         past_evol_true = ds_diag.load()
 
@@ -165,7 +170,8 @@ def calculate_result_statistics(gdir, data_logger, print_statistic=False):
     # how well do we match today's glacier state ------------------------------
     fls_end_mdl = copy.deepcopy(data_logger.flowlines[-1])
     fls_end_true = gdir.read_pickle('model_flowlines',
-                                    filesuffix='_agile_true_end')[0]
+                                    filesuffix='_agile_true_end_'
+                                               f'{glacier_state}')[0]
 
     today_state_stats = {}
     for var in ['thick', 'area_m2', 'volume_m3']:
@@ -196,7 +202,8 @@ def calculate_result_statistics(gdir, data_logger, print_statistic=False):
     with xr.open_dataset(fp) as ds_diag:
         future_evol_mdl = ds_diag.load()
     fp = gdir.get_filepath('model_diagnostics',
-                           filesuffix='_agile_true_future')
+                           filesuffix='_agile_true_future_'
+                                      f'{glacier_state}')
     with xr.open_dataset(fp) as ds_diag:
         future_evol_true = ds_diag.load()
 
@@ -218,7 +225,8 @@ def calculate_result_statistics(gdir, data_logger, print_statistic=False):
         # Here print the statistics in comparision to the default run
 
         # open default statistics
-        fp_default = os.path.join(gdir.dir, 'default_oggm_statistics.pkl')
+        fp_default = os.path.join(gdir.dir, f'default_oggm_statistics_'
+                                            f'{glacier_state}.pkl')
         with open(fp_default, 'rb') as handle:
             default_stats = pickle.load(handle)
 
@@ -271,7 +279,7 @@ def calculate_result_statistics(gdir, data_logger, print_statistic=False):
                     raise NotImplementedError(f'{stat_clean}')
 
 
-def calculate_default_oggm_statistics(gdir):
+def calculate_default_oggm_statistics(gdir, glacier_state):
 
     default_oggm_statistics = {}
 
@@ -279,20 +287,24 @@ def calculate_default_oggm_statistics(gdir):
         # open the run files
         with xr.open_dataset(
                 gdir.get_filepath('model_diagnostics',
-                                  filesuffix=f'_oggm_{reali}_past')) as ds:
+                                  filesuffix=f'_oggm_{reali}_past_'
+                                             f'{glacier_state}')) as ds:
             diag_past = ds.load()
         f = gdir.get_filepath('fl_diagnostics',
-                              filesuffix=f'_oggm_{reali}_past')
+                              filesuffix=f'_oggm_{reali}_past_'
+                                         f'{glacier_state}')
         with xr.open_dataset(f, group=f'fl_0') as ds:
             fl_diag_past = ds.load()
         with xr.open_dataset(
                 gdir.get_filepath('model_diagnostics',
-                                  filesuffix=f'_oggm_{reali}_future')) as ds:
+                                  filesuffix=f'_oggm_{reali}_future_'
+                                             f'{glacier_state}')) as ds:
             diag_future = ds.load()
 
         # how well do we match the observations -------------------------------
         obs_given = gdir.read_pickle('inversion_input',
-                                     filesuffix='_agile_measurements')
+                                     filesuffix='_agile_measurements_'
+                                                f'{glacier_state}')
         obs_stats = {}
         for obs_key in obs_given.keys():
             obs_stats[obs_key] = {}
@@ -374,9 +386,11 @@ def calculate_default_oggm_statistics(gdir):
         controls_mdl = {}
         controls_true = {}
         fls_mdl = gdir.read_pickle('model_flowlines',
-                                   filesuffix='_oggm_first_guess')[0]
+                                   filesuffix='_oggm_first_guess_'
+                                              f'{glacier_state}')[0]
         fls_true = gdir.read_pickle('model_flowlines',
-                                    filesuffix='_agile_true_init')[0]
+                                    filesuffix='_agile_true_init_'
+                                               f'{glacier_state}')[0]
 
         for control_var in all_control_vars:
             if control_var in ['bed_h', 'area_bed_h']:
@@ -405,7 +419,8 @@ def calculate_default_oggm_statistics(gdir):
         # how well do we match the past glacier state -----------------------------
         fls_start_mdl = fl_diag_past.sel(time=fl_diag_past.time[0])
         fls_start_true = gdir.read_pickle('model_flowlines',
-                                          filesuffix='_creation_spinup')[0]
+                                          filesuffix='_creation_spinup_'
+                                                     f'{glacier_state}')[0]
 
         past_state_stats = {}
         for var in ['thick', 'area_m2', 'volume_m3']:
@@ -435,7 +450,8 @@ def calculate_default_oggm_statistics(gdir):
         # how well do we match the past glacier evolution ---------------------
         past_evol_mdl = diag_past
         fp = gdir.get_filepath('model_diagnostics',
-                               filesuffix='_agile_true_total_run')
+                               filesuffix='_agile_true_total_run_'
+                                          f'{glacier_state}')
         with xr.open_dataset(fp) as ds_diag:
             past_evol_true = ds_diag.load()
 
@@ -450,7 +466,8 @@ def calculate_default_oggm_statistics(gdir):
         # how well do we match today's glacier state --------------------------
         fls_end_mdl = fl_diag_past.sel(time=fl_diag_past.time[-1])
         fls_end_true = gdir.read_pickle('model_flowlines',
-                                        filesuffix='_agile_true_end')[0]
+                                        filesuffix='_agile_true_end_'
+                                                   f'{glacier_state}')[0]
 
         today_state_stats = {}
         for var in ['thick', 'area_m2', 'volume_m3']:
@@ -480,7 +497,8 @@ def calculate_default_oggm_statistics(gdir):
         # how well do we match the future glacier evolution -------------------
         future_evol_mdl = diag_future
         fp = gdir.get_filepath('model_diagnostics',
-                               filesuffix='_agile_true_future')
+                               filesuffix='_agile_true_future_'
+                                          f'{glacier_state}')
         with xr.open_dataset(fp) as ds_diag:
             future_evol_true = ds_diag.load()
 
@@ -494,7 +512,7 @@ def calculate_default_oggm_statistics(gdir):
 
     # save final default statistics as pickle
     out = os.path.join(gdir.dir,
-                       'default_oggm_statistics.pkl')
+                       f'default_oggm_statistics_{glacier_state}.pkl')
     with open(out, 'wb') as handle:
         pickle.dump(default_oggm_statistics, handle,
                     protocol=pickle.HIGHEST_PROTOCOL)

@@ -6,21 +6,25 @@ import numpy as np
 import os
 import pickle
 
+from agile1d.core.cost_function import initialise_mb_models
 from agile1d.core.inversion import get_default_inversion_settings
 from agile1d.core.massbalance import StackedMassBalance
-from agile1d.sandbox.create_glaciers_with_measurements import create_idealized_experiments
-from agile1d.sandbox.define_idealized_experiment import idealized_experiment
+from agile1d.sandbox.create_glaciers_with_measurements import create_idealized_experiments, \
+    get_glacier_state_mb_model
+from agile1d.sandbox.define_idealized_experiment import idealized_experiment, \
+    conduct_sandbox_inversion
 
 from oggm import cfg
+from oggm.core.massbalance import ConstantMassBalance, MonthlyTIModel
 
 do_plot = False
 
 pytestmark = [pytest.mark.filterwarnings("ignore:<class 'agile1d.core.torch_interp1d.Interp1d'> "
-                                        "should not be instantiated.:DeprecationWarning"),
+                                         "should not be instantiated.:DeprecationWarning"),
               pytest.mark.test_env("sandbox")]
 
 class TestSandbox:
-    def test_create_idealized_experiments(self, test_dir):
+    def test_create_idealized_experiments_and_mb_glacier_state(self, test_dir):
         cfg.initialize(logging_level='WARNING')
         cfg.PATHS['working_dir'] = test_dir
         cfg.PARAMS['use_multiprocessing'] = False
@@ -39,10 +43,12 @@ class TestSandbox:
                          'Artesonraju',
                          'Peyto'
                          ]
+        glacier_states = ['equilibrium', 'retreating', 'advancing']
 
         cfg.PARAMS['use_multiprocessing'] = False
         cfg.PARAMS['cfl_number'] = 0.5
         gdirs = create_idealized_experiments(glacier_names,
+                                             glacier_states=glacier_states,
                                              prepro_border=prepro_border,
                                              from_prepro_level=from_prepro_level,
                                              base_url=base_url, )
@@ -63,41 +69,54 @@ class TestSandbox:
 
         # test that the file of the creation spinup exist
         for gdir in gdirs:
-            gdir.has_file('model_diagnostics',
-                          filesuffix='_agile_creation_spinup')
+            for glacier_state in glacier_states:
+                gdir.has_file('model_diagnostics',
+                              filesuffix='_agile_creation_spinup_'
+                                         f'{glacier_state}')
 
         # test that resulting true run dataset contain the complete period
         for gdir in gdirs:
-            resulting_run_test(filesuffix='_agile_true_total_run',
-                               ys=1980,
-                               ye=2020)
+            for glacier_state in glacier_states:
+                resulting_run_test(filesuffix='_agile_true_total_run_'
+                                              f'{glacier_state}',
+                                   ys=1980,
+                                   ye=2020)
 
         # test that the resulting gdirs contain the future climate file
         for gdir in gdirs:
             assert gdir.has_file('gcm_data', filesuffix='_BCC-CSM2-MR_ssp370')
-            resulting_run_test(filesuffix='_agile_true_future',
-                               ys=2020,
-                               ye=2101)
+            for glacier_state in glacier_states:
+                resulting_run_test(filesuffix='_agile_true_future_'
+                                              f'{glacier_state}',
+                                   ys=2020,
+                                   ye=2101)
 
         # test that the resulting gdirs contain the oggm default run files
         for gdir in gdirs:
-            resulting_run_test(filesuffix='_oggm_dynamic_past',
-                               ys=1980,
-                               ye=2020)
-            assert gdir.has_file('fl_diagnostics',
-                                 filesuffix='_oggm_dynamic_past')
-            resulting_run_test(filesuffix='_oggm_dynamic_future',
-                               ys=2020,
-                               ye=2101)
+            for glacier_state in glacier_states:
+                resulting_run_test(filesuffix='_oggm_dynamic_past_'
+                                              f'{glacier_state}',
+                                   ys=1980,
+                                   ye=2020)
+                assert gdir.has_file('fl_diagnostics',
+                                     filesuffix='_oggm_dynamic_past_'
+                                                f'{glacier_state}')
+                resulting_run_test(filesuffix='_oggm_dynamic_future_'
+                                              f'{glacier_state}',
+                                   ys=2020,
+                                   ye=2101)
 
-            resulting_run_test(filesuffix='_oggm_static_past',
-                               ys=1980,
-                               ye=2020)
-            assert gdir.has_file('fl_diagnostics',
-                                 filesuffix='_oggm_static_past')
-            resulting_run_test(filesuffix='_oggm_static_future',
-                               ys=2020,
-                               ye=2101)
+                resulting_run_test(filesuffix='_oggm_static_past_'
+                                              f'{glacier_state}',
+                                   ys=1980,
+                                   ye=2020)
+                assert gdir.has_file('fl_diagnostics',
+                                     filesuffix='_oggm_static_past_'
+                                                f'{glacier_state}')
+                resulting_run_test(filesuffix='_oggm_static_future_'
+                                              f'{glacier_state}',
+                                   ys=2020,
+                                   ye=2101)
 
         # test that the resulting gdirs contain the oggm default statistics
         def all_stats_finite(ds, use_year, is_static=False):
@@ -116,113 +135,176 @@ class TestSandbox:
                         assert np.all(np.isfinite(ds[var][year]))
 
         for gdir in gdirs:
-            fp = os.path.join(gdir.dir,
-                              'default_oggm_statistics.pkl')
-            with open(fp, 'rb') as handle:
-                ds_default_stats = pickle.load(handle)
+            for glacier_state in glacier_states:
+                fp = os.path.join(gdir.dir,
+                                  f'default_oggm_statistics_{glacier_state}.pkl')
+                with open(fp, 'rb') as handle:
+                    ds_default_stats = pickle.load(handle)
 
-            for stat_key in ds_default_stats.keys():
-                stat_suffixes = stat_key.split('_')[-1]
-                pure_key = stat_key.removesuffix('_' + stat_suffixes)
-                if pure_key in ['observations_stats', 'controls_stats',
-                                'past_evol_stats', 'today_state_stats',
-                                'future_evol_stats', 'past_state_stats']:
-                    use_year = False
-                    if pure_key in ['observations_stats']:
-                        use_year = True
-                    all_stats_finite(ds_default_stats[stat_key], use_year,
-                                     stat_suffixes=='static')
-                else:
-                    raise NotImplementedError(f'{stat_key}')
+                for stat_key in ds_default_stats.keys():
+                    stat_suffixes = stat_key.split('_')[-1]
+                    pure_key = stat_key.removesuffix('_' + stat_suffixes)
+                    if pure_key in ['observations_stats', 'controls_stats',
+                                    'past_evol_stats', 'today_state_stats',
+                                    'future_evol_stats', 'past_state_stats']:
+                        use_year = False
+                        if pure_key in ['observations_stats']:
+                            use_year = True
+                        all_stats_finite(ds_default_stats[stat_key], use_year,
+                                         stat_suffixes == 'static')
+                    else:
+                        raise NotImplementedError(f'{stat_key}')
 
-        assert gdir.has_file('model_flowlines',
-                             filesuffix='_oggm_first_guess')
-        assert gdir.has_file('model_flowlines',
-                             filesuffix='_glabtop_first_guess')
+                assert gdir.has_file('model_flowlines',
+                                     filesuffix='_oggm_first_guess_'
+                                                f'{glacier_state}')
+                assert gdir.has_file('model_flowlines',
+                             filesuffix='_glabtop_first_guess_'
+                                        f'{glacier_state}')
 
         if do_plot:
             for gdir in gdirs:
-                fl_oggm = gdir.read_pickle('model_flowlines')[0]
-                fl_consensus = gdir.read_pickle('model_flowlines',
-                                                filesuffix='_consensus')[0]
-                fl_spinup = gdir.read_pickle('model_flowlines',
-                                             filesuffix='_creation_spinup')[0]
-                fl_agile_init = \
-                    gdir.read_pickle('model_flowlines',
-                                     filesuffix='_agile_true_init')[0]
-                fl_agile_end = \
-                    gdir.read_pickle('model_flowlines',
-                                     filesuffix='_agile_true_end')[0]
-                fl_oggm_first_guess = \
-                    gdir.read_pickle('model_flowlines',
-                                     filesuffix='_oggm_first_guess')[0]
+                for glacier_state in glacier_states:
+                    fl_oggm = gdir.read_pickle('model_flowlines')[0]
+                    fl_consensus = gdir.read_pickle('model_flowlines',
+                                                    filesuffix='_consensus')[0]
+                    fl_spinup = gdir.read_pickle('model_flowlines',
+                                                 filesuffix='_creation_spinup'
+                                                            f'_{glacier_state}')[0]
+                    fl_agile_init = \
+                        gdir.read_pickle('model_flowlines',
+                                         filesuffix='_agile_true_init_'
+                                                    f'{glacier_state}')[0]
+                    fl_agile_end = \
+                        gdir.read_pickle('model_flowlines',
+                                         filesuffix='_agile_true_end_'
+                                                    f'{glacier_state}')[0]
+                    fl_oggm_first_guess = \
+                        gdir.read_pickle('model_flowlines',
+                                         filesuffix='_oggm_first_guess_'
+                                                    f'{glacier_state}')[0]
 
-                def get_fl_diagnostics(filesuffix):
-                    f = gdir.get_filepath('fl_diagnostics',
-                                          filesuffix=filesuffix)
-                    with xr.open_dataset(f, group=f'fl_0') as ds:
-                        ds = ds.load()
-                    return ds
+                    def get_fl_diagnostics(filesuffix):
+                        f = gdir.get_filepath('fl_diagnostics',
+                                              filesuffix=filesuffix)
+                        with xr.open_dataset(f, group=f'fl_0') as ds:
+                            ds = ds.load()
+                        return ds
 
-                fl_diag_init = get_fl_diagnostics('_agile_true_dmdt_start')
-                fl_diag_start = get_fl_diagnostics('_agile_true_init')
-                fl_diag_end = get_fl_diagnostics('_agile_true_end')
+                    fl_diag_init = get_fl_diagnostics('_agile_true_dmdt_start_'
+                                                      f'{glacier_state}')
+                    fl_diag_start = get_fl_diagnostics('_agile_true_init_'
+                                                       f'{glacier_state}')
+                    fl_diag_end = get_fl_diagnostics('_agile_true_end_'
+                                                     f'{glacier_state}')
 
-                fig = plt.figure(figsize=(15, 10))
-                (ax, ax2, ax3, ax4, ax5, ax6) = fig.subplots(6, 1)
-                # ax.plot(fl_oggm.dis_on_line, fl_oggm.bed_h,
-                # label='OGGM Flowline')
-                ax.plot(fl_spinup.dis_on_line, fl_spinup.bed_h,
-                        label='Spinup Flowline')
-                ax.plot(fl_oggm.dis_on_line, fl_oggm.surface_h,
-                        label='OGGM surface_h')
-                ax.plot(fl_spinup.dis_on_line, fl_spinup.surface_h,
-                        label='Spinup surface_h')
-                # ax.plot(fl_consensus.dis_on_line, fl_consensus.surface_h,
-                # label='Consensus surface_h')
-                ax.plot(fl_agile_init.dis_on_line, fl_agile_init.surface_h,
-                        label='Init surface_h')
-                ax.plot(fl_agile_end.dis_on_line, fl_agile_end.surface_h,
-                        label='END surface_h')
-                ax.legend();
+                    fig = plt.figure(figsize=(15, 10))
+                    (ax, ax2, ax3, ax4, ax5, ax6) = fig.subplots(6, 1)
+                    # ax.plot(fl_oggm.dis_on_line, fl_oggm.bed_h,
+                    # label='OGGM Flowline')
+                    ax.plot(fl_spinup.dis_on_line, fl_spinup.bed_h,
+                            label='Spinup Flowline')
+                    ax.plot(fl_oggm.dis_on_line, fl_oggm.surface_h,
+                            label='OGGM surface_h')
+                    ax.plot(fl_spinup.dis_on_line, fl_spinup.surface_h,
+                            label='Spinup surface_h')
+                    # ax.plot(fl_consensus.dis_on_line, fl_consensus.surface_h,
+                    # label='Consensus surface_h')
+                    ax.plot(fl_agile_init.dis_on_line, fl_agile_init.surface_h,
+                            label='Init surface_h')
+                    ax.plot(fl_agile_end.dis_on_line, fl_agile_end.surface_h,
+                            label='END surface_h')
+                    ax.legend();
 
-                ax2.axhline(0, color='black')
-                ax2.plot(fl_spinup.surface_h - fl_agile_init.surface_h,
-                         label='positive means retreating '
-                               '(spinup to rgi _date)')
-                ax2.plot(fl_agile_init.surface_h - fl_agile_end.surface_h,
-                         label='rgi_date to end')
-                ax2.set_title('delta surface_h')
-                ax2.legend()
+                    ax2.axhline(0, color='black')
+                    ax2.plot(fl_spinup.surface_h - fl_agile_init.surface_h,
+                             label='positive means retreating '
+                                   '(spinup to rgi _date)')
+                    ax2.plot(fl_agile_init.surface_h - fl_agile_end.surface_h,
+                             label='rgi_date to end')
+                    ax2.set_title('delta surface_h')
+                    ax2.legend()
 
-                ax3.axhline(0, color='black')
-                ax3.plot(fl_spinup.bed_h - fl_oggm_first_guess.bed_h,
-                         label='positive means overdeepening')
-                ax3.set_title('delta bed_h')
-                ax3.legend()
+                    ax3.axhline(0, color='black')
+                    ax3.plot(fl_spinup.bed_h - fl_oggm_first_guess.bed_h,
+                             label='positive means overdeepening')
+                    ax3.set_title('delta bed_h')
+                    ax3.legend()
 
-                ax4.plot(fl_oggm_first_guess.is_trapezoid, label='trapez')
-                ax4.plot(fl_oggm_first_guess.is_rectangular, label='rect')
-                ax4.legend()
+                    ax4.plot(fl_oggm_first_guess.is_trapezoid, label='trapez')
+                    ax4.plot(fl_oggm_first_guess.is_rectangular, label='rect')
+                    ax4.legend()
 
-                ax5.plot(fl_oggm.thick > 0, label='OGGM thick > 0')
-                ax5.plot(fl_agile_init.thick > 0,
-                         label='agile init thick > 0')
-                ax5.legend()
+                    ax5.plot(fl_oggm.thick > 0, label='OGGM thick > 0')
+                    ax5.plot(fl_agile_init.thick > 0,
+                             label='agile init thick > 0')
+                    ax5.legend()
 
-                ax6.plot(fl_diag_init.ice_velocity_myr[-1],
-                         label=f'year {fl_diag_init.time[-1].values}')
-                ax6.plot(fl_diag_start.ice_velocity_myr[-1],
-                         label=f'year {fl_diag_start.time[-1].values} '
-                               f'(rgi date)')
-                ax6.plot(fl_diag_end.ice_velocity_myr[-1],
-                         label=f'year {fl_diag_end.time[-1].values}')
-                ax6.set_title('velocity')
-                ax6.legend()
+                    ax6.plot(fl_diag_init.ice_velocity_myr[-1],
+                             label=f'year {fl_diag_init.time[-1].values}')
+                    ax6.plot(fl_diag_start.ice_velocity_myr[-1],
+                             label=f'year {fl_diag_start.time[-1].values} '
+                                   f'(rgi date)')
+                    ax6.plot(fl_diag_end.ice_velocity_myr[-1],
+                             label=f'year {fl_diag_end.time[-1].values}')
+                    ax6.set_title('velocity')
+                    ax6.legend()
 
-                fig.suptitle(gdir.name, fontsize=16)
-                fig.tight_layout(pad=1.0)
-                plt.show()
+                    fig.suptitle(f'{gdir.name}, {glacier_state}', fontsize=16)
+                    fig.tight_layout(pad=1.0)
+                    plt.show()
+
+        # test that glacier state mb is correctly used
+        inversion_settings = get_default_inversion_settings()
+        inversion_settings['minimize_options']['maxiter'] = 1
+
+        # add all possible observations to test everything
+        inversion_settings['observations']['fl_widths:m'] = {}
+        inversion_settings['obs_scaling_parameters']['uncertainty']['fl_widths:m'] = \
+            {'absolute': 1.}
+        inversion_settings['observations']['fl_total_area:m2'] = {}
+        inversion_settings['obs_scaling_parameters']['uncertainty']['fl_total_area:m2'] = \
+            {'absolute': 1.}
+        # extracted from experiment creation
+        inversion_settings['observations']['area:km2'] = {}
+        inversion_settings['obs_scaling_parameters']['uncertainty']['area:km2'] = \
+            {'relative': 0.1}
+
+        # add all possible control variables
+        inversion_settings['control_vars'] = ['area_bed_h']
+
+        for gdir in gdirs:
+            for glacier_state in glacier_states:
+                inversion_settings['experiment_description'] = (
+                    f"{glacier_state}_"
+                    f"{inversion_settings['experiment_description']}")
+                data_logger = conduct_sandbox_inversion(
+                    gdir, glacier_state=glacier_state,
+                    inversion_settings=inversion_settings,
+                    output_folder=test_dir,
+                    init_model_fls='_oggm_first_guess',
+                    gcm='BCC-CSM2-MR',
+                    ssp='ssp370',
+                    print_statistic=False,
+                    return_data_logger=True)
+
+                mb_models = initialise_mb_models(None, data_logger)
+                mb_model = mb_models['MB']['mb_model'].mbmod
+                mb_model_ref = get_glacier_state_mb_model(gdir, glacier_state)
+                mb_model_ref = mb_model_ref.flowline_mb_models[0]
+
+                if glacier_state == 'equilibrium':
+                    assert isinstance(mb_model, ConstantMassBalance)
+                    assert mb_model.halfsize == mb_model_ref.halfsize, f"{gdir.rgi_id}"
+                    assert mb_model.y0 == mb_model_ref.y0, f"{gdir.rgi_id}"
+                elif glacier_state in ['retreating', 'advancing']:
+                    assert isinstance(mb_model, MonthlyTIModel)
+                    assert mb_model.temp_bias == mb_model_ref.temp_bias, f"{gdir.rgi_id}"
+                    assert mb_model.repeat == mb_model_ref.repeat, f"{gdir.rgi_id}"
+                    assert mb_model.ys == mb_model_ref.ys, f"{gdir.rgi_id}"
+                    assert mb_model.ye == mb_model_ref.ye, f"{gdir.rgi_id}"
+                else:
+                    raise NotImplementedError(f'{glacier_state}')
 
     @pytest.mark.parametrize('control_vars',
                              [['area_bed_h', 'lambdas', 'w0_m'],
@@ -235,6 +317,7 @@ class TestSandbox:
                                       init_mdl_fls):
 
         experiment_glacier = ['Aletsch', 'Artesonraju']
+        glacier_states = ['equilibrium', 'retreating', 'advancing']
 
         inversion_settings = get_default_inversion_settings()
         inversion_settings['minimize_options']['maxiter'] = 3
@@ -276,6 +359,7 @@ class TestSandbox:
 
         gdirs = idealized_experiment(
             use_experiment_glaciers=experiment_glacier,
+            use_experiment_glacier_states=glacier_states,
             inversion_settings_all=[inversion_settings],
             inversion_settings_individual=inversion_settings_individual,
             init_model_fls=init_mdl_fls,
@@ -286,132 +370,113 @@ class TestSandbox:
 
         # test if individual inversion settings are correctly used
         for gdir in gdirs:
-            inv_setting = gdir.read_pickle(filename='inversion_input',
-                                           filesuffix='agile_inversion_results')
-            fg_hs = inv_setting['spinup_options']['height_shift']['mb_model']['fg_height_shift']
-            if gdir.rgi_id == 'RGI60-11.01450':
-                assert fg_hs == -140
-            elif gdir.rgi_id == 'RGI60-16.02444':
-                assert fg_hs == -52
-            else:
-                raise NotImplementedError(f'{gdir.rgi_id}')
+            for glacier_state in glacier_states:
+                inv_setting = gdir.read_pickle(
+                    filename='inversion_input',
+                    filesuffix=f'_{glacier_state}_agile_inversion_results')
+                fg_hs = \
+                    inv_setting['spinup_options']['height_shift']['mb_model']['fg_height_shift']
+                if gdir.rgi_id == 'RGI60-11.01450':
+                    assert fg_hs == -140
+                elif gdir.rgi_id == 'RGI60-16.02444':
+                    assert fg_hs == -52
+                else:
+                    raise NotImplementedError(f'{gdir.rgi_id}')
 
-        # open final dataset
-        fp = os.path.join(test_dir,
-                          'Aletsch_agile_inversion_results.pkl')
-        with open(fp, 'rb') as handle:
-            ds = pickle.load(handle)
+        for glacier_state in glacier_states:
+            # open final dataset
+            fp = os.path.join(test_dir,
+                              f'Aletsch_{glacier_state}_agile_'
+                              f'inversion_results.pkl')
+            with open(fp, 'rb') as handle:
+                ds = pickle.load(handle)
 
-        # open default oggm statistics
-        fp = os.path.join(gdirs[0].dir,
-                          'default_oggm_statistics.pkl')
-        with open(fp, 'rb') as handle:
-            ds_default_stats = pickle.load(handle)
+            # open default oggm statistics
+            fp = os.path.join(gdirs[0].dir,
+                              f'default_oggm_statistics_{glacier_state}.pkl')
+            with open(fp, 'rb') as handle:
+                ds_default_stats = pickle.load(handle)
 
-        # filesuffixes of two different oggm experiments
-        for oggm_run_suffix in ['_dynamic', '_static']:
-            # test for observation statistics
-            ds_key = 'observations_stats'
-            ds_key_oggm = ds_key + oggm_run_suffix
-            assert ds_key in ds.attrs.keys()
-            assert ds_key_oggm in ds_default_stats.keys()
-            for obs_key in ds.attrs[ds_key].keys():
-                obs_key_name = obs_key.split(':')[0]
-                for year_key in ds.attrs[ds_key][obs_key].keys():
-                    if obs_key_name in ['fl_surface_h', 'fl_widths']:
+            # filesuffixes of two different oggm experiments
+            for oggm_run_suffix in ['_dynamic', '_static']:
+                # test for observation statistics
+                ds_key = 'observations_stats'
+                ds_key_oggm = ds_key + oggm_run_suffix
+                assert ds_key in ds.attrs.keys()
+                assert ds_key_oggm in ds_default_stats.keys()
+                for obs_key in ds.attrs[ds_key].keys():
+                    obs_key_name = obs_key.split(':')[0]
+                    for year_key in ds.attrs[ds_key][obs_key].keys():
+                        if obs_key_name in ['fl_surface_h', 'fl_widths']:
+                            test_metrics = ['rmsd', 'mean_ad', 'max_ad', 'bias']
+                        elif obs_key_name in ['fl_total_area', 'area', 'dmdtda']:
+                            test_metrics = ['diff', 'abs_diff']
+                        else:
+                            raise NotImplementedError()
+                        for metric in test_metrics:
+                            assert metric in ds.attrs[ds_key][obs_key][year_key].keys()
+                            assert metric in ds_default_stats[ds_key_oggm][obs_key][year_key].keys()
+                            assert isinstance(ds.attrs[ds_key][obs_key][year_key][metric],
+                                              float)
+                            assert isinstance(ds_default_stats[ds_key_oggm][obs_key][year_key][metric],
+                                              float)
+
+                # test for control statistics
+                ds_key = 'controls_stats'
+                ds_key_oggm = ds_key + oggm_run_suffix
+                assert ds_key in ds.attrs.keys()
+                assert ds_key_oggm in ds_default_stats.keys()
+                for control_key in ds.attrs[ds_key].keys():
+                    if control_key in ['bed_h', 'area_bed_h', 'lambdas', 'w0_m']:
                         test_metrics = ['rmsd', 'mean_ad', 'max_ad', 'bias']
-                    elif obs_key_name in ['fl_total_area', 'area', 'dmdtda']:
+                        test_default = True
+                    elif control_key in ['height_shift_spinup']:
                         test_metrics = ['diff', 'abs_diff']
+                        test_default = False
                     else:
                         raise NotImplementedError()
                     for metric in test_metrics:
-                        assert metric in ds.attrs[ds_key][obs_key][year_key].keys()
-                        assert metric in ds_default_stats[ds_key_oggm][obs_key][year_key].keys()
-                        assert isinstance(ds.attrs[ds_key][obs_key][year_key][metric],
+                        assert metric in ds.attrs[ds_key][control_key].keys()
+                        assert isinstance(ds.attrs[ds_key][control_key][metric],
                                           float)
-                        assert isinstance(ds_default_stats[ds_key_oggm][obs_key][year_key][metric],
-                                          float)
+                        if test_default:
+                            assert metric in ds_default_stats[ds_key_oggm][control_key].keys()
+                            assert isinstance(ds_default_stats[ds_key_oggm][control_key][metric],
+                                              float)
 
-            # test for control statistics
-            ds_key = 'controls_stats'
-            ds_key_oggm = ds_key + oggm_run_suffix
-            assert ds_key in ds.attrs.keys()
-            assert ds_key_oggm in ds_default_stats.keys()
-            for control_key in ds.attrs[ds_key].keys():
-                if control_key in ['bed_h', 'area_bed_h', 'lambdas', 'w0_m']:
-                    test_metrics = ['rmsd', 'mean_ad', 'max_ad', 'bias']
-                    test_default = True
-                elif control_key in ['height_shift_spinup']:
-                    test_metrics = ['diff', 'abs_diff']
-                    test_default = False
-                else:
-                    raise NotImplementedError()
-                for metric in test_metrics:
-                    assert metric in ds.attrs[ds_key][control_key].keys()
-                    assert isinstance(ds.attrs[ds_key][control_key][metric],
-                                      float)
-                    if test_default:
-                        assert metric in ds_default_stats[ds_key_oggm][control_key].keys()
-                        assert isinstance(ds_default_stats[ds_key_oggm][control_key][metric],
-                                          float)
-
-            # test the past glacier state statistics
-            ds_key = 'past_state_stats'
-            ds_key_oggm = ds_key + oggm_run_suffix
-            assert ds_key in ds.attrs.keys()
-            assert ds_key_oggm in ds_default_stats.keys()
-            for var in ['thick', 'area_m2', 'volume_m3']:
-                test_metrics = ['rmsd', 'mean_ad', 'max_ad', 'diff', 'bias']
-                for metric in test_metrics:
-                    if metric == 'diff':
-                        if var != 'thick':
+                # test the past glacier state statistics
+                ds_key = 'past_state_stats'
+                ds_key_oggm = ds_key + oggm_run_suffix
+                assert ds_key in ds.attrs.keys()
+                assert ds_key_oggm in ds_default_stats.keys()
+                for var in ['thick', 'area_m2', 'volume_m3']:
+                    test_metrics = ['rmsd', 'mean_ad', 'max_ad', 'diff', 'bias']
+                    for metric in test_metrics:
+                        if metric == 'diff':
+                            if var != 'thick':
+                                assert metric in ds.attrs[ds_key][var].keys()
+                                assert metric in ds_default_stats[ds_key_oggm][var].keys()
+                                assert isinstance(ds.attrs[ds_key][var][metric],
+                                                  np.ndarray)
+                                assert isinstance(
+                                    ds_default_stats[ds_key_oggm][var][metric],
+                                    np.ndarray)
+                        else:
                             assert metric in ds.attrs[ds_key][var].keys()
                             assert metric in ds_default_stats[ds_key_oggm][var].keys()
                             assert isinstance(ds.attrs[ds_key][var][metric],
-                                              np.ndarray)
-                            assert isinstance(
-                                ds_default_stats[ds_key_oggm][var][metric],
-                                np.ndarray)
-                    else:
-                        assert metric in ds.attrs[ds_key][var].keys()
-                        assert metric in ds_default_stats[ds_key_oggm][var].keys()
-                        assert isinstance(ds.attrs[ds_key][var][metric],
-                                          float)
-                        assert isinstance(ds_default_stats[ds_key_oggm][var][metric],
-                                          float)
-
-            # test the past evolution statistics
-            ds_key = 'past_evol_stats'
-            ds_key_oggm = ds_key + oggm_run_suffix
-            assert ds_key in ds.attrs.keys()
-            assert ds_key_oggm in ds_default_stats.keys()
-            for var in ['volume_m3', 'area_m2']:
-                test_metrics = ['rmsd', 'mean_ad', 'max_ad', 'bias']
-                for metric in test_metrics:
-                    assert metric in ds.attrs[ds_key][var].keys()
-                    assert metric in ds_default_stats[ds_key_oggm][var].keys()
-                    assert isinstance(ds.attrs[ds_key][var][metric],
-                                      float)
-                    assert isinstance(ds_default_stats[ds_key_oggm][var][metric],
-                                      float)
-
-            # test todays glacier state statistics
-            ds_key = 'today_state_stats'
-            ds_key_oggm = ds_key + oggm_run_suffix
-            assert ds_key in ds.attrs.keys()
-            assert ds_key_oggm in ds_default_stats.keys()
-            for var in ['thick', 'area_m2', 'volume_m3']:
-                test_metrics = ['rmsd', 'mean_ad', 'max_ad', 'diff', 'bias']
-                for metric in test_metrics:
-                    if metric == 'diff':
-                        if var != 'thick':
-                            assert metric in ds.attrs[ds_key][var].keys()
-                            assert metric in ds_default_stats[ds_key_oggm][var].keys()
-                            assert isinstance(ds.attrs[ds_key][var][metric],
-                                              np.ndarray)
+                                              float)
                             assert isinstance(ds_default_stats[ds_key_oggm][var][metric],
-                                              np.ndarray)
-                    else:
+                                              float)
+
+                # test the past evolution statistics
+                ds_key = 'past_evol_stats'
+                ds_key_oggm = ds_key + oggm_run_suffix
+                assert ds_key in ds.attrs.keys()
+                assert ds_key_oggm in ds_default_stats.keys()
+                for var in ['volume_m3', 'area_m2']:
+                    test_metrics = ['rmsd', 'mean_ad', 'max_ad', 'bias']
+                    for metric in test_metrics:
                         assert metric in ds.attrs[ds_key][var].keys()
                         assert metric in ds_default_stats[ds_key_oggm][var].keys()
                         assert isinstance(ds.attrs[ds_key][var][metric],
@@ -419,24 +484,49 @@ class TestSandbox:
                         assert isinstance(ds_default_stats[ds_key_oggm][var][metric],
                                           float)
 
-            # test the future evolution statistics
-            ds_key = 'future_evol_stats'
-            ds_key_oggm = ds_key + oggm_run_suffix
-            assert ds_key in ds.attrs.keys()
-            assert ds_key_oggm in ds_default_stats.keys()
-            for var in ['volume_m3', 'area_m2']:
-                test_metrics = ['rmsd', 'mean_ad', 'max_ad', 'bias']
-                for metric in test_metrics:
-                    assert metric in ds.attrs[ds_key][var].keys()
-                    assert metric in ds_default_stats[ds_key_oggm][var].keys()
-                    assert isinstance(ds.attrs[ds_key][var][metric],
-                                      float)
-                    assert isinstance(ds_default_stats[ds_key_oggm][var][metric],
-                                      float)
+                # test todays glacier state statistics
+                ds_key = 'today_state_stats'
+                ds_key_oggm = ds_key + oggm_run_suffix
+                assert ds_key in ds.attrs.keys()
+                assert ds_key_oggm in ds_default_stats.keys()
+                for var in ['thick', 'area_m2', 'volume_m3']:
+                    test_metrics = ['rmsd', 'mean_ad', 'max_ad', 'diff', 'bias']
+                    for metric in test_metrics:
+                        if metric == 'diff':
+                            if var != 'thick':
+                                assert metric in ds.attrs[ds_key][var].keys()
+                                assert metric in ds_default_stats[ds_key_oggm][var].keys()
+                                assert isinstance(ds.attrs[ds_key][var][metric],
+                                                  np.ndarray)
+                                assert isinstance(ds_default_stats[ds_key_oggm][var][metric],
+                                                  np.ndarray)
+                        else:
+                            assert metric in ds.attrs[ds_key][var].keys()
+                            assert metric in ds_default_stats[ds_key_oggm][var].keys()
+                            assert isinstance(ds.attrs[ds_key][var][metric],
+                                              float)
+                            assert isinstance(ds_default_stats[ds_key_oggm][var][metric],
+                                              float)
+
+                # test the future evolution statistics
+                ds_key = 'future_evol_stats'
+                ds_key_oggm = ds_key + oggm_run_suffix
+                assert ds_key in ds.attrs.keys()
+                assert ds_key_oggm in ds_default_stats.keys()
+                for var in ['volume_m3', 'area_m2']:
+                    test_metrics = ['rmsd', 'mean_ad', 'max_ad', 'bias']
+                    for metric in test_metrics:
+                        assert metric in ds.attrs[ds_key][var].keys()
+                        assert metric in ds_default_stats[ds_key_oggm][var].keys()
+                        assert isinstance(ds.attrs[ds_key][var][metric],
+                                          float)
+                        assert isinstance(ds_default_stats[ds_key_oggm][var][metric],
+                                          float)
 
     def test_perfect_spinup_and_section_spinup(self, test_dir):
 
         experiment_glacier = ['Aletsch']
+        glacier_states = ['retreating']
 
         inversion_settings = get_default_inversion_settings()
         inversion_settings['minimize_options']['maxiter'] = 3
@@ -483,6 +573,7 @@ class TestSandbox:
 
         gdirs = idealized_experiment(
             use_experiment_glaciers=experiment_glacier,
+            use_experiment_glacier_states=glacier_states,
             inversion_settings_all=[inversion_settings1,
                                     inversion_settings2,
                                     inversion_settings3,
@@ -494,10 +585,11 @@ class TestSandbox:
                              'cfl_number': 0.5})
 
         fl_true_init = gdirs[0].read_pickle('model_flowlines',
-                                            filesuffix='_creation_spinup')[0]
+                                            filesuffix='_creation_spinup_'
+                                                       f'{glacier_states[0]}')[0]
         # some tests for perfect sfc_h spinup
         fp = os.path.join(test_dir,
-                          'Aletsch_perfect_sfc_h_spinup.pkl')
+                          f'Aletsch_{glacier_states[0]}_perfect_sfc_h_spinup.pkl')
         with open(fp, 'rb') as handle:
             ds_perfect_sfc_h = pickle.load(handle)
 
@@ -510,7 +602,7 @@ class TestSandbox:
 
         # some tests for perfect thickness
         fp = os.path.join(test_dir,
-                          'Aletsch_perfect_thickness_spinup.pkl')
+                          f'Aletsch_{glacier_states[0]}_perfect_thickness_spinup.pkl')
         with open(fp, 'rb') as handle:
             ds_perfect_thickness = pickle.load(handle)
 
@@ -522,7 +614,7 @@ class TestSandbox:
 
         # some tests for perfect section
         fp = os.path.join(test_dir,
-                          'Aletsch_perfect_section_spinup.pkl')
+                          f'Aletsch_{glacier_states[0]}_perfect_section_spinup.pkl')
         with open(fp, 'rb') as handle:
             ds_perfect_section = pickle.load(handle)
 
@@ -538,12 +630,13 @@ class TestSandbox:
 
         # some tests for section spinup
         fp = os.path.join(test_dir,
-                          'Aletsch_section_spinup.pkl')
+                          f'Aletsch_{glacier_states[0]}_section_spinup.pkl')
         with open(fp, 'rb') as handle:
             ds_section = pickle.load(handle)
 
         fl_fg = gdirs[0].read_pickle('model_flowlines',
-                                     filesuffix='_oggm_first_guess')[0]
+                                     filesuffix=f'_oggm_first_guess_'
+                                                f'{glacier_states[0]}')[0]
         assert np.allclose(ds_section.section_start[0], fl_fg.section)
 
     def test_StackedMassBalance(self, test_dir):
@@ -561,10 +654,12 @@ class TestSandbox:
                    'L1-L2_files/elev_bands/'
 
         glacier_names = ['Aletsch']
+        glacier_states = ['retreating']
 
         cfg.PARAMS['use_multiprocessing'] = False
         cfg.PARAMS['cfl_number'] = 0.5
         gdirs = create_idealized_experiments(glacier_names,
+                                             glacier_states,
                                              prepro_border=prepro_border,
                                              from_prepro_level=from_prepro_level,
                                              base_url=base_url, )
@@ -624,6 +719,7 @@ class TestSandbox:
 
     def test_perfect_bed_h(self, test_dir):
         experiment_glacier = ['Aletsch']
+        glacier_states = ['retreating']
 
         inversion_settings = get_default_inversion_settings()
         inversion_settings['minimize_options']['maxiter'] = 3
@@ -656,6 +752,7 @@ class TestSandbox:
 
         gdirs = idealized_experiment(
             use_experiment_glaciers=experiment_glacier,
+            use_experiment_glacier_states=glacier_states,
             inversion_settings_all=[inversion_settings],
             working_dir=test_dir,
             output_folder=test_dir,
@@ -663,10 +760,11 @@ class TestSandbox:
                              'cfl_number': 0.5})
 
         fl_true_init = gdirs[0].read_pickle('model_flowlines',
-                                            filesuffix='_creation_spinup')[0]
+                                            filesuffix='_creation_spinup_'
+                                                       f'{glacier_states[0]}')[0]
         # some tests for perfect sfc_h spinup
         fp = os.path.join(test_dir,
-                          'Aletsch_perfect_bed_h.pkl')
+                          f'Aletsch_{glacier_states[0]}_perfect_bed_h.pkl')
         with open(fp, 'rb') as handle:
             ds_perfect_bed_h = pickle.load(handle)
 

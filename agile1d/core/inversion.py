@@ -60,9 +60,11 @@ def get_default_inversion_settings(get_doc=False):
            "MassBalanceModel must start at least " \
            "one year before first given observation year!" \
            "Default: {'MB': {'type': 'TIModel'," \
-           "                 'years': np.array([1980, 2020])}}"
+           "                 'years': np.array([1980, 2020])," \
+           "                 'model_args': {}}}"
     _default = {'MB': {'type': 'TIModel',
-                       'years': np.array([1980, 2020])}}
+                       'years': np.array([1980, 2020]),
+                       'model_args': {}}}
 
     add_setting()
 
@@ -103,10 +105,10 @@ def get_default_inversion_settings(get_doc=False):
 
     _key = "bed_h_bounds"
     _doc = "Define how large the boundaries for the bed_h are, in relation of " \
-           "first guess thickness. (e.g. (0.2, 1.4) means the bed height can " \
+           "first guess thickness. (e.g. (0.4, 1.6) means the bed height can " \
            "be between 1.4*fg_thick and 0.2*fg_thick). " \
-           "Default: (0.2, 1.4)"
-    _default = (0.2, 1.4)
+           "Default: (0.4, 1.6)"
+    _default = (0.4, 1.6)
     add_setting()
 
     _key = "max_deviation_surface_h"
@@ -245,7 +247,7 @@ def get_default_inversion_settings(get_doc=False):
            "glacier at the inital state." \
            "e.g. {'section':" \
            "         {'extra_grid_points': 10," \
-           "          'limits': (0.75, 1.25)," \
+           "          'limits': (0.6, 1.4)," \
            "          'fg_years': 1" \
            "          }" \
            "      }" \

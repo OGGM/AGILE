@@ -17,6 +17,7 @@ log = logging.getLogger(__name__)
 
 
 def idealized_experiment(use_experiment_glaciers,
+                         use_experiment_glacier_states,
                          inversion_settings_all,
                          working_dir, output_folder,
                          inversion_settings_individual=None,
@@ -29,6 +30,13 @@ def idealized_experiment(use_experiment_glaciers,
     # Local paths
     if override_params is None:
         override_params = {}
+
+    if any(state not in ['equilibrium', 'retreating', 'advancing']
+           for state in use_experiment_glacier_states):
+        raise NotImplementedError("Glacier states could only be one of "
+                                  "['equilibrium', 'retreating', 'advancing']"
+                                  ", but given was "
+                                  f"{use_experiment_glacier_states}.")
 
     utils.mkdir(working_dir)
     override_params['working_dir'] = working_dir
@@ -56,6 +64,7 @@ def idealized_experiment(use_experiment_glaciers,
                'L1-L2_files/elev_bands/'
 
     gdirs = create_idealized_experiments(use_experiment_glaciers,
+                                         use_experiment_glacier_states,
                                          prepro_border=cfg.PARAMS['border'],
                                          from_prepro_level=from_prepro_level,
                                          base_url=base_url,
@@ -68,18 +77,27 @@ def idealized_experiment(use_experiment_glaciers,
     all_experiments = []
     for inv_setting in inversion_settings_all:
         for gdir in gdirs:
-            inv_setting_use = copy.deepcopy(inv_setting)
-            if inversion_settings_individual is not None:
-                try:
-                    individual_setting = inversion_settings_individual[gdir.rgi_id]
-                    for key in individual_setting.keys():
-                        inv_setting_use[key] = individual_setting[key]
-                except KeyError:
-                    # if no individual settings for this glacier move on
-                    pass
-            all_experiments.append((gdir, dict(inversion_settings=inv_setting_use,
-                                               output_folder=output_folder)
-                                    ))
+            for glacier_state in use_experiment_glacier_states:
+                inv_setting_use = copy.deepcopy(inv_setting)
+                if inversion_settings_individual is not None:
+                    try:
+                        individual_setting = \
+                            inversion_settings_individual[gdir.rgi_id]
+                        for key in individual_setting.keys():
+                            inv_setting_use[key] = individual_setting[key]
+                    except KeyError:
+                        # if no individual settings for this glacier move on
+                        pass
+                # add glacier state to outputfilesuffix
+                inv_setting_use['experiment_description'] = (
+                    f"{glacier_state}_"
+                    f"{inv_setting_use['experiment_description']}")
+                all_experiments.append((gdir,
+                                        dict(
+                                            glacier_state=glacier_state,
+                                            inversion_settings=inv_setting_use,
+                                            output_folder=output_folder)
+                                        ))
 
     workflow.execute_entity_task(conduct_sandbox_inversion, all_experiments,
                                  init_model_fls=init_model_fls,
@@ -116,23 +134,39 @@ def add_future_projection_run(gdir, data_logger, gcm='BCC-CSM2-MR',
 
 
 @entity_task(log, writes=['inversion_input', 'model_flowlines'])
-def conduct_sandbox_inversion(gdir, inversion_settings=None,
+def conduct_sandbox_inversion(gdir, glacier_state, inversion_settings=None,
                               output_folder=None,
                               init_model_fls='_oggm_first_guess',
                               gcm='BCC-CSM2-MR',
                               ssp='ssp370',
-                              print_statistic=True):
+                              print_statistic=True,
+                              return_data_logger=False):
     """TODO"""
 
-    # check if mb_model_settings should be loaded from gdir
-    if inversion_settings['mb_models_settings'] == 'load_from_gdir':
-        inversion_settings['mb_models_settings'] = \
-            gdir.read_pickle('inversion_input',
-                             filesuffix='_agile_mb_models')
+    # add glacier state to first guess
+    init_model_fls = f'{init_model_fls}_{glacier_state}'
+
+    # load mb_model settings from gdir depending on glacier state
+    inversion_settings['mb_models_settings'] = \
+        gdir.read_pickle('inversion_input',
+                         filesuffix='_agile_mb_models_'
+                                    f'{glacier_state}')
+
+    # if perfect spinup we must add glacier state to string
+    spn_option = list(inversion_settings['spinup_options'].keys())[0]
+    if spn_option in ['perfect_sfc_h', 'perfect_thickness', 'perfect_section']:
+        inversion_settings['spinup_options'][spn_option] = \
+            inversion_settings['spinup_options'][spn_option] + f'_{glacier_state}'
+
+    # also for perfect_bed_h we need to add the glacier state
+    if 'perfect_bed_h' in list(inversion_settings['spinup_options'].keys()):
+        inversion_settings['spinup_options']['perfect_bed_h'] = \
+            inversion_settings['spinup_options']['perfect_bed_h'] + f'_{glacier_state}'
 
     # load the observations to use from gdir
     all_measurements = gdir.read_pickle('inversion_input',
-                                        filesuffix='_agile_measurements')
+                                        filesuffix='_agile_measurements_'
+                                                   f'{glacier_state}')
     used_measurements = copy.deepcopy(inversion_settings['observations'])
     inversion_settings['observations'] = {}
     for msr in used_measurements:
@@ -144,20 +178,21 @@ def conduct_sandbox_inversion(gdir, inversion_settings=None,
         else:
             raise RuntimeError(f'No observation for {msr} available!')
 
-    prepare_for_agile_inversion(gdir,
-                                inversion_settings=inversion_settings,
-                                filesuffix=
-                                inversion_settings['experiment_description'])
+    inversion_filesuffix = f"_{inversion_settings['experiment_description']}"
+
+    prepare_for_agile_inversion(
+        gdir, inversion_settings=inversion_settings,
+        filesuffix=inversion_filesuffix)
 
     data_logger = agile_inversion(gdir,
                                   inversion_input_filesuffix=
-                                  inversion_settings['experiment_description'],
+                                  inversion_filesuffix,
                                   init_model_filesuffix=None,
                                   init_model_fls=init_model_fls,
                                   climate_filename='climate_historical',
                                   climate_filesuffix='',
-                                  output_filesuffix='_agile_output_' +
-                                                    inversion_settings['experiment_description'],
+                                  output_filesuffix=
+                                  f'_agile_output{inversion_filesuffix}',
                                   output_filepath=output_folder,
                                   save_dataset=True,
                                   give_data_logger_back=True)
@@ -165,5 +200,9 @@ def conduct_sandbox_inversion(gdir, inversion_settings=None,
     add_future_projection_run(gdir, data_logger=data_logger, gcm=gcm, ssp=ssp)
 
     calculate_result_statistics(gdir,
+                                glacier_state=glacier_state,
                                 data_logger=data_logger,
                                 print_statistic=print_statistic)
+
+    if return_data_logger:
+        return data_logger

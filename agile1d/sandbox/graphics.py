@@ -1,5 +1,6 @@
 from oggm import cfg, utils
-from agile1d.sandbox.create_glaciers_with_measurements import create_idealized_experiments
+from agile1d.sandbox.create_glaciers_with_measurements import create_idealized_experiments, \
+    get_equilibrium_year_and_halfsize, get_spinup_mb_model, get_glacier_state_mb_model
 import matplotlib.pyplot as plt
 from matplotlib import colors as m_colors
 import numpy as np
@@ -10,7 +11,8 @@ from collections import OrderedDict
 import os
 from oggm import graphics
 from oggm.graphics import _plot_map, truncate_colormap
-from oggm.core.massbalance import MonthlyTIModel, MultipleFlowlineMassBalance, RandomMassBalance
+from oggm.core.massbalance import MonthlyTIModel, MultipleFlowlineMassBalance, RandomMassBalance, \
+    ConstantMassBalance
 from oggm.core.flowline import FlowlineModel
 import salem
 from oggm.core import gis
@@ -134,14 +136,15 @@ def plot_outline_with_dem(gdir, ax=None, map_extend_factor=3, use_netcdf=False):
 
 
 # heading text
-def plot_heading_text(gdir, fig, ax, parameters_text_height=0.5, linespacing=1):
+def plot_heading_text(gdir, glacier_state, fig, ax, parameters_text_height=0.5,
+                      linespacing=1):
 
     ax.axis('off')
 
     ax.text(
         0.5,
         1,
-        f'{gdir.rgi_id}: {gdir.name}',
+        f'{gdir.rgi_id}: {gdir.name}, {glacier_state}',
         fontsize=16,
         horizontalalignment='center',
         verticalalignment='top',
@@ -174,16 +177,24 @@ def plot_heading_text(gdir, fig, ax, parameters_text_height=0.5, linespacing=1):
 
 # glacier bed with hypsomentry
 # adapted from graphics.plot_modeloutput_section
-def plot_bed_hypsometry(gdir, ax, fig, grid_points_added=5, plot_non_trap=True,
-                        bins=20, legend_x_position=0.8, legend_y_position=1.0,
-                        add_future=True, ye=2050):
+def plot_bed_hypsometry(gdir, glacier_state, ax, fig, grid_points_added=5,
+                        plot_non_trap=True, bins=20, legend_x_position=0.8,
+                        legend_y_position=1.0, add_future=True, ye=2050):
     # open flowlines to be plotted (only for single flowline models)
-    fls_true_start = gdir.read_pickle('model_flowlines', filesuffix='_creation_spinup')[0]
-    fls_true_rgi = gdir.read_pickle('model_flowlines', filesuffix='_agile_true_init')[0]
-    fls_true_end = gdir.read_pickle('model_flowlines', filesuffix='_agile_true_end')[0]
+    fls_true_start = gdir.read_pickle('model_flowlines',
+                                      filesuffix='_creation_spinup_'
+                                                 f'{glacier_state}')[0]
+    fls_true_rgi = gdir.read_pickle('model_flowlines',
+                                    filesuffix='_agile_true_init_'
+                                               f'{glacier_state}')[0]
+    fls_true_end = gdir.read_pickle('model_flowlines',
+                                    filesuffix='_agile_true_end_'
+                                               f'{glacier_state}')[0]
 
     if add_future:
-        fls_true_future = get_fl_diagnostics(gdir, '_agile_true_future')
+        fls_true_future = get_fl_diagnostics(gdir,
+                                             '_agile_true_future_'
+                                             f'{glacier_state}')
         fls_true_future = fls_true_future.loc[{'time': ye}]
         fls_true_future_thickness = fls_true_future.thickness_m.values
         fls_true_future_surface_h = fls_true_future.bed_h.values + fls_true_future_thickness
@@ -315,7 +326,7 @@ def plot_bed_hypsometry(gdir, ax, fig, grid_points_added=5, plot_non_trap=True,
 
 
 # Mass Balance plot
-def plot_specific_mb(gdir, ax,
+def plot_specific_mb(gdir, glacier_state, ax,
                      ys=1920,
                      ye=2100,
                      y_switch_spinup_run=1980,
@@ -325,17 +336,11 @@ def plot_specific_mb(gdir, ax,
     # define mass balance models to use
     fls_spinup = gdir.read_pickle('model_flowlines',
                                   filesuffix='_consensus')
-    mb_model_random = MultipleFlowlineMassBalance(gdir,
-                                                  fls=fls_spinup,
-                                                  mb_model_class=RandomMassBalance,
-                                                  seed=2,
-                                                  filename='climate_historical',
-                                                  y0=1950,
-                                                  halfsize=30)
-    mb_model_run = MultipleFlowlineMassBalance(gdir,
-                                               fls=fls_spinup,
-                                               mb_model_class=MonthlyTIModel,
-                                               filename='climate_historical')
+
+    mb_model_random = get_spinup_mb_model(gdir, glacier_state, fls_spinup)
+    mb_model_run = get_glacier_state_mb_model(gdir, glacier_state,
+                                              fls_spinup=fls_spinup)
+
     gcm = 'BCC-CSM2-MR'
     ssp = 'ssp370'
     rid = '_{}_{}'.format(gcm, ssp)
@@ -345,7 +350,8 @@ def plot_specific_mb(gdir, ax,
                                                   filename='gcm_data',
                                                   input_filesuffix=rid)
     fls = gdir.read_pickle('model_flowlines',
-                           filesuffix='_agile_true_init')
+                           filesuffix='_agile_true_init_'
+                                      f'{glacier_state}')
 
     # read out mb values
     specific_mb = []
@@ -400,34 +406,39 @@ def plot_specific_mb(gdir, ax,
 
 
 # glacier evolution during creation
-def plot_glacier_evolution(gdir, ax_v, ax_a, ax_l, text_position=1.1,
-                           add_text=True, add_future=True, add_fg=True,
-                           ye=2100):
+def plot_glacier_evolution(gdir, glacier_state, ax_v, ax_a, ax_l,
+                           text_position=1.1, add_text=True, add_future=True,
+                           add_fg=True, ye=2100):
     color = 'C0'
     color_fg = 'C1'
 
     # open glacier creation
     with xr.open_dataset(gdir.get_filepath('model_diagnostics',
-                                           filesuffix='_agile_creation_spinup')) as ds:
+                                           filesuffix='_agile_creation_spinup_'
+                                                      f'{glacier_state}')) as ds:
         ds_spinup = ds.load()
 
     # open actual historical run
     with xr.open_dataset(gdir.get_filepath('model_diagnostics',
-                                           filesuffix='_agile_true_total_run')) as ds:
+                                           filesuffix='_agile_true_total_run_'
+                                                      f'{glacier_state}')) as ds:
         ds_run = ds.load()
 
     # open future run
     with xr.open_dataset(gdir.get_filepath('model_diagnostics',
-                                           filesuffix='_agile_true_future')) as ds:
+                                           filesuffix='_agile_true_future_'
+                                                      f'{glacier_state}')) as ds:
         ds_future = ds.load()
 
     if add_fg:
         with xr.open_dataset(gdir.get_filepath('model_diagnostics',
-                                               filesuffix='_oggm_dynamic_past')) as ds:
+                                               filesuffix='_oggm_static_past_'
+                                                          f'{glacier_state}')) as ds:
             ds_run_fg = ds.load()
 
         with xr.open_dataset(gdir.get_filepath('model_diagnostics',
-                                               filesuffix='_oggm_dynamic_future')) as ds:
+                                               filesuffix='_oggm_static_future_'
+                                                          f'{glacier_state}')) as ds:
             ds_future_fg = ds.load()
 
     if add_future:
@@ -500,10 +511,15 @@ def plot_glacier_evolution(gdir, ax_v, ax_a, ax_l, text_position=1.1,
 
 
 # dhdt, bed diff plot
-def plot_dhdt_first_guess_db(gdir, ax_dh, ax_db, ax_ds=None, grid_points_added=0):
+def plot_dhdt_first_guess_db(gdir, glacier_state, ax_dh, ax_db, ax_ds=None,
+                             grid_points_added=0):
     # open flowlines to be plotted (only for single flowline models)
-    fls_true_rgi = gdir.read_pickle('model_flowlines', filesuffix='_agile_true_init')[0]
-    fls_first_guess = gdir.read_pickle('model_flowlines', filesuffix='_oggm_first_guess')[0]
+    fls_true_rgi = gdir.read_pickle('model_flowlines',
+                                    filesuffix='_agile_true_init_'
+                                               f'{glacier_state}')[0]
+    fls_first_guess = gdir.read_pickle('model_flowlines',
+                                       filesuffix='_oggm_first_guess_'
+                                                  f'{glacier_state}')[0]
 
 
     # define extend to plot according to longest flowline
@@ -514,10 +530,14 @@ def plot_dhdt_first_guess_db(gdir, ax_dh, ax_db, ax_ds=None, grid_points_added=0
     max_grid_point += grid_points_added
 
     # open different flowline diagnostics
-    ds_start = get_fl_diagnostics(gdir, '_agile_true_dmdt_start')
-    ds_init = get_fl_diagnostics(gdir, '_agile_true_init')
-    ds_end = get_fl_diagnostics(gdir, '_agile_true_end')
-    ds_default = get_fl_diagnostics(gdir, '_oggm_dynamic_past').sel({'time': 2000})
+    ds_start = get_fl_diagnostics(gdir, '_agile_true_dmdt_start_'
+                                        f'{glacier_state}')
+    ds_init = get_fl_diagnostics(gdir, '_agile_true_init_'
+                                       f'{glacier_state}')
+    ds_end = get_fl_diagnostics(gdir, '_agile_true_end_'
+                                      f'{glacier_state}')
+    ds_default = get_fl_diagnostics(gdir, '_oggm_static_past_'
+                                          f'{glacier_state}').sel({'time': 2000})
 
     ds_all = xr.merge([ds_start, ds_init, ds_end])
 
@@ -580,11 +600,17 @@ def plot_dhdt_first_guess_db(gdir, ax_dh, ax_db, ax_ds=None, grid_points_added=0
 
 
 # plot velocities
-def plot_velocities(gdir, ax, grid_points_added=5):
+def plot_velocities(gdir, glacier_state, ax, grid_points_added=5):
     # open flowlines to be plotted (only for single flowline models)
-    fls_true_start = gdir.read_pickle('model_flowlines', filesuffix='_creation_spinup')[0]
-    fls_true_rgi = gdir.read_pickle('model_flowlines', filesuffix='_agile_true_init')[0]
-    fls_true_end = gdir.read_pickle('model_flowlines', filesuffix='_agile_true_end')[0]
+    fls_true_start = gdir.read_pickle('model_flowlines',
+                                      filesuffix='_creation_spinup_'
+                                                 f'{glacier_state}')[0]
+    fls_true_rgi = gdir.read_pickle('model_flowlines',
+                                    filesuffix='_agile_true_init_'
+                                               f'{glacier_state}')[0]
+    fls_true_end = gdir.read_pickle('model_flowlines',
+                                    filesuffix='_agile_true_end_'
+                                               f'{glacier_state}')[0]
 
     # define extend to plot according to longest flowline
     max_grid_point = np.max(
@@ -594,9 +620,12 @@ def plot_velocities(gdir, ax, grid_points_added=5):
     max_grid_point += grid_points_added
 
     # open different flowline diagnostics
-    ds_start = get_fl_diagnostics(gdir, '_agile_true_dmdt_start')
-    ds_init = get_fl_diagnostics(gdir, '_agile_true_init')
-    ds_end = get_fl_diagnostics(gdir, '_agile_true_end')
+    ds_start = get_fl_diagnostics(gdir, '_agile_true_dmdt_start_'
+                                        f'{glacier_state}')
+    ds_init = get_fl_diagnostics(gdir, '_agile_true_init_'
+                                       f'{glacier_state}')
+    ds_end = get_fl_diagnostics(gdir, '_agile_true_end_'
+                                      f'{glacier_state}')
 
     ds_all = xr.merge([ds_start, ds_init, ds_end])
 
@@ -620,8 +649,8 @@ def plot_velocities(gdir, ax, grid_points_added=5):
 
 
 # create the whole plot
-def create_synthetic_glacier_plot(gdir, fig, save_fig=False, fig_dir='',
-                                  legend_position=(0.2, 1.2),
+def create_synthetic_glacier_plot(gdir, glacier_state, fig, save_fig=False,
+                                  fig_dir='', legend_position=(0.2, 1.2),
                                   map_extend_factor=2,
                                   add_future=False, add_fg=True, ye=2020):
     top_margin = 0.02
@@ -700,16 +729,17 @@ def create_synthetic_glacier_plot(gdir, fig, save_fig=False, fig_dir='',
 
     # heading plots
     plot_outline_with_dem(gdir, ax=ax_map, map_extend_factor=map_extend_factor)
-    plot_heading_text(gdir, fig, ax_text,
+    plot_heading_text(gdir, glacier_state, fig, ax_text,
                       parameters_text_height=0.7,
                       linespacing=1.3)
 
     # left column plots
-    plot_bed_hypsometry(gdir, ax=ax_bed, fig=fig, grid_points_added=15, bins=15,
+    plot_bed_hypsometry(gdir, glacier_state, ax=ax_bed, fig=fig,
+                        grid_points_added=15, bins=15,
                         legend_x_position=legend_position[0],
                         legend_y_position=legend_position[1],
                         add_future=add_future, ye=ye)
-    plot_dhdt_first_guess_db(gdir,
+    plot_dhdt_first_guess_db(gdir, glacier_state,
                              ax_dh=ax_dh,
                              ax_db=ax_db,
                              # ax_ds=ax_ds,
@@ -730,9 +760,10 @@ def create_synthetic_glacier_plot(gdir, fig, save_fig=False, fig_dir='',
     ax_dh.set_xticklabels(labels)
 
     # right column plots
-    plot_specific_mb(gdir, ax=ax_mb, ys=1920, ye=ye,
+    plot_specific_mb(gdir, glacier_state, ax=ax_mb, ys=1920, ye=ye,
                      add_text=True, add_future=add_future)
     plot_glacier_evolution(gdir,
+                           glacier_state,
                            ax_v=ax_v,
                            ax_a=ax_a,
                            ax_l=None,
@@ -768,7 +799,15 @@ def create_synthetic_glacier_plot(gdir, fig, save_fig=False, fig_dir='',
         fig.savefig(os.path.join(result_folder, f'{gdir.name}.png'))
 
 
-def create_and_save_all_synthetic_glacier_plots(fig_dir='', **kwargs):
+def create_and_save_all_synthetic_glacier_plots(fig_dir='',
+                                                glacier_names=('Baltoro',
+                                                               'Aletsch',
+                                                               'Artesonraju',
+                                                               'Peyto'),
+                                                glacier_states=('equilibrium',
+                                                                'retreating',
+                                                                'advancing'),
+                                                **kwargs):
 
     if fig_dir == '':
         raise ValueError('You should define a directory where to save the '
@@ -784,14 +823,9 @@ def create_and_save_all_synthetic_glacier_plots(fig_dir='', **kwargs):
     base_url = 'https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/' \
                'L1-L2_files/elev_bands/'
 
-    glacier_names = ['Baltoro',
-                     'Aletsch',
-                     'Artesonraju',
-                     'Peyto',
-                     ]
-
     cfg.PARAMS['cfl_number'] = 0.5
     gdirs = create_idealized_experiments(glacier_names,
+                                         glacier_states,
                                          prepro_border=prepro_border,
                                          from_prepro_level=from_prepro_level,
                                          base_url=base_url, )
@@ -811,14 +845,16 @@ def create_and_save_all_synthetic_glacier_plots(fig_dir='', **kwargs):
                       }
 
     for gdir in gdirs:
-        kwargs_use = glacier_kwargs[gdir.rgi_id]
-        save_fig = True
+        for glacier_state in glacier_states:
+            kwargs_use = glacier_kwargs[gdir.rgi_id]
+            save_fig = True
 
-        fig = plt.figure(figsize=(10, 6))
+            fig = plt.figure(figsize=(10, 6))
 
-        for key, item in kwargs.items():
-            kwargs_use[key] = item
+            for key, item in kwargs.items():
+                kwargs_use[key] = item
 
-        create_synthetic_glacier_plot(gdir, fig, save_fig=save_fig,
-                                      fig_dir=fig_dir,
-                                      **kwargs_use)
+            create_synthetic_glacier_plot(gdir, glacier_state,  fig,
+                                          save_fig=save_fig,
+                                          fig_dir=fig_dir,
+                                          **kwargs_use)
