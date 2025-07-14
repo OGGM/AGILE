@@ -145,6 +145,7 @@ class TestInversion:
         assert data_logger.reg_terms is not None
         assert data_logger.c_terms_description is not None
         assert data_logger.time_needed is not None
+        assert data_logger.gradient_time_needed is not None
         assert data_logger.grads is not None
         assert data_logger.flowlines is not None
         assert data_logger.end_time is not None

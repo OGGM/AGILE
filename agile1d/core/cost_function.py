@@ -324,8 +324,10 @@ def cost_fct(unknown_parameters, data_logger):
     c = c_terms.mean() + cost_lambda * reg_terms.mean()
 
     log.debug('gradient calculation')
+    start_time_gradient_calc = time.time()
     # calculate the gradient for the control variables
     c.backward()
+    gradient_calc_time = time.time() - start_time_gradient_calc
 
     log.debug('get gradients')
     # get gradient/s as numpy array
@@ -351,6 +353,8 @@ def cost_fct(unknown_parameters, data_logger):
                                         unknown_parameters_descaled)
     data_logger.save_data_in_datalogger('time_needed',
                                         time.time() - data_logger.start_time)
+    data_logger.save_data_in_datalogger('gradient_time_needed',
+                                        gradient_calc_time)
 
     data_logger.fct_calls = np.append(data_logger.fct_calls,
                                       data_logger.fct_calls[-1] + 1)

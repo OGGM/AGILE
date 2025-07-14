@@ -138,6 +138,7 @@ class DataLogger(object):
         self.reg_terms = None
         self.c_terms_description = None
         self.time_needed = None
+        self.gradient_time_needed = None
         self.grads = None
         self.flowlines = None
         self.initial_flux = None
@@ -248,6 +249,7 @@ class DataLogger(object):
         self.c_terms = self.c_terms[index]
         self.reg_terms = self.reg_terms[index]
         self.time_needed = self.squeeze_generic(self.time_needed[index])
+        self.gradient_time_needed = self.squeeze_generic(self.gradient_time_needed[index])
         self.flowlines = self.squeeze_generic(self.flowlines[index])
         self.initial_flux = self.squeeze_generic(self.initial_flux[index])
         self.sfc_h_start = self.squeeze_generic(self.sfc_h_start[index])
@@ -279,6 +281,7 @@ class DataLogger(object):
         ds['reg_terms'] = (['iteration', 'nr_reg_terms'], self.reg_terms)
         ds['c_terms_description'] = (['iteration'], self.c_terms_description)
         ds['time_needed'] = (['iteration'], self.time_needed)
+        ds['gradient_time_needed'] = (['iteration'], self.gradient_time_needed)
         ds['fct_calls'] = (['iteration'], self.fct_calls)
         ds['unknown_parameters'] = (['iteration', 'nr_unknown_parameters'],
                                     self.unknown_parameters)
