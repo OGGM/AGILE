@@ -44,7 +44,7 @@ def idealized_experiment(use_experiment_glaciers,
     utils.mkdir(output_folder)
 
     cfg.initialize(file=params_file, params=override_params,
-                   logging_level=logging_level, future=True)
+                   logging_level=logging_level)
 
     # store model geometry for hydro output
     cfg.PARAMS['store_model_geometry'] = True
