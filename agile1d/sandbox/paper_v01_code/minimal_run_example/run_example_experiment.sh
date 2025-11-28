@@ -74,6 +74,15 @@ else
   echo "AGILE repository already exists in ${HOST_WORKDIR}/AGILE – not cloning."
 fi
 
+# Ensure the local repo is on the requested AGILE_COMMIT (detached HEAD is fine)
+echo "Checking out AGILE commit ${AGILE_COMMIT} in local repo..."
+(
+  cd AGILE
+  # Fetch latest refs so the commit/tag is known locally (quietly)
+  git fetch --all --quiet
+  git checkout "${AGILE_COMMIT}"
+)
+
 # Check that the run scripts directory exists
 if [ ! -d "${RUN_SCRIPTS_SUBDIR}" ]; then
   echo "ERROR: run scripts directory not found at:"
