@@ -35,7 +35,7 @@ RUN_SCRIPTS_SUBDIR="AGILE/agile1d/sandbox/paper_v01_code/minimal_run_example"
 PLOT_SCRIPT="plot_example_fig.py"
 
 # Directories for input (experiment outputs) and output (figures)
-OUTPUT_DIR="${OUTPUT_DIR:-${HOST_WORKDIR}/output}"
+OUTPUT_DIR="${OUTPUT_DIR:-${HOST_WORKDIR}/experiment_results}"
 FIGURES_DIR="${FIGURES_DIR:-${HOST_WORKDIR}/figures}"
 
 # --- Basic checks ------------------------------------------------------------
