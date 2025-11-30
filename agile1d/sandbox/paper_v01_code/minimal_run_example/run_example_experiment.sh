@@ -37,7 +37,7 @@ AGILE_IMAGE="${AGILE_IMAGE:-ghcr.io/oggm/agile:20230525}"
 AGILE_REPO_URL="https://github.com/OGGM/AGILE.git"
 
 # Git commit of AGILE to install inside the container (for reproducibility)
-AGILE_COMMIT="330903def7bb612f495ec58db79097c07bfd0613"
+AGILE_COMMIT="07c9b371058459a9a220ecd71417912af4d53e16"
 
 # Subdirectory (inside HOST_WORKDIR) that contains the experiment script & params
 RUN_SCRIPTS_SUBDIR="AGILE/agile1d/sandbox/paper_v01_code/minimal_run_example"
