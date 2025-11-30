@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: light
 #       format_version: '1.5'
-#       jupytext_version: 1.16.1
+#       jupytext_version: 1.16.5
 #   kernelspec:
 #     display_name: Python [conda env:agile_env]
 #     language: python
@@ -21,18 +21,17 @@ import gzip
 import pickle
 import numpy as np
 
-define_new_dir = True
-if define_new_dir:
-    cfg.initialize()
-    working_dir = '/home/www/pschmitt/agile/final_runs_glacier_states/tools_for_analysis/working_dir_reference'
-    cfg.PATHS['working_dir'] = working_dir
-    gdirs = workflow.init_glacier_directories()
+cfg.initialize()
+working_dir = os.path.abspath("../../../../../")
+cfg.PATHS['working_dir'] = working_dir
+gdirs = workflow.init_glacier_directories()
 
+working_dir
 fp_gdirs = {
-    'RGI60-16.02444': '/home/www/pschmitt/agile/final_runs_glacier_states/tools_for_analysis/working_dir_reference/per_glacier/RGI60-16/RGI60-16.02/RGI60-16.02444/',
-    'RGI60-11.01450': '/home/www/pschmitt/agile/final_runs_glacier_states/tools_for_analysis/working_dir_reference/per_glacier/RGI60-11/RGI60-11.01/RGI60-11.01450/',
-    'RGI60-02.05098': '/home/www/pschmitt/agile/final_runs_glacier_states/tools_for_analysis/working_dir_reference/per_glacier/RGI60-02/RGI60-02.05/RGI60-02.05098/',
-    'RGI60-14.06794': '/home/www/pschmitt/agile/final_runs_glacier_states/tools_for_analysis/working_dir_reference/per_glacier/RGI60-14/RGI60-14.06/RGI60-14.06794/',
+    'RGI60-16.02444': os.path.join(working_dir, "per_glacier/RGI60-16/RGI60-16.02/RGI60-16.02444/"),
+    'RGI60-11.01450': os.path.join(working_dir, "per_glacier/RGI60-11/RGI60-11.01/RGI60-11.01450/"),
+    'RGI60-02.05098': os.path.join(working_dir, "per_glacier/RGI60-02/RGI60-02.05/RGI60-02.05098/"),
+    'RGI60-14.06794': os.path.join(working_dir, "per_glacier/RGI60-14/RGI60-14.06/RGI60-14.06794/"),
 }
 
 
