@@ -12,7 +12,7 @@ A preprint describing AGILE v0.1 is available [here](https://doi.org/10.5194/egu
 If you want to reproduce the experiments shown in the preprint, follow these steps:
 
 1. **Download the example experiment script** (Aletsch retreat case):  
-   [run_example_experiment.sh](https://raw.githubusercontent.com/pat-schmitt/AGILE/refs/heads/add_review_request/agile1d/sandbox/paper_v01_code/minimal_run_example/run_example_experiment.sh)
+   [run_example_experiment.sh](https://raw.githubusercontent.com/OGGM/AGILE/refs/heads/master/agile1d/sandbox/paper_v01_code/minimal_run_example/run_example_experiment.sh)
 
 2. **Make the script executable**:  
        chmod +x run_example_experiment.sh
@@ -37,7 +37,7 @@ If you want to reproduce the experiments shown in the preprint, follow these ste
 
 5. **Create example plots**  
    After running the experiment(s), you can create an example plot by running:  
-   [create_example_plot.sh](https://raw.githubusercontent.com/pat-schmitt/AGILE/refs/heads/add_review_request/agile1d/sandbox/paper_v01_code/minimal_run_example/create_example_plot.sh)
+   [create_example_plot.sh](https://raw.githubusercontent.com/OGGM/AGILE/refs/heads/master/agile1d/sandbox/paper_v01_code/minimal_run_example/create_example_plot.sh)
 
    All plotting scripts used for the figures in the publication are available here:  
    <https://github.com/OGGM/AGILE/tree/master/agile1d/sandbox/paper_v01_code/plotting_scripts>  
